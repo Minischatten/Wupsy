@@ -1,0 +1,59 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Rain v1 \u2014 Night study",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": {
+        "center": [
+          960,
+          540
+        ],
+        "size": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "type": "rain",
+      "region": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "composition": "sourceOver",
+      "rain": {
+        "direction": 0,
+        "speed": 900,
+        "density": 100,
+        "length": 32,
+        "width": 1.2,
+        "opacity": {
+          "min": 0.08,
+          "max": 0.24
+        },
+        "seed": 1
+      }
+    },
+    {
+      "image": "assets/foreground.png",
+      "transform": {
+        "center": [
+          960,
+          540
+        ],
+        "size": [
+          1920,
+          1080
+        ]
+      }
+    }
+  ]
+}

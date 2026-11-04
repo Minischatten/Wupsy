@@ -1,0 +1,53 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Clouds Storm",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": {
+        "center": [
+          960,
+          540
+        ],
+        "size": [
+          1920,
+          1080
+        ]
+      },
+      "composition": "replace",
+      "effects": [
+        {
+          "type": "clouds",
+          "primaryField": {
+            "velocity": [
+              18,
+              -2
+            ],
+            "scale": 2800
+          },
+          "secondaryField": {
+            "velocity": [
+              -12,
+              8
+            ],
+            "scale": 5000
+          },
+          "secondaryInfluence": 0.4,
+          "intensity": 0.65,
+          "density": 0.55,
+          "brightness": 1,
+          "shadingAmount": 0.6,
+          "shadingDirection": 45,
+          "seed": 17,
+          "mask": "assets/mask.png",
+          "softness": 0.9
+        }
+      ]
+    }
+  ]
+}

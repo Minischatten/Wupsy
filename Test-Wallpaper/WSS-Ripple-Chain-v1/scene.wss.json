@@ -1,0 +1,16 @@
+{
+  "format": "wss-scene", "version": 1,
+  "title": "WSS Ripple Chain v1 – waterfall and basin",
+  "canvas": {"width":1920,"height":1080},
+  "layers": [{
+    "image":"assets/background.png",
+    "transform":{"center":[960,540],"size":[1920,1080]},
+    "composition":"replace",
+    "effects":[
+      {"type":"ripple","amplitude":18,"wavelength":140,"stretch":3,
+       "direction":180,"travelSpeed":65,"evolutionRate":0.2,"seed":17,"mask":"assets/mask-a.png"},
+      {"type":"ripple","amplitude":8,"wavelength":210,"stretch":1.1,
+       "direction":90,"travelSpeed":15,"evolutionRate":0.1,"seed":981,"mask":"assets/mask-b.png"}
+    ]
+  }]
+}

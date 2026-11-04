@@ -1,0 +1,20 @@
+.build/
+.swiftpm/
+.DS_Store
+*.dmg
+*.app
+*.p12
+*.mobileprovision
+.env
+dist/
+.venv/
+__pycache__/
+*.keychain*
+*.p8
+*.pem
+*.key
+.env.*
+*.log
+
+# Local Wallpaper Engine references are not redistributable project resources.
+/Referenz-Wallpaper/

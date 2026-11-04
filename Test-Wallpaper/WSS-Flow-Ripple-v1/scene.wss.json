@@ -1,0 +1,85 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Flow plus Ripple v1 - side by side",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": {
+        "center": [
+          960,
+          540
+        ],
+        "size": [
+          1920,
+          1080
+        ]
+      },
+      "composition": "replace"
+    },
+    {
+      "image": "assets/tile.png",
+      "transform": {
+        "center": [
+          480,
+          510
+        ],
+        "size": [
+          864,
+          864
+        ]
+      },
+      "effects": [
+        {
+          "type": "flow",
+          "flowMap": {
+            "format": "wss-flow-rgba8",
+            "version": 1,
+            "asset": "assets/flow.png"
+          },
+          "speed": 40,
+          "strength": 18
+        }
+      ]
+    },
+    {
+      "image": "assets/tile.png",
+      "transform": {
+        "center": [
+          1440,
+          510
+        ],
+        "size": [
+          864,
+          864
+        ]
+      },
+      "effects": [
+        {
+          "type": "flow",
+          "flowMap": {
+            "format": "wss-flow-rgba8",
+            "version": 1,
+            "asset": "assets/flow.png"
+          },
+          "speed": 40,
+          "strength": 18
+        },
+        {
+          "type": "ripple",
+          "amplitude": 8,
+          "wavelength": 90,
+          "stretch": 1.4,
+          "direction": 180,
+          "travelSpeed": 18,
+          "evolutionRate": 0.15,
+          "seed": 31337
+        }
+      ]
+    }
+  ]
+}

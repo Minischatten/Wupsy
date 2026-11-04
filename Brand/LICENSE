@@ -1,0 +1,25 @@
+WSS BRANDING GRAPHICS — SEPARATE USAGE POLICY
+
+This file refers exclusively to:
+- Wupsy-Logo-v2.png
+- Wupsy-MenuBar-Icon-v1.png
+- WSS_Logo.png
+
+The separately treated graphic content and its specifically listed technical
+representations are governed by ../BRANDING.md (German) and ../BRANDING.en.md
+(English). The German version prevails in case of unintended substantive
+translation differences. Those files accompany official distributions.
+
+Unchanged official Wupsy applications, official DMGs and unchanged copies of the
+official source repository may be redistributed with these graphics and notices.
+For modified builds/forks, remove or replace the named official graphics unless
+separate express permission has been obtained. This is not a blanket restriction
+on MIT-licensed software, other graphics or existing third-party rights.
+
+This policy makes no unverified claim of registered trademark status or exclusive
+copyright in AI-assisted graphics. It applies only to the extent corresponding
+rights exist; already granted MIT or other usage rights remain unaffected.
+No originally MIT-licensed Ambient graphics are retrospectively restricted.
+
+See ../LICENSE and ../THIRD-PARTY-NOTICES.md for software licensing and origin.
+Contact: kontakt@wirdschonsoftware.com

@@ -1,0 +1,37 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Flow v1 - directions and coverage",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": {
+        "center": [
+          960,
+          540
+        ],
+        "size": [
+          1920,
+          1080
+        ]
+      },
+      "composition": "replace",
+      "effects": [
+        {
+          "type": "flow",
+          "flowMap": {
+            "format": "wss-flow-rgba8",
+            "version": 1,
+            "asset": "assets/flow.png"
+          },
+          "speed": 40,
+          "strength": 18
+        }
+      ]
+    }
+  ]
+}

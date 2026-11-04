@@ -1,0 +1,26 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Clouds v1 — Evening Sky",
+  "canvas": { "width": 1920, "height": 1080 },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": { "center": [960, 540], "size": [1920, 1080] },
+      "opacity": 1,
+      "visible": true,
+      "composition": "replace",
+      "effects": [
+        {
+          "type": "clouds",
+          "velocity": [24, -3],
+          "scale": 600,
+          "intensity": 0.45,
+          "density": 0.5,
+          "seed": 7,
+          "mask": "assets/clouds-mask.png"
+        }
+      ]
+    }
+  ]
+}

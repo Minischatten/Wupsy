@@ -1,0 +1,16 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Ripple v1 – water and stone diagnostic",
+  "canvas": {"width": 1920, "height": 1080},
+  "layers": [{
+    "image": "assets/background.png",
+    "transform": {"center": [960, 540], "size": [1920, 1080]},
+    "composition": "replace",
+    "effects": [{
+      "type": "ripple", "amplitude": 12, "wavelength": 180,
+      "stretch": 1.6, "direction": 180, "travelSpeed": 35,
+      "evolutionRate": 0.35, "seed": 7319, "mask": "assets/mask.png"
+    }]
+  }]
+}
