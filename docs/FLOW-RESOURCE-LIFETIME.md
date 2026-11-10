@@ -70,7 +70,9 @@ recent document actions keep their previous behavior.
 New candidate files undergo all writes, encoding, source/upload-budget validation and
 source/staleness checks before any history is removed. Private transactional candidate
 bytes are separately bounded by the existing 128-MiB working allowance and the
-512-MiB overall staging ceiling (old live bytes plus new candidate bytes). Thus rollback
+512-MiB overall staging ceiling (old live bytes plus new candidate bytes). Paint/region-distance
+working allocations are bounded to 128 MiB; resource validation/preflight must succeed
+before model adoption. Thus rollback
 can temporarily keep old generations alongside the candidate, exceeding 128 MiB of
 private vector staging; this is bounded transaction staging, not an increase of the
 committed-history quota. Current plus retained history plus new registered content

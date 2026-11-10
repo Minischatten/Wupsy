@@ -26,7 +26,12 @@ Save As validates a self-contained independently owned project and exclusively p
 
 Preparation and renderer ownership are separate from immutable document values. A superseded/cancelled apply must not commit stale selection or replace a newer player; retain tasks/resources until actual completion. Player stop releases its runtime ownership; immutable prepared resources may be shared within their documented lifetime. GPU commands retain in-flight resources until completion, including scratch-target leases. Never reuse an output as its own sampled input.
 
-Image effect array order and layer painter order are independent. [Effect planning](../WSS-EFFECTS.md#ordered-stacks) uses explicit stage input/bindings and bounded per-layer/per-flight intermediates, with final transform, layer opacity and composition applied once. Preview and desktop share native rendering; the static editing canvas deliberately omits effects/Rain/Trail. Playback clock is explicit; transient Trail simulation belongs to the player, not the saved document.
+Image effect array order and layer painter order are independent; the
+[shared stack contract](effects/COMMON.md#ordered-stacks) defines stage planning,
+explicit input/bindings, intermediate budgets and final composition.
+Preview and desktop share native rendering; the static editing canvas deliberately
+omits effects/Rain/Trail. Pause/resume uses an explicit elapsed playback clock;
+transient Trail simulation belongs to the player, not the saved document.
 
 ### Apply outcomes
 

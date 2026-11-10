@@ -8,19 +8,29 @@ The layer list controls painter order. Add image, Rain or CursorTrail layers, re
 
 ## Image effects
 
-Add Ripple, Clouds or Flow to the selected image. Effects run in listed order, may repeat and may be reordered. See [technical bounds/defaults](../WSS-EFFECTS.md), including the distinction between slider convenience ranges and valid stored values.
+Add Ripple, Clouds or Flow to the selected image, then select an effect to edit its
+controls. See [shared stack ordering and validation](effects/COMMON.md), including
+the distinction between slider convenience ranges and valid stored values.
 
-- **Ripple:** amplitude, wavelength, stretch, movement direction/speed, evolution, structure rotation, lateral detail and seed. Structure rotation controls the pattern; lateral detail controls displacement transverse to movement. Neither is a camera-perspective control.
-- **Clouds:** intensity, density, scale, signed horizontal/vertical field velocity and brightness, plus secondary X/Y velocity when the scene already contains a secondary field. Secondary scale/influence, softness, shading and Clouds seed remain stored/inspected settings, without separate authoring sliders. Adding Clouds creates a black mask: paint the desired area or explicitly choose Full Image. Opening existing unmasked Clouds does not add a mask or secondary field.
-- **Flow:** speed, strength and edge protection, with direction painting on the canvas. New Flow starts neutral with an empty binary region; it moves nothing until painted. Normal paint establishes area/direction, Neutralize retains area while reducing movement, and Option/Erase removes area and zeroes affected vectors. Coverage remains independent and is not painted by the direction brush.
+- [Ripple](effects/RIPPLE.md): displacement, movement and spatial structure controls.
+- [Clouds](effects/CLOUDS.md): noise, coverage, tone and supported inspector controls;
+  see that contract for the initial mask and retained optional fields.
+- [Flow](effects/FLOW.md): transport controls, direction painting and region semantics;
+  see that contract for neutral insertion state, painting/erasing and atomic Undo.
 
-Select an effect to inspect/edit its mask where supported. Scalar mask painting writes independent generations, never the original file. The selected overlay is editor state; it is not a persisted visual layer. Flow vector and region changes are adopted together or not at all.
+Select an effect to inspect/edit its mask where supported. Scalar mask painting writes
+independent generations, never the original file. The selected overlay is editor state;
+it is not a persisted visual layer.
 
 ## Rain and CursorTrail
 
-Rain is a separate rectangular scene layer. Adjust region and rain controls; place it between images to occlude streaks with foreground content. New Rain uses three editable length/width profiles and density 150 (with a nonzero-count adjustment on very small canvases). Existing profile-less Rain can enable profiles explicitly; loading alone never adds them. The model constructor density 100 is separate from this editor insertion default. Density is an area-based parameter, not an exact total-drop count; edge padding and the scene instance budget also apply.
+[Rain](effects/RAIN.md) is a separate rectangular scene layer. Adjust its region
+and rain controls, and place it between images for foreground occlusion. The Rain
+contract defines profile actions, insertion defaults and density/count semantics.
 
-CursorTrail is a procedural layer controlled by the local pointer in live preview/playback. New trails use two colors and ageGradient; existing multi-color/sampleRandom configurations remain until an explicit two-color conversion. Controls include colors, spatial length, lifetime, width and **Kurvenauslenkung / Curve amount** (0…0.50, default/reset 0.15). Higher curve amount can overshoot corners; it is not temporal smoothing. Lifetime changes scale both fades proportionally. See [Trail](../WSS-TRAIL.md).
+[CursorTrail](../WSS-TRAIL.md) is a procedural layer controlled by the local pointer
+in live preview/playback. Its contract defines controls, defaults, explicit palette
+conversion and proportional lifetime/fade edits.
 
 ## Numeric fields and Undo
 

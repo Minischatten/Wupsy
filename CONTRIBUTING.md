@@ -18,12 +18,14 @@ Formatting is xcrun swift-format using .swift-format. The format script without 
 
 ## Code and documentation map
 
+Start with [PROJECT.md](PROJECT.md) and read only the contracts needed for the current task.
+
 - Sources/Wupsy: SwiftUI/AppKit UI, managed library, native document/renderer, editor, widgets and lifecycle.
 - Sources/CArchive: public ABI declarations for the dynamically linked system libarchive, not a vendored implementation.
 - Tests: isolated unit, filesystem, renderer, editor, playback and recovery checks.
 - Test-Wallpaper: self-generated fixtures and their parameter/rights descriptions.
 - scripts: build/verification, formatting and deterministic fixture generation.
-- [Editor](docs/EDITOR.md), [architecture](docs/ARCHITECTURE.md), [scene format](WSS-SCENE-FORMAT.md), [effects](WSS-EFFECTS.md), [Trail](WSS-TRAIL.md), [backup](BACKUP-FORMAT.md) and [restore](RESTORE-TRANSACTION.md) define the current contracts.
+- [Editor](docs/EDITOR.md), [architecture](docs/ARCHITECTURE.md), [scene format](WSS-SCENE-FORMAT.md), [effect contracts via the index](WSS-EFFECTS.md), [Trail](WSS-TRAIL.md), [backup](BACKUP-FORMAT.md) and [restore](RESTORE-TRANSACTION.md) define the current contracts.
 
 ## Change requirements
 

@@ -26,13 +26,10 @@ T=(1-tension)*(Q-A)/2, k=(1-tension)/6: k=1/6 gives uniform Catmull-Rom,
 whereas k=0.15 corresponds to tension 0.1. Our UI exposes k directly, not that
 inversely related conventional tension.
 
-The UI name is **Kurvenauslenkung / Curve amount**, rather than Kurvenglättung:
-the parameter changes handle reach, not temporal filtering. The range is 0...0.5,
-with a deliberate compatibility default of 0.15 and a labeled reset to that value.
-The JSON field is `curveSmoothing`; absent means 0.15, explicit null/nonfinite/out-of-
-range values reject. New saves encode the value explicitly; older app versions
-with strict field validation may reject such new saves. Existing files open cleanly
-without rewriting, and their palettes/timing values are retained.
+The UI exposes handle reach directly as **Kurvenauslenkung / Curve amount**,
+rather than temporal filtering. The JSON parameter, range/default, reset and
+strict-reader/encoding compatibility belong to the
+[Trail parameter contract](../WSS-TRAIL.md#parameter-contract).
 
 Five equal t subdivisions remain per connection, with two triangles per subdivision.
 This gives up to 30 triangle vertices per connection and controls polygonal

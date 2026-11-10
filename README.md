@@ -37,7 +37,7 @@ For widgets, enable the desired widgets, choose **Edit on desktop**, arrange the
 | Native Wupsy folder / scene.wss.json | Project-local images, masks, fields and regions |
 | Wallpaper Engine projects, PKG/TEX, arbitrary shaders | Unsupported; no automatic conversion |
 
-See [scene support](SCENE-SUPPORT.md), [scene format](WSS-SCENE-FORMAT.md), [effects](WSS-EFFECTS.md) and [CursorTrail](WSS-TRAIL.md). Use only content you are permitted to use. Personal wallpaper photos and masks are not included.
+Start with the [project guide](PROJECT.md) for task-specific documentation. See [scene support](SCENE-SUPPORT.md), [scene format](WSS-SCENE-FORMAT.md), [effect index](WSS-EFFECTS.md) and [CursorTrail](WSS-TRAIL.md). Use only content you are permitted to use. Personal wallpaper photos and masks are not included.
 
 ## Data and backups
 
