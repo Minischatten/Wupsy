@@ -9,11 +9,13 @@ struct WSSSaveSnapshot {
     let diskBasis: WSSProjectDiskBasis
     let resourceCatalog: [String: WSSContentFingerprint]?
     let sessionAssets: [String: WSSImageGeneration]
+    let resourceLease: WSSSessionResourceLease?
     init(
         sessionID: UUID, operationID: UUID, revision: UInt64, model: WSSSceneDocumentV1,
         savedModel: WSSSceneDocumentV1, diskBasis: WSSProjectDiskBasis,
         resourceCatalog: [String: WSSContentFingerprint]? = nil,
-        sessionAssets: [String: WSSImageGeneration] = [:]
+        sessionAssets: [String: WSSImageGeneration] = [:],
+        resourceLease: WSSSessionResourceLease? = nil
     ) {
         self.sessionID = sessionID
         self.operationID = operationID
@@ -23,6 +25,7 @@ struct WSSSaveSnapshot {
         self.diskBasis = diskBasis
         self.resourceCatalog = resourceCatalog
         self.sessionAssets = sessionAssets
+        self.resourceLease = resourceLease
     }
 }
 
@@ -45,7 +48,19 @@ struct WSSEditorDocumentState {
     private(set) var savedRevision: UInt64 = 0
     private(set) var diskBasis: WSSProjectDiskBasis
     private(set) var resourceCatalog: [String: WSSContentFingerprint]
-    private(set) var sessionAssets: [String: WSSImageGeneration] = [:]
+    private var ownedGenerations: [String: WSSImageGeneration] = [:]
+    private let resourcePool = WSSSessionResourcePool()
+    private var vectorGenerationPaths: Set<String> = []
+    var sessionAssets: [String: WSSImageGeneration] {
+        closed ? [:] : resourcePool.liveGenerations()
+    }
+    var protectedGenerationPaths: Set<String> {
+        workingModel.referencedPaths.union(savedModel.referencedPaths).union(
+            resourcePool.pinnedPaths)
+    }
+    func pinPreviewResources(_ paths: Set<String>) -> WSSSessionResourceLease {
+        resourcePool.pin(paths)
+    }
     private var pending: UUID?
     private var closed = false
     var isDirty: Bool { workingModel != savedModel }
@@ -56,29 +71,69 @@ struct WSSEditorDocumentState {
         resourceCatalog = diskBasis.assets
     }
     mutating func retainGeneration(_ generation: WSSImageGeneration) throws {
-        guard !closed, resourceCatalog[generation.path] == nil else {
-            throw WSSImageImportError.storage
-        }
-        let used = sessionAssets.values.reduce(0) { $0 + $1.fingerprint.byteCount }
-        guard generation.fingerprint.byteCount <= WSSImageImporter.stagingLimit - used else {
-            throw WSSImageImportError.stagingBudget
-        }
-        if generation.kind == .vectorField || generation.kind == .flowRegion {
-            try WSSVectorFieldEditorBudget.validateGeneration(
-                byteCount: generation.fingerprint.byteCount, assets: sessionAssets)
-        }
-        sessionAssets[generation.path] = generation
-        resourceCatalog[generation.path] = generation.fingerprint
+        try retainGenerations([generation])
     }
-    mutating func retainGenerations(_ generations: [WSSImageGeneration]) throws {
-        var candidate = self
-        for generation in generations { try candidate.retainGeneration(generation) }
-        self = candidate
+    mutating func retainGenerations(
+        _ generations: [WSSImageGeneration], reusingExisting: Bool = false,
+        excludingHistoryPaths: Set<String> = []
+    ) throws {
+        guard !closed else { throw WSSImageImportError.storage }
+        let live = sessionAssets
+        var candidate = live.filter { !excludingHistoryPaths.contains($0.key) }
+        for generation in generations {
+            if reusingExisting, live[generation.path] === generation {
+                guard resourceCatalog[generation.path] == generation.fingerprint else {
+                    throw WSSImageImportError.storage
+                }
+                continue
+            }
+            guard resourceCatalog[generation.path] == nil, candidate[generation.path] == nil else {
+                throw WSSImageImportError.storage
+            }
+            let used = candidate.values.reduce(0) { $0 + $1.fingerprint.byteCount }
+            guard generation.fingerprint.byteCount <= WSSImageImporter.stagingLimit - used else {
+                throw WSSImageImportError.stagingBudget
+            }
+            if generation.kind == .vectorField || generation.kind == .flowRegion {
+                try WSSVectorFieldEditorBudget.validateGeneration(
+                    byteCount: generation.fingerprint.byteCount, assets: candidate)
+            }
+            candidate[generation.path] = generation
+        }
+        // Register only after the entire batch validates. A rejected batch cannot
+        // enter the weak pool merely because its caller still holds a candidate.
+        for path in vectorGenerationPaths where live[path] == nil {
+            resourceCatalog.removeValue(forKey: path)
+        }
+        vectorGenerationPaths = vectorGenerationPaths.intersection(live.keys)
+        for generation in generations {
+            ownedGenerations[generation.path] = generation
+            resourceCatalog[generation.path] = generation.fingerprint
+            if generation.kind == .vectorField || generation.kind == .flowRegion {
+                vectorGenerationPaths.insert(generation.path)
+            }
+        }
+        resourcePool.register(generations)
+    }
+    private mutating func releaseUnusedVectorOwnership() {
+        let required = workingModel.referencedPaths.union(savedModel.referencedPaths)
+        // During Undo/Redo the consumed action owns the restored resources only
+        // until its callback returns. Acquire model ownership before that release.
+        let live = resourcePool.liveGenerations()
+        for path in required {
+            if let generation = live[path] { ownedGenerations[path] = generation }
+        }
+        ownedGenerations = ownedGenerations.filter {
+            $0.value.kind == .png || required.contains($0.key)
+        }
+        // Undo/Redo and async snapshots keep their own strong generation handles.
+        // Their bytes remain visible to all budget checks through the weak pool.
     }
     mutating func replaceWorkingModel(_ model: WSSSceneDocumentV1) {
         guard !closed, model != workingModel else { return }
         workingModel = model
         workingRevision += 1
+        releaseUnusedVectorOwnership()
     }
     mutating func beginSave() -> WSSSaveSnapshot? {
         guard !closed, pending == nil else { return nil }
@@ -91,7 +146,8 @@ struct WSSEditorDocumentState {
             resourceCatalog: resourceCatalog.filter {
                 workingModel.referencedPaths.contains($0.key)
             },
-            sessionAssets: sessionAssets.filter { workingModel.referencedPaths.contains($0.key) })
+            sessionAssets: sessionAssets.filter { workingModel.referencedPaths.contains($0.key) },
+            resourceLease: resourcePool.pin(workingModel.referencedPaths))
     }
     mutating func accept(_ receipt: WSSSaveReceipt) {
         let snapshot = receipt.snapshot
@@ -103,6 +159,7 @@ struct WSSEditorDocumentState {
         savedModel = snapshot.model
         savedRevision = snapshot.revision
         diskBasis = receipt.diskBasis
+        releaseUnusedVectorOwnership()
     }
     mutating func failed(_ snapshot: WSSSaveSnapshot) {
         guard snapshot.sessionID == sessionID, pending == snapshot.operationID else { return }
@@ -111,6 +168,6 @@ struct WSSEditorDocumentState {
     mutating func close() {
         closed = true
         pending = nil
-        sessionAssets.removeAll()
+        ownedGenerations.removeAll()
     }
 }

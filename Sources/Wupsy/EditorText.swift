@@ -189,6 +189,8 @@ enum EditorText: String, CaseIterable {
     case directionTooLong = "editor.directionTooLong"
     case directionComputeError = "editor.directionComputeError"
     case directionCommitError = "editor.directionCommitError"
+    case directionResourceBudget = "editor.directionResourceBudget"
+    case directionStorageError = "editor.directionStorageError"
     case editDirection = "editor.editDirection"
     case directionPNGHint = "editor.directionPNGHint"
     case paintTool = "editor.paintTool"

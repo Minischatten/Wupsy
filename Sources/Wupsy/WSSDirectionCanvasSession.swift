@@ -145,6 +145,12 @@ struct WSSDirectionPaintFailure: Error {
     }
 }
 
+struct WSSDirectionCommitTimings {
+    let paintMilliseconds: Double
+    let adoptionMilliseconds: Double
+    let inputReadyMilliseconds: Double
+}
+
 private actor WSSDirectionPaintWorker {
     func area(_ field: WSSVectorFieldAsset, region: WSSFlowRegion?, flow: Bool) throws
         -> WSSDirectionArea
@@ -243,6 +249,7 @@ private struct WSSDirectionPreviewRequest {
     let state: WSSDirectionPaintState
     let resources: WSSStaticResources
     let address: WSSEffectAddress
+    let documentRevision: UInt64
 }
 
 @MainActor final class WSSDirectionCanvasSession: ObservableObject, WSSCanvasPaintInteraction {
@@ -256,7 +263,7 @@ private struct WSSDirectionPreviewRequest {
         var subpathStarts: [Int] = []
         var lastPointer: SIMD2<Double>
         var revision: UInt64 = 0
-        var previewBudgetLimited = false
+        var previewSuppressed = false
         var feedbackRevision: UInt64?
         var feedback: WSSDirectionFeedback?
         init(
@@ -286,6 +293,7 @@ private struct WSSDirectionPreviewRequest {
     @Published private(set) var loaded: WSSVectorFieldEdit?
     private(set) var liveResources: WSSStaticResources?
     @Published private(set) var transientState: WSSDirectionPaintState?
+    private(set) var lastCommitTimings: WSSDirectionCommitTimings?
     @Published private(set) var finalizing = false
     @Published private(set) var diameter: Double = 100
     @Published private(set) var magnitude: Float = 1
@@ -297,6 +305,7 @@ private struct WSSDirectionPreviewRequest {
     private var baseArea: WSSDirectionArea?
     @Published private(set) var error: String?
     private(set) var feedbackFailure: WSSDirectionPaintFailure?
+    private(set) var commitFailure: WSSDirectionCommitFailure?
     private(set) var livePreviewBudgetLimited = false
     private(set) var livePreviewAttemptCount = 0
     private(set) var feedbackPaintPassCount = 0
@@ -307,6 +316,10 @@ private struct WSSDirectionPreviewRequest {
     private var loadingStroke: Stroke?
     private var loadTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
+    typealias LivePreviewPreparation = (
+        WSSStaticResources, WSSEffectAddress, WSSDirectionPaintState
+    ) async throws -> WSSStaticResources
+    var livePreviewPreparation: LivePreviewPreparation?
     private let previewWorker = WSSDirectionPreviewWorker()
     private var previewTask: Task<Void, Never>?
     private var pendingPreview: WSSDirectionPreviewRequest?
@@ -525,6 +538,7 @@ private struct WSSDirectionPreviewRequest {
         else { return false }
         error = nil
         feedbackFailure = nil
+        commitFailure = nil
         livePreviewBudgetLimited = false
         livePreviewAttemptCount = 0
         feedbackPaintPassCount = 0
@@ -586,10 +600,6 @@ private struct WSSDirectionPreviewRequest {
                     guard let document else { break }
                     if current.edit == nil { await loadTask?.value }
                     guard stroke?.id == current.id, let edit = current.edit else { break }
-                    if !document.previewIsCurrent { await document.waitForPreview() }
-                    guard document.previewIsCurrent, let address = document.effectAddress else {
-                        throw WSSVectorFieldEditError.stale
-                    }
                     let value: WSSDirectionFeedback
                     let repainted = current.feedbackRevision != revision || current.feedback == nil
                     if !repainted, let cached = current.feedback {
@@ -626,12 +636,14 @@ private struct WSSDirectionPreviewRequest {
                     if current.resolved.target.slot == .flow { flowGlyphs = value.flowGlyphs }
                     onChange?()
                     if repainted, current.resolved.target.slot == .flow,
-                        !current.previewBudgetLimited
+                        !current.previewSuppressed, document.previewIsCurrent,
+                        let address = document.effectAddress
                     {
                         requestLivePreview(
                             WSSDirectionPreviewRequest(
                                 strokeID: current.id, revision: revision, state: value.state,
-                                resources: document.previewResources, address: address))
+                                resources: document.previewResources, address: address,
+                                documentRevision: document.previewRevision))
                     }
                     if latest.revision == revision && queries == currentQueries
                         && (selectionIsFlow ? glyphLayout : nil) == currentLayout
@@ -662,13 +674,23 @@ private struct WSSDirectionPreviewRequest {
             while let request = pendingPreview {
                 pendingPreview = nil
                 guard let current = stroke, current.id == request.strokeID,
-                    !current.previewBudgetLimited, !Task.isCancelled
+                    !current.previewSuppressed, !Task.isCancelled,
+                    document?.previewRevision == request.documentRevision,
+                    document?.state.workingRevision == request.documentRevision
                 else { continue }
                 livePreviewAttemptCount += 1
                 do {
-                    let resources = try await previewWorker.make(request)
+                    let resources: WSSStaticResources
+                    if let livePreviewPreparation {
+                        resources = try await livePreviewPreparation(
+                            request.resources, request.address, request.state)
+                    } else {
+                        resources = try await previewWorker.make(request)
+                    }
                     guard stroke?.id == request.strokeID,
-                        stroke?.revision == request.revision, !Task.isCancelled
+                        stroke?.revision == request.revision, !Task.isCancelled,
+                        document?.previewRevision == request.documentRevision,
+                        document?.state.workingRevision == request.documentRevision
                     else { continue }
                     liveResources = resources
                     document?.objectWillChange.send()
@@ -677,23 +699,28 @@ private struct WSSDirectionPreviewRequest {
                     guard stroke?.id == request.strokeID else { continue }
                     // Resource dimensions/coverage and base resources are fixed for this
                     // capture. Retry only in the next stroke, never for each new sample.
-                    current.previewBudgetLimited = true
+                    current.previewSuppressed = true
                     livePreviewBudgetLimited = true
                     pendingPreview = nil
                 } catch {
                     guard stroke?.id == request.strokeID else { continue }
                     feedbackFailure = WSSDirectionPaintFailure(stage: .livePreview, cause: error)
-                    cancelStroke()
-                    self.error = EditorText.directionComputeError.text
+                    // Optional GPU feedback cannot invalidate CPU authoring. Keep
+                    // the stroke and last valid preview; retry on the next stroke.
+                    current.previewSuppressed = true
+                    pendingPreview = nil
                     onChange?()
                 }
             }
         }
     }
     func finish(_ scene: SIMD2<Float>) {
+        let start = ProcessInfo.processInfo.systemUptime
         append(scene)
         guard let current = stroke, let document else { return }
         stroke = nil
+        pendingPreview = nil
+        lastCommitTimings = nil
         finalizing = true
         document.interactionLocked = true
         document.objectWillChange.send()
@@ -701,6 +728,8 @@ private struct WSSDirectionPreviewRequest {
         let feedback = feedbackTask
         finishTask = Task { [weak self, weak document] in
             guard let self, let document else { return }
+            var paintMilliseconds: Double?
+            var adoptionMilliseconds: Double?
             defer {
                 document.interactionLocked = false
                 finalizing = false
@@ -710,29 +739,50 @@ private struct WSSDirectionPreviewRequest {
                 loadingStroke = nil
                 livePreviewBudgetLimited = false
                 refresh()
+                if let paintMilliseconds, let adoptionMilliseconds {
+                    lastCommitTimings = WSSDirectionCommitTimings(
+                        paintMilliseconds: paintMilliseconds,
+                        adoptionMilliseconds: adoptionMilliseconds,
+                        inputReadyMilliseconds: (ProcessInfo.processInfo.systemUptime - start)
+                            * 1000)
+                }
                 document.objectWillChange.send()
                 onChange?()
             }
             await feedback?.value
-            await previewTask?.value
             if current.edit == nil { await loadTask?.value }
+            var stage = WSSDirectionCommitFailure.Stage.paint
             do {
                 try Task.checkCancellation()
                 guard let edit = current.edit else { throw WSSVectorFieldEditError.stale }
                 guard brushEnabled, !document.closed else { throw WSSVectorFieldEditError.stale }
-                let value = try await worker.paint(
-                    edit: edit, geometry: current.geometry,
-                    points: current.points, subpathStarts: current.subpathStarts,
-                    brush: current.brush)
+                let value: WSSDirectionPaintState
+                if current.feedbackRevision == current.revision, let feedback = current.feedback {
+                    value = feedback.state
+                } else {
+                    value = try await worker.paint(
+                        edit: edit, geometry: current.geometry,
+                        points: current.points, subpathStarts: current.subpathStarts,
+                        brush: current.brush)
+                }
                 try Task.checkCancellation()
+                let adoptionStart = ProcessInfo.processInfo.systemUptime
+                paintMilliseconds = (adoptionStart - start) * 1000
+                stage = .adoption
                 _ = try await document.replaceVectorField(
                     edit, vectors: value.field.vectors, region: value.region,
                     inputAlreadyFinished: true)
-                await document.waitForPreview()
+                adoptionMilliseconds =
+                    (ProcessInfo.processInfo.systemUptime - adoptionStart) * 1000
             } catch {
                 if !document.closed {
-                    self.error =
-                        EditorText.directionCommitError.text
+                    let failure = WSSDirectionCommitFailure(
+                        stage: stage, cause: error,
+                        retainedVectorBytes: document.state.sessionAssets.values.filter {
+                            $0.kind == .vectorField || $0.kind == .flowRegion
+                        }.reduce(0) { $0 + $1.fingerprint.byteCount })
+                    commitFailure = failure
+                    self.error = failure.message
                 }
             }
         }
@@ -787,6 +837,7 @@ private struct WSSDirectionPreviewRequest {
         feedbackTask?.cancel()
         previewTask?.cancel()
         pendingPreview = nil
+        livePreviewPreparation = nil
         cancelStroke()
         explicitBrushEnabled = false
         loaded = nil

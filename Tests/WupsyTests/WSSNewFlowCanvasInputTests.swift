@@ -106,6 +106,9 @@ import XCTest
         await session.waitForLoad()
         XCTAssertEqual(doc.state.workingModel, firstPaint)
         XCTAssertEqual(doc.identity, identity)
+        // Resource-load completion no longer implies preview currency. Wait only
+        // for this GPU-specific assertion; immediate input was already verified.
+        await doc.waitForPreview()
         // A second held stroke publishes a provisional state before mouse-up.
         canvas.surface.mouseDown(with: try event(.leftMouseDown, uv: SIMD2(0.3, 0.7)))
         XCTAssertTrue(session.isDrawing)

@@ -165,7 +165,18 @@ import SwiftUI
     typealias Save = (WSSSaveSnapshot) async throws -> WSSSaveReceipt
     typealias Prepare = (WSSSceneDocumentV1, WSSProjectDiskBasis, WSSProjectHandle) async throws ->
         WSSStaticResources
+    typealias PreviewPrepare = (
+        WSSSceneDocumentV1, WSSProjectDiskBasis, WSSProjectHandle,
+        [String: WSSImageGeneration]
+    ) async throws -> WSSStaticResources
+    private let previewPreparationOverride: PreviewPrepare?
+    private let documentPreviewPreparation = WSSEditorPreviewPreparation()
+    private(set) var directionValidationMilliseconds: Double = 0
+    func recordDirectionValidation(_ milliseconds: Double) {
+        directionValidationMilliseconds = milliseconds
+    }
     let undoManager = WSSEditorUndoManager()
+    let directionUndoHistory = WSSDirectionUndoHistory()
     @Published var saveAsBusy = false
     typealias PublishDraft = (WSSSaveAsSnapshot) async throws -> WSSSaveAsReceipt
     var publishDraft: PublishDraft?
@@ -212,7 +223,11 @@ import SwiftUI
     var rainDrag: (WSSLayerID, WSSRainParameter, WSSSceneDocumentV1)?
     private var drag: (WSSEffectAddress, WSSEditorParameter, Float)?
 
-    init(project: WSSLoadedEditorProject, save: Save? = nil, prepare: Prepare? = nil) {
+    init(
+        project: WSSLoadedEditorProject, save: Save? = nil, prepare: Prepare? = nil,
+        preparePreview: PreviewPrepare? = nil
+    ) {
+        previewPreparationOverride = preparePreview
         let initialIDs = WSSEditorIdentity(project.document)
         snapshot = Snapshot(
             state: WSSEditorDocumentState(model: project.document, diskBasis: project.diskBasis),
@@ -271,8 +286,16 @@ import SwiftUI
     func retainImageGeneration(_ generation: WSSImageGeneration) throws {
         try state.retainGeneration(generation)
     }
-    func retainImageGenerations(_ generations: [WSSImageGeneration]) throws {
-        try state.retainGenerations(generations)
+    func retainImageGenerations(
+        _ generations: [WSSImageGeneration], reusingExisting: Bool = false
+    ) throws {
+        try state.retainGenerations(generations, reusingExisting: reusingExisting)
+    }
+    func retainDirectionGenerations(
+        _ generations: [WSSImageGeneration], excludingHistoryPaths: Set<String>
+    ) throws {
+        try state.retainGenerations(
+            generations, reusingExisting: true, excludingHistoryPaths: excludingHistoryPaths)
     }
     var editorPreviewResources: WSSStaticResources {
         directionSessionStorage?.liveResources ?? previewResources
@@ -399,25 +422,34 @@ import SwiftUI
     }
     func registerModelUndo(
         _ model: WSSSceneDocumentV1, name: String, ids: WSSEditorIdentity? = nil,
-        selected: WSSEditorSelection? = nil
+        selected: WSSEditorSelection? = nil, directional: Bool = false
     ) {
         let undoIDs = ids ?? identity
         let undoSelection = selected ?? selection
+        let resources = state.sessionAssets.filter { model.referencedPaths.contains($0.key) }
+        let entry = WSSModelUndoEntry(
+            resources: resources, directional: directional, redo: undoManager.isUndoing)
+        directionUndoHistory.track(entry)
         undoManager.beginUndoGrouping()
-        undoManager.registerUndo(withTarget: self) { target in
-            target.restoreModel(model, name: name, ids: undoIDs, selected: undoSelection)
+        undoManager.registerUndo(withTarget: entry) { [weak self, entry] _ in
+            entry.consumed = true
+            withExtendedLifetime(entry.resources) {
+                self?.restoreModel(
+                    model, name: name, ids: undoIDs, selected: undoSelection,
+                    directional: directional)
+            }
         }
         undoManager.setActionName(name)
         undoManager.endUndoGrouping()
     }
     private func restoreModel(
         _ model: WSSSceneDocumentV1, name: String, ids: WSSEditorIdentity,
-        selected: WSSEditorSelection?
+        selected: WSSEditorSelection?, directional: Bool
     ) {
         endCanvasTransform()
         finishCanvasInteraction?()
         guard !closed, !interactionLocked, (try? model.scene()) != nil else { return }
-        registerModelUndo(state.workingModel, name: name)
+        registerModelUndo(state.workingModel, name: name, directional: directional)
         let changed = model != state.workingModel
         installSnapshot(model, ids: ids, selected: selected)
         if changed { requestPreview() }
@@ -474,18 +506,27 @@ import SwiftUI
                 let basis = WSSProjectDiskBasis(
                     identity: state.diskBasis.identity, manifest: state.diskBasis.manifest,
                     assets: state.resourceCatalog)
+                // Only the active committed model is pinned, never the whole
+                // history. One worker plus desiredPreview bounds pending work.
+                let paths = model.referencedPaths
+                let resourcesForPreview = state.sessionAssets.filter { paths.contains($0.key) }
+                let lease = state.pinPreviewResources(paths)
                 let start = ProcessInfo.processInfo.systemUptime
                 do {
+                    defer { withExtendedLifetime(lease) {} }
                     let resources: WSSStaticResources
-                    if permitsResourceReuse,
+                    if let previewPreparationOverride {
+                        resources = try await previewPreparationOverride(
+                            model, basis, project.handle, resourcesForPreview)
+                    } else if permitsResourceReuse,
                         let reused = try previewResources.updatingTransforms(
                             from: previewModel, to: model)
                     {
                         resources = reused
-                    } else if permitsResourceReuse, !state.sessionAssets.isEmpty {
-                        resources = try await imagePreparation.prepare(
+                    } else if permitsResourceReuse, !resourcesForPreview.isEmpty {
+                        resources = try await documentPreviewPreparation.prepare(
                             model, basis: basis, handle: project.handle,
-                            sessionAssets: state.sessionAssets)
+                            sessionAssets: resourcesForPreview)
                     } else {
                         resources = try await prepare(model, basis, project.handle)
                     }

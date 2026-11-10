@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "editor.directionResourceBudget": {
+      "comment": "Flow resource lifecycle: safe user-facing failure without private diagnostics.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The stroke exceeds an editor resource limit. Your direction field and Undo/Redo history are unchanged. In a long session, saving and reopening may help; reopening starts a new Undo/Redo history."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Strich überschreitet ein Ressourcenlimit des Editors. Richtungsfeld und Rückgängig-/Wiederholen-Verlauf sind unverändert. Nach langer Bearbeitung kann Speichern und erneutes Öffnen helfen; dabei beginnt ein neuer Verlauf."
+          }
+        }
+      }
+    },
+    "editor.directionStorageError": {
+      "comment": "Flow resource lifecycle: safe user-facing failure without private diagnostics.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The stroke could not be stored temporarily. Your previous direction field is unchanged. Check available disk space and try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Strich konnte nicht temporär gespeichert werden. Das bisherige Richtungsfeld bleibt unverändert. Prüfe den freien Speicherplatz und versuche es erneut."
+          }
+        }
+      }
+    },
     "library.open": {
       "comment": "Phase 12.4A: minimal localization foundation proof.",
       "extractionState": "manual",

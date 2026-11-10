@@ -186,18 +186,72 @@ actor WSSVectorFieldPreparation {
         try basis.verify(handle)
         return region
     }
-    func regionGeneration(_ region: WSSFlowRegion, remainingBudget: Int) throws
+    func reusableGeneration(
+        field: WSSVectorFieldAsset? = nil, region: WSSFlowRegion? = nil,
+        candidates: [String: WSSImageGeneration]
+    ) throws -> WSSImageGeneration? {
+        try Task.checkCancellation()
+        let bytes: Data
+        let kind: WSSEditorAssetKind
+        if let field {
+            bytes = try field.encodedNative()
+            kind = .vectorField
+        } else if let region {
+            bytes = try region.encoded()
+            kind = .flowRegion
+        } else {
+            return nil
+        }
+        let fingerprint = WSSContentFingerprint(bytes)
+        for generation in candidates.values
+        where generation.kind == kind && generation.fingerprint == fingerprint {
+            if try generation.read() == bytes { return generation }
+        }
+        return nil
+    }
+    // A directional edit changes native bytes, not scene topology or texture
+    // dimensions. Keep model/source and upload-budget validation here; full Metal
+    // preview creation must neither gate admission nor share its serial worker.
+    func validateReplacement(
+        _ model: WSSSceneDocumentV1, basis: WSSProjectDiskBasis,
+        handle: WSSProjectHandle, generations: [String: WSSImageGeneration]
+    ) throws {
+        try Task.checkCancellation()
+        _ = try model.encoded()
+        guard try WSSProjectDiskBasis.Identity(handle) == basis.identity,
+            model.referencedPaths.isSubset(of: Set(basis.assets.keys))
+        else { throw WSSSaveError.externalConflict }
+        var assets = try model.assetSource(root: handle.root)
+        assets.sessionAssets = generations
+        for path in model.referencedPaths {
+            try Task.checkCancellation()
+            guard let expected = basis.assets[path],
+                try WSSContentFingerprint(assets.read(path, limit: expected.byteCount)) == expected
+            else { throw WSSSaveError.externalConflict }
+        }
+        try WSSDirectionResourceValidation.validate(model.scene(), assets: assets)
+        guard try WSSProjectDiskBasis.Identity(handle) == basis.identity else {
+            throw WSSSaveError.targetDisappeared
+        }
+    }
+    func regionGeneration(
+        _ region: WSSFlowRegion, remainingBudget: Int,
+        checkpoint: WSSManifestWriter.Checkpoint? = nil
+    ) throws
         -> WSSEditorAssetGeneration
     {
         try Task.checkCancellation()
-        return try .flowRegion(region, remainingBudget: remainingBudget)
+        return try .flowRegion(region, remainingBudget: remainingBudget, checkpoint: checkpoint)
     }
-    func generation(_ field: WSSVectorFieldAsset, remainingBudget: Int) throws
+    func generation(
+        _ field: WSSVectorFieldAsset, remainingBudget: Int,
+        checkpoint: WSSManifestWriter.Checkpoint? = nil
+    ) throws
         -> WSSEditorAssetGeneration
     {
         try Task.checkCancellation()
         let generation = try WSSEditorAssetGeneration.vectorField(
-            field, remainingBudget: remainingBudget)
+            field, remainingBudget: remainingBudget, checkpoint: checkpoint)
         let bytes = try generation.read()
         guard try WSSVectorFieldAsset.decodeNative(bytes).encodedNative() == bytes else {
             throw WSSVectorFieldEditError.invalid
@@ -282,7 +336,8 @@ extension WSSEditorDocument {
     @discardableResult
     func replaceVectorField(
         _ edit: WSSVectorFieldEdit, vectors: Data, region: WSSFlowRegion? = nil,
-        inputAlreadyFinished: Bool = false
+        inputAlreadyFinished: Bool = false,
+        generationCheckpoint: WSSManifestWriter.Checkpoint? = nil
     ) async throws -> Bool {
         try await maintenance.withMutationAsync {
             guard !vectorFieldMutationInProgress else { throw WSSVectorFieldEditError.stale }
@@ -327,26 +382,55 @@ extension WSSEditorDocument {
             let result = WSSVectorFieldAsset(
                 width: original.width, height: original.height, vectors: vectors,
                 coverage: original.coverage, isNeutral: neutral)
+            let reusableField =
+                try await vectorChanged
+                ? worker.reusableGeneration(field: result, candidates: state.sessionAssets) : nil
+            let reusableRegion =
+                try await regionChanged
+                ? worker.reusableGeneration(
+                    region: replacementRegion, candidates: state.sessionAssets)
+                : nil
+            try checkVectorFieldEdit(edit.resolved, inputAlreadyFinished: inputAlreadyFinished)
             let count =
                 WSSVectorFieldAsset.fileHeaderBytes + vectors.count
                 + (original.coverage?.count ?? 0)
-            try WSSVectorFieldEditorBudget.validateGeneration(
-                byteCount: (vectorChanged ? count : 0)
-                    + (regionChanged ? (replacementRegion?.pixels.count ?? 0) + 20 : 0),
-                assets: state.sessionAssets)
-            try checkVectorFieldEdit(edit.resolved, inputAlreadyFinished: inputAlreadyFinished)
-            let generation =
-                try await vectorChanged
-                ? worker.generation(
+            let additionalBytes =
+                (vectorChanged && reusableField == nil ? count : 0)
+                + (regionChanged && reusableRegion == nil
+                    ? (replacementRegion?.pixels.count ?? 0) + 20 : 0)
+            let reusedPaths = Set([reusableField?.path, reusableRegion?.path].compactMap { $0 })
+            // Read-only admission first. Candidates are private transaction staging,
+            // bounded by the existing working and overall staging limits. The
+            // committed retained set must still fit the unchanged 128-MiB quota.
+            let protectedPaths = state.protectedGenerationPaths.union(reusedPaths)
+            _ = try directionUndoHistory.plan(
+                assets: state.sessionAssets, protectedPaths: protectedPaths,
+                additionalBytes: additionalBytes)
+            try WSSVectorFieldEditorBudget.validateWorkingData(byteCount: additionalBytes)
+            let stagedBytes = state.sessionAssets.values.reduce(0) { $0 + $1.fingerprint.byteCount }
+            guard additionalBytes <= WSSImageImporter.stagingLimit - stagedBytes else {
+                throw WSSVectorFieldEditError.budget
+            }
+            let generation: WSSImageGeneration?
+            if let reusableField {
+                generation = reusableField
+            } else if vectorChanged {
+                generation = try await worker.generation(
                     result,
-                    remainingBudget: WSSVectorFieldEditorBudget.remainingGenerationBytes(
-                        assets: state.sessionAssets)) : nil
-            let regionGeneration =
-                try await regionChanged
-                ? worker.regionGeneration(
+                    remainingBudget: additionalBytes, checkpoint: generationCheckpoint)
+            } else {
+                generation = nil
+            }
+            let regionGeneration: WSSImageGeneration?
+            if let reusableRegion {
+                regionGeneration = reusableRegion
+            } else if regionChanged {
+                regionGeneration = try await worker.regionGeneration(
                     replacementRegion!,
-                    remainingBudget: WSSVectorFieldEditorBudget.remainingGenerationBytes(
-                        assets: state.sessionAssets)) : nil
+                    remainingBudget: additionalBytes, checkpoint: generationCheckpoint)
+            } else {
+                regionGeneration = nil
+            }
             try checkVectorFieldEdit(edit.resolved, inputAlreadyFinished: inputAlreadyFinished)
             guard
                 let address = identity.checkedAddress(
@@ -374,9 +458,9 @@ extension WSSEditorDocument {
             let basis = WSSProjectDiskBasis(
                 identity: state.diskBasis.identity, manifest: state.diskBasis.manifest,
                 assets: catalog)
-            _ = try model.encoded()
-            _ = try await imagePreparation.prepare(
-                model, basis: basis, handle: project.handle, sessionAssets: generations)
+            let validationStart = ProcessInfo.processInfo.systemUptime
+            try await worker.validateReplacement(
+                model, basis: basis, handle: project.handle, generations: generations)
             try checkVectorFieldEdit(edit.resolved, inputAlreadyFinished: inputAlreadyFinished)
             // Recheck the source after async preflight, including external file changes.
             _ = try await worker.read(
@@ -387,8 +471,20 @@ extension WSSEditorDocument {
                 edit.resolved, model: before, handle: project.handle,
                 generations: state.sessionAssets, basis: state.diskBasis)
             try checkVectorFieldEdit(edit.resolved, inputAlreadyFinished: inputAlreadyFinished)
-            try retainImageGenerations(replacements)
-            registerModelUndo(before, name: EditorText.replaceVector.text)
+            recordDirectionValidation(
+                (ProcessInfo.processInfo.systemUptime - validationStart) * 1000)
+            // Replan after every fallible/async preflight. No history is changed
+            // until adoption has validated the entire candidate batch. There is no
+            // suspension or throwing operation after that publication boundary.
+            let protected = state.protectedGenerationPaths.union(reusedPaths)
+            let trimming = try directionUndoHistory.plan(
+                assets: state.sessionAssets, protectedPaths: protected,
+                additionalBytes: additionalBytes)
+            let excluded = directionUndoHistory.excludedPaths(
+                removing: trimming, protectedPaths: protected)
+            try retainDirectionGenerations(replacements, excludingHistoryPaths: excluded)
+            directionUndoHistory.commit(trimming, manager: undoManager)
+            registerModelUndo(before, name: EditorText.replaceVector.text, directional: true)
             installMutation(model, ids: nil, selected: nil)
             return true
         }

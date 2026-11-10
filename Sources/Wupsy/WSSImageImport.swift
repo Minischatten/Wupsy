@@ -155,7 +155,10 @@ final class WSSEditorAssetGeneration: @unchecked Sendable {
     convenience init(bytes: Data, width: Int, height: Int) throws {
         try self.init(bytes: bytes, width: width, height: height, kind: .png)
     }
-    static func vectorField(_ field: WSSVectorFieldAsset, remainingBudget: Int) throws
+    static func vectorField(
+        _ field: WSSVectorFieldAsset, remainingBudget: Int,
+        checkpoint: WSSManifestWriter.Checkpoint? = nil
+    ) throws
         -> WSSEditorAssetGeneration
     {
         let count =
@@ -163,18 +166,27 @@ final class WSSEditorAssetGeneration: @unchecked Sendable {
             + (field.coverage?.count ?? 0)
         guard count <= remainingBudget else { throw WSSVectorFieldEditError.budget }
         let bytes = try field.encodedNative()
-        return try Self(bytes: bytes, width: field.width, height: field.height, kind: .vectorField)
+        return try Self(
+            bytes: bytes, width: field.width, height: field.height, kind: .vectorField,
+            checkpoint: checkpoint)
     }
-    static func flowRegion(_ region: WSSFlowRegion, remainingBudget: Int) throws
+    static func flowRegion(
+        _ region: WSSFlowRegion, remainingBudget: Int,
+        checkpoint: WSSManifestWriter.Checkpoint? = nil
+    ) throws
         -> WSSEditorAssetGeneration
     {
         guard region.pixels.count + 20 <= remainingBudget else {
             throw WSSVectorFieldEditError.budget
         }
         return try Self(
-            bytes: region.encoded(), width: region.width, height: region.height, kind: .flowRegion)
+            bytes: region.encoded(), width: region.width, height: region.height, kind: .flowRegion,
+            checkpoint: checkpoint)
     }
-    private init(bytes: Data, width: Int, height: Int, kind: WSSEditorAssetKind) throws {
+    private init(
+        bytes: Data, width: Int, height: Int, kind: WSSEditorAssetKind,
+        checkpoint: WSSManifestWriter.Checkpoint? = nil
+    ) throws {
         self.kind = kind
         path = "assets/editor-" + UUID().uuidString.lowercased() + "." + kind.fileExtension
         stagingName = "asset." + kind.fileExtension
@@ -196,7 +208,7 @@ final class WSSEditorAssetGeneration: @unchecked Sendable {
             throw WSSImageImportError.storage
         }
         do {
-            try WSSAssetIO.write(bytes, to: fd)
+            try WSSAssetIO.write(bytes, to: fd, checkpoint: checkpoint)
             guard fchmod(fd, mode_t(0o400)) == 0 else { throw WSSImageImportError.storage }
             descriptor = fd
         } catch {

@@ -247,7 +247,7 @@ import XCTest
         }
     }
 
-    func testFailedBasePreparationDoesNotPublishObsoleteLiveBindings() async throws {
+    func testFailedBasePreparationKeepsAuthoringWithoutObsoleteLiveBindings() async throws {
         try await fixture.stroke()
         let saved = await doc.save()
         XCTAssertTrue(saved)
@@ -269,10 +269,19 @@ import XCTest
         XCTAssertTrue(directions.begin(geometry.scene(SIMD2(0.2, 0.5)), erase: true))
         directions.append(geometry.scene(SIMD2(0.8, 0.5)))
         await directions.waitForFeedback()
-        XCTAssertFalse(directions.isDrawing)
+        XCTAssertTrue(directions.isDrawing)
+        XCTAssertNotNil(directions.transientState)
         XCTAssertNil(directions.liveResources)
-        XCTAssertNotNil(directions.error)
+        XCTAssertNil(directions.error)
         XCTAssertEqual(failing.state.workingModel, before)
+        XCTAssertTrue(failing.editorPreviewResources === project.resources)
+        directions.finish(geometry.scene(SIMD2(0.8, 0.5)))
+        await directions.waitForFinish()
+        XCTAssertNil(directions.error)
+        XCTAssertNotEqual(failing.state.workingModel, before)
+        await failing.waitForPreview()
+        XCTAssertNotNil(failing.preparationError)
+        XCTAssertNil(directions.liveResources)
         XCTAssertTrue(failing.editorPreviewResources === project.resources)
     }
 
