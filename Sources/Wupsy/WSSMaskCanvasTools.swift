@@ -98,9 +98,11 @@ struct WSSMaskCanvasTools: View {
                 value: Binding(
                     get: { log2(displayedDiameter) }, set: { session.setDiameter(pow(2, $0)) }),
                 in: 0...max(0.001, log2(session.maximumDiameter))
-            )
+            ) {
+                Text(EditorText.maskDiameter.text)
+            }
+            .labelsHidden()
             .frame(minWidth: 50, idealWidth: 75, maxWidth: 110)
-            .accessibilityLabel(EditorText.maskDiameter.text)
             TextField(
                 EditorText.brushSize.text,
                 value: Binding(get: { displayedDiameter }, set: { session.setDiameter($0) }),
@@ -116,9 +118,11 @@ struct WSSMaskCanvasTools: View {
             Text(EditorText.maskOpacity.text).font(.caption)
             Slider(
                 value: Binding(get: { session.opacity }, set: { session.setOpacity($0) }), in: 0...1
-            )
-            .frame(minWidth: 45, idealWidth: 65, maxWidth: 90).accessibilityLabel(
-                EditorText.maskOpacityAX.text)
+            ) {
+                Text(EditorText.maskOpacityAX.text)
+            }
+            .labelsHidden()
+            .frame(minWidth: 45, idealWidth: 65, maxWidth: 90)
             TextField(
                 EditorText.maskOpacity.text,
                 value: Binding(
