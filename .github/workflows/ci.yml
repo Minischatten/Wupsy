@@ -24,7 +24,7 @@ jobs:
       - name: Format
         run: ./scripts/format.sh --check
       - name: Tests
-        run: swift test --jobs 2
+        run: swift test --build-system swiftbuild --jobs 2
       - name: DMG layout tools
         run: |
           python3 -m venv .venv

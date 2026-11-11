@@ -8,7 +8,7 @@ Use Xcode with a Swift 6 toolchain, selected by xcode-select. The package uses S
 
 ```sh
 bash scripts/format.sh --check
-swift test --jobs 2
+swift test --build-system swiftbuild --jobs 2
 bash scripts/build-app.sh
 ```
 

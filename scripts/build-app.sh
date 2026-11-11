@@ -12,7 +12,7 @@ if ! SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)" || [[ ! "$SDK_VERSIO
 fi
 # Swift's -sdk alone can leave Clang's link step using the deployment target
 # as its SDK marker. Supply both versions at link time, never patch the binary.
-BUILD_ARGS=(-c release --arch arm64 --sdk "$SDK_PATH"
+BUILD_ARGS=(--build-system swiftbuild -c release --arch arm64 --sdk "$SDK_PATH"
     -Xlinker -platform_version -Xlinker macos
     -Xlinker "$MACOS_DEPLOYMENT_TARGET" -Xlinker "$SDK_VERSION")
 swift build "${BUILD_ARGS[@]}" --jobs "${BUILD_JOBS:-2}"
