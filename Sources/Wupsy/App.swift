@@ -5,8 +5,16 @@ import SwiftUI
 @MainActor final class WupsyDelegate: NSObject, NSApplicationDelegate {
     static weak var editorCoordinator: WSSEditorCoordinator?
     static weak var restoreCoordinator: LibraryRestoreCoordinator?
+    static weak var updateCoordinator: UpdateCheckCoordinator?
     private var deciding = false
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.updateCoordinator?.start()
+    }
+    func applicationWillTerminate(_ notification: Notification) {
+        Self.updateCoordinator?.shutdown()
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Self.updateCoordinator?.suspendForTermination()
         if MaintenanceCoordinator.shared.state == .restartRequired { return .terminateNow }
         guard !deciding else { return .terminateLater }
         guard let coordinator = Self.editorCoordinator else { return .terminateNow }
@@ -19,7 +27,11 @@ import SwiftUI
                 return
             }
             let approved = await coordinator.approveTermination()
-            if approved { await coordinator.finishTermination() }
+            if approved {
+                await coordinator.finishTermination()
+            } else {
+                Self.updateCoordinator?.cancelTermination()
+            }
             deciding = false
             sender.reply(toApplicationShouldTerminate: approved)
         }
@@ -37,8 +49,15 @@ struct WupsyApp: App {
     @StateObject private var library: Library
     @StateObject private var playlist: WallpaperPlaylist
     @StateObject private var editors: WSSEditorCoordinator
+    @StateObject private var updates: UpdateCheckCoordinator
     init() {
         let benchmark = CommandLine.arguments.contains("--benchmark")
+        let updates = UpdateCheckCoordinator.live(
+            defaults: benchmark
+                ? UserDefaults(suiteName: ProductIdentity.benchmarkDomain)! : .standard)
+        _updates = StateObject(wrappedValue: updates)
+        // Benchmark runs never start a network check, even with retained suite settings.
+        WupsyDelegate.updateCoordinator = benchmark ? nil : updates
         let library: Library
         let playlistURL: URL
         if benchmark {
@@ -146,6 +165,7 @@ struct WupsyApp: App {
             WupsyMenu().environmentObject(library).environmentObject(widgets).environmentObject(
                 playlist
             ).environmentObject(editors).environmentObject(backup).environmentObject(restore)
+                .environmentObject(updates)
         } label: {
             Image(nsImage: MenuBarIcon.image).renderingMode(.template)
                 .accessibilityLabel("Wupsy")
@@ -155,6 +175,7 @@ struct WupsyApp: App {
 }
 
 struct WupsyMenu: View {
+    @EnvironmentObject private var updates: UpdateCheckCoordinator
     @ObservedObject private var maintenance = MaintenanceCoordinator.shared
     @EnvironmentObject private var backup: LibraryBackupCoordinator
     @EnvironmentObject private var restore: LibraryRestoreUI
@@ -220,6 +241,15 @@ struct WupsyMenu: View {
             }
             if let loginError { Text(loginError) }
         }.disabled(!maintenance.allowsNewOperations)
+        Divider()
+        Toggle(
+            UpdateText.automatic.text(),
+            isOn: Binding(
+                get: { updates.automaticEnabled }, set: { updates.setAutomatic($0) })
+        )
+        .disabled(maintenance.state != .normal)
+        Button(UpdateText.checkNow.text()) { updates.checkNow() }
+            .disabled(maintenance.state != .normal)
         Divider()
         Button(ProductText.quit.text) {
             NSApp.terminate(nil)

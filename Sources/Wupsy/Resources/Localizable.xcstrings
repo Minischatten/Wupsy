@@ -1,6 +1,312 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "updates.automatic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically check for updates"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch nach Updates suchen"
+          }
+        }
+      }
+    },
+    "updates.checkNow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for updates now …"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt nach Updates suchen …"
+          }
+        }
+      }
+    },
+    "updates.available": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Wupsy update is available"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Wupsy-Update ist verfügbar"
+          }
+        }
+      }
+    },
+    "updates.availableDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed: %@\nAvailable: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert: %@\nVerfügbar: %@"
+          }
+        }
+      }
+    },
+    "updates.skippedDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You skipped this version for automatic notifications. You can still open its download page."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Version wurde für automatische Hinweise übersprungen. Du kannst ihre Downloadseite weiterhin öffnen."
+          }
+        }
+      }
+    },
+    "updates.current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wupsy is up to date"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wupsy ist aktuell"
+          }
+        }
+      }
+    },
+    "updates.currentDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed version: %@. No newer stable release was found."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installierte Version: %@. Es wurde kein neuerer regulärer Release gefunden."
+          }
+        }
+      }
+    },
+    "updates.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check for updates"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updateprüfung nicht möglich"
+          }
+        }
+      }
+    },
+    "updates.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No public release information is available. The repository may still be private, or no regular release has been published yet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine öffentlichen Releaseinformationen erreichbar. Das Repository ist möglicherweise noch privat oder es wurde noch kein regulärer Release veröffentlicht."
+          }
+        }
+      }
+    },
+    "updates.invalidResponse": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub returned invalid release information. Please try again later."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub hat ungültige Releaseinformationen geliefert. Bitte versuche es später erneut."
+          }
+        }
+      }
+    },
+    "updates.invalidVersion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The installed version or release tag is not a valid major.minor.patch version."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die installierte Version oder der Release-Tag ist keine gültige Version im Format major.minor.patch."
+          }
+        }
+      }
+    },
+    "updates.network": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update service could not be reached. Check your internet connection and try again later."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Updatedienst ist nicht erreichbar. Prüfe deine Internetverbindung und versuche es später erneut."
+          }
+        }
+      }
+    },
+    "updates.cancelled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update check was cancelled."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Updateprüfung wurde abgebrochen."
+          }
+        }
+      }
+    },
+    "updates.server": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update service returned HTTP %lld. Please try again later."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Updatedienst hat HTTP %lld zurückgegeben. Bitte versuche es später erneut."
+          }
+        }
+      }
+    },
+    "updates.rateLimited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub has temporarily limited requests. Please try again after the server’s waiting period."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub hat Anfragen vorübergehend begrenzt. Bitte versuche es nach der vom Server vorgegebenen Wartezeit erneut."
+          }
+        }
+      }
+    },
+    "updates.download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open download page"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloadseite öffnen"
+          }
+        }
+      }
+    },
+    "updates.skip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip this update"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Update überspringen"
+          }
+        }
+      }
+    },
+    "updates.close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
     "editor.directionResourceBudget": {
       "comment": "Flow resource lifecycle: safe user-facing failure without private diagnostics.",
       "localizations": {
