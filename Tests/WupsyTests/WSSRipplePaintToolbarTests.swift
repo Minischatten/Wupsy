@@ -69,6 +69,74 @@ import XCTest
         }
         return walk(root)
     }
+    // Diagnostic only. Do not treat title/help/description as substitutes for
+    // the label required by signature's existing slider assertions.
+    private func sliderAXDetails(_ root: NSObject) -> String {
+        func value(_ object: NSObject, _ name: String) -> Any? {
+            let selector = NSSelectorFromString(name)
+            guard object.responds(to: selector) else { return nil }
+            return object.perform(selector)?.takeUnretainedValue()
+        }
+        func attribute(_ object: NSObject, _ name: String) -> String {
+            guard object.responds(to: NSSelectorFromString(name)) else {
+                return "<unavailable: selector unsupported>"
+            }
+            guard let result = value(object, name) else { return "<unavailable: nil>" }
+            return String(reflecting: result)
+        }
+        func descriptionAttribute(_ object: NSObject) -> String {
+            // AXDescription is the legacy public attribute corresponding to
+            // accessibilityLabel (NSAccessibilityProtocols.h). Query separately
+            // only when the element advertises support for that public API.
+            let selector = NSSelectorFromString("accessibilityAttributeValue:")
+            let name = NSAccessibility.Attribute.description.rawValue
+            guard object.responds(to: selector),
+                let names = value(object, "accessibilityAttributeNames") as? [String],
+                names.contains(name)
+            else { return "<unavailable: legacy AXDescription not advertised>" }
+            guard let result = object.perform(selector, with: name)?.takeUnretainedValue() else {
+                return "<unavailable: nil>"
+            }
+            return String(reflecting: result)
+        }
+        func summary(_ object: NSObject) -> String {
+            "class=\(String(reflecting: type(of: object))) "
+                + "role=\(attribute(object, "accessibilityRole")) "
+                + "subrole=\(attribute(object, "accessibilitySubrole")) "
+                + "label=\(attribute(object, "accessibilityLabel")) "
+                + "title=\(attribute(object, "accessibilityTitle")) "
+                + "AXDescription=\(descriptionAttribute(object)) "
+                + "help=\(attribute(object, "accessibilityHelp")) "
+                + "value=\(attribute(object, "accessibilityValue")) "
+                + "actions=\(attribute(object, "accessibilityActionNames"))"
+        }
+        func relation(_ object: NSObject, _ name: String) -> String {
+            guard object.responds(to: NSSelectorFromString(name)) else {
+                return "<unavailable: selector unsupported>"
+            }
+            guard let result = value(object, name) else { return "<unavailable: nil>" }
+            if let children = result as? [NSObject] {
+                return children.map(summary).joined(separator: "\n    ")
+            }
+            guard let element = result as? NSObject else { return "<unavailable: not an element>" }
+            return summary(element)
+        }
+        var visited = Set<ObjectIdentifier>()
+        func walk(_ object: NSObject) -> [String] {
+            guard visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+            let details =
+                summary(object)
+                + "\n  parent: \(relation(object, "accessibilityParent"))"
+                + "\n  titleUIElement: \(relation(object, "accessibilityTitleUIElement"))"
+                + "\n  children: \(relation(object, "accessibilityChildren"))"
+                + "\n  navigationChildren: \(relation(object, "accessibilityChildrenInNavigationOrder"))"
+            let children =
+                ((value(object, "accessibilityChildren") as? [NSObject]) ?? [])
+                + ((value(object, "accessibilityChildrenInNavigationOrder") as? [NSObject]) ?? [])
+            return [details] + children.flatMap(walk)
+        }
+        return "SLIDER_AX_DETAILS\n" + walk(root).joined(separator: "\n")
+    }
     func signature(
         _ host: NSHostingView<AnyView>, file: StaticString = #filePath, line: UInt = #line
     ) throws -> [String] {
@@ -109,14 +177,16 @@ import XCTest
                 $0.label == EditorText.maskDiameter.text
                     && $0.role == NSAccessibility.Role.slider.rawValue
             },
-            diagnostic("diameter AXSlider with label \(EditorText.maskDiameter.text) must exist"),
+            diagnostic("diameter AXSlider with label \(EditorText.maskDiameter.text) must exist")
+                + "\n" + sliderAXDetails(host),
             file: file, line: line)
         XCTAssertTrue(
             all.contains {
                 $0.label == EditorText.maskOpacityAX.text
                     && $0.role == NSAccessibility.Role.slider.rawValue
             },
-            diagnostic("opacity AXSlider with label \(EditorText.maskOpacityAX.text) must exist"),
+            diagnostic("opacity AXSlider with label \(EditorText.maskOpacityAX.text) must exist")
+                + "\n" + sliderAXDetails(host),
             file: file, line: line)
         XCTAssertTrue(
             all.contains {

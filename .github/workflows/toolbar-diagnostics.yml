@@ -1,0 +1,19 @@
+name: Toolbar accessibility diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  toolbar:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          swift --version
+          xcrun swift-format --version
+      - name: Toolbar tests
+        run: swift test --build-system swiftbuild --jobs 2 --filter '^WupsyTests[.]WSSRipplePaintToolbarTests/'
