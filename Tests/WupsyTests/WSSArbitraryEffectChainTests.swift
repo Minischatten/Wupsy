@@ -15,9 +15,11 @@ final class WSSArbitraryEffectChainTests: XCTestCase {
                 throw WSSDocumentError.missingAsset(id.value)
             }
             let reverse = id.value.contains("B")
-            return WSSMaskAsset(
-                width: 8, height: 8,
-                pixels: Data((0..<64).map { UInt8(reverse ? 255 - $0 * 4 : $0 * 4) }))
+            let pixels: [UInt8] = (0..<64).map { (index: Int) -> UInt8 in
+                let value = index * 4
+                return UInt8(reverse ? 255 - value : value)
+            }
+            return WSSMaskAsset(width: 8, height: 8, pixels: Data(pixels))
         }
         func vectorField(for id: WSSAssetID) throws -> WSSVectorFieldAsset {
             guard !id.value.contains("missing") else {
