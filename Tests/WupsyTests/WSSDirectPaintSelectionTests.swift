@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import XCTest
 
 @testable import Wupsy
@@ -7,6 +8,77 @@ import XCTest
     var fixture: WSSMaskEditingTests!
     var doc: WSSEditorDocument { fixture.doc }
     var mask: WSSMaskCanvasSession { doc.maskCanvas }
+    private var paintTrace: [String] = []
+    private var paintSnapshot: (() -> String)?
+
+    override func record(_ issue: XCTIssue) {
+        if let paintSnapshot {
+            print("DIRECT_PAINT_TRACE\n" + paintTrace.joined(separator: "\n"))
+            print("DIRECT_PAINT_FAILURE " + paintSnapshot())
+            print("DIRECT_PAINT_ACTUAL_BYTES " + String(describing: mask.pixels.map(Array.init)))
+            print("DIRECT_PAINT_ABORT_REASON " + (mask.error ?? "not exposed by session"))
+        }
+        super.record(issue)
+    }
+
+    // Observe only: never await loading, force layout or replace the canvas callbacks.
+    private func tracePaint(_ canvas: WSSCanvasScrollView) -> () -> Void {
+        paintTrace = []
+        paintSnapshot = { [weak self, weak canvas] in
+            guard let self, let canvas else { return "host released" }
+            let a = canvas.viewPoint(for: SIMD2<Float>(0, 0))
+            let b = canvas.viewPoint(for: SIMD2<Float>(1, 0))
+            return "drawing=\(self.mask.isDrawing) finalizing=\(self.mask.finalizing) "
+                + "loaded=\(String(describing: self.mask.loaded?.resolved.target)) "
+                + "geometry=\(String(describing: self.mask.geometry)) "
+                + "revision=\(self.doc.state.workingRevision) "
+                + "selectionRevision=\(self.doc.selectionRevision) "
+                + "zoom=\(b.x - a.x) frame=\(canvas.frame) bounds=\(canvas.bounds) "
+                + "surface=\(canvas.surface.frame) clip=\(canvas.contentView.bounds) "
+                + "key=\(canvas.window?.isKeyWindow == true) active=\(NSApp.isActive) "
+                + "canvasResponder=\(canvas.window?.firstResponder === canvas)"
+        }
+        let changes = mask.objectWillChange.sink { [weak self] _ in
+            self?.traceCheckpoint("session willChange (before mutation)")
+        }
+        let oldFramePosts = canvas.postsFrameChangedNotifications
+        let oldBoundsPosts = canvas.contentView.postsBoundsChangedNotifications
+        canvas.postsFrameChangedNotifications = true
+        canvas.contentView.postsBoundsChangedNotifications = true
+        let center = NotificationCenter.default
+        let observers = [
+            NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification,
+            NSWindow.didResignKeyNotification, NSWindow.didBecomeKeyNotification,
+            NSApplication.didResignActiveNotification,
+        ].map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) {
+                [weak self, weak canvas] note in
+                MainActor.assumeIsolated {
+                    guard let canvas,
+                        (note.object as? NSView) === canvas
+                            || (note.object as? NSView) === canvas.surface
+                            || (note.object as? NSView) === canvas.contentView
+                            || (note.object as? NSWindow) === canvas.window
+                            || (note.object as? NSApplication) === NSApp
+                    else { return }
+                    self?.traceCheckpoint(name.rawValue)
+                }
+            }
+        }
+        traceCheckpoint("trace started")
+        return { [weak self, weak canvas] in
+            changes.cancel()
+            for observer in observers { center.removeObserver(observer) }
+            canvas?.postsFrameChangedNotifications = oldFramePosts
+            canvas?.contentView.postsBoundsChangedNotifications = oldBoundsPosts
+            self?.paintSnapshot = nil
+        }
+    }
+
+    private func traceCheckpoint(_ phase: String) {
+        guard let paintSnapshot else { return }
+        paintTrace.append("\(ProcessInfo.processInfo.systemUptime) \(phase): \(paintSnapshot())")
+    }
     override func setUp() async throws {
         fixture = WSSMaskEditingTests()
         try await fixture.setUp()
@@ -127,27 +199,38 @@ import XCTest
     }
     func testFirstNativePressBeforeExistingMaskLoadUsesScalarBrushAndFrozenErase() async throws {
         let (controller, canvas) = try nativeCanvas()
+        let stopTrace = tracePaint(canvas)
+        defer { stopTrace() }
         selectRipple()
         XCTAssertTrue(mask.brushEnabled)
         XCTAssertNil(mask.loaded)
         let original = doc.state.workingModel
         try down(controller, canvas, SIMD2(32, 32), option: true)
+        traceCheckpoint("first erase mouseDown")
         canvas.surface.mouseDragged(
             with: try event(.leftMouseDragged, canvas: canvas, point: SIMD2(48, 32)))
         canvas.surface.mouseUp(with: try event(.leftMouseUp, canvas: canvas, point: SIMD2(48, 32)))
+        traceCheckpoint("erase mouseUp")
         await mask.waitForFinish()
         await mask.waitForLoad()
+        traceCheckpoint("erase finished and loaded; expected bytes [0, 0]")
         XCTAssertNil(mask.error)
         XCTAssertFalse(mask.finalizing)
         XCTAssertFalse(doc.hasActivePaintInteraction)
-        XCTAssertEqual(mask.pixels, Data([0, 0]))
+        XCTAssertEqual(
+            mask.pixels, Data([0, 0]),
+            "actual=\(String(describing: mask.pixels.map(Array.init))) expected=[0, 0]")
         doc.undoManager.undo()
         await mask.waitForLoad()
         XCTAssertEqual(doc.state.workingModel, original)
-        XCTAssertEqual(mask.pixels, Data([0, 255]))
+        XCTAssertEqual(
+            mask.pixels, Data([0, 255]),
+            "actual=\(String(describing: mask.pixels.map(Array.init))) expected=[0, 255]")
     }
     func testMasklessEffectsPrepareOnlyOnFirstNativeStrokeAndKeepTwoUndoSteps() async throws {
         let (controller, canvas) = try nativeCanvas()
+        let stopTrace = tracePaint(canvas)
+        defer { stopTrace() }
         for kind: WSSAddableEffect in [.ripple, .clouds] {
             doc.select(.layer(doc.identity.layers[0].id))
             try doc.addEffect(kind)
@@ -169,16 +252,19 @@ import XCTest
             let frozenDiameter = mask.diameter
             let frozenOpacity = mask.opacity
             try down(controller, canvas, SIMD2(16, 32))
+            traceCheckpoint("\(kind) mouseDown")
             canvas.surface.mouseDragged(
                 with: try event(.leftMouseDragged, canvas: canvas, point: SIMD2(32, 32)))
             canvas.surface.mouseUp(
                 with: try event(.leftMouseUp, canvas: canvas, point: SIMD2(48, 32)))
+            traceCheckpoint("\(kind) mouseUp")
             XCTAssertTrue(mask.finalizing)
             XCTAssertEqual(doc.state.workingModel, before)
             XCTAssertFalse(doc.canSave)
             await mask.waitForFinish()
             await mask.waitForLoad()
             await doc.waitForPreview()
+            traceCheckpoint("\(kind) finished/loaded/preview; expected nonzero painted bytes")
             XCTAssertNil(mask.error)
             XCTAssertFalse(mask.finalizing)
             XCTAssertFalse(doc.interactionLocked)
@@ -200,7 +286,9 @@ import XCTest
                 .pixels
             XCTAssertEqual(
                 paintedPixels, expected,
-                "Buffered first input must equal the existing streaming scalar painter")
+                "Buffered first input must equal the existing streaming scalar painter; "
+                    + "actual=\(String(describing: paintedPixels.map(Array.init))) expected=\(Array(expected))"
+            )
             doc.undoManager.undo()
             XCTAssertEqual(doc.state.workingModel, before)
             XCTAssertNil(doc.selectedMaskTarget)
@@ -208,7 +296,10 @@ import XCTest
             doc.undoManager.redo()
             await mask.waitForLoad()
             XCTAssertEqual(doc.state.workingModel, painted)
-            XCTAssertEqual(mask.pixels, paintedPixels)
+            XCTAssertEqual(
+                mask.pixels, paintedPixels,
+                "actual=\(String(describing: mask.pixels.map(Array.init))) expected=\(String(describing: paintedPixels.map(Array.init)))"
+            )
         }
     }
     func testCancelledPendingInputCannotCreateMaskOrRetargetToClouds() async throws {

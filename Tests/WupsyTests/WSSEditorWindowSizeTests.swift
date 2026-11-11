@@ -95,6 +95,7 @@ import XCTest
         firstController.windowDidEndLiveResize(note)
         let saved = try XCTUnwrap(preferences.saved)
         XCTAssertEqual(saved, window.frame.size)
+        let unchangedFirstFrame = window.frame
         let otherDraft = try await fixture.draft()
         defer { try? otherDraft.handle.draftOwner?.discard() }
         let receipt = try await fixture.store().publishWSSDraft(fixture.snapshot(otherDraft))
@@ -106,7 +107,16 @@ import XCTest
             secondController.close()
         }
         let otherWindow = try XCTUnwrap(secondController.window)
-        XCTAssertEqual(otherWindow.frame.size, saved)
+        let restoredVisible = try XCTUnwrap(otherWindow.screen?.visibleFrame)
+        let restoredMinimum = otherWindow.frameRect(
+            forContentRect: NSRect(origin: .zero, size: WSSEditorWindowSize.minimumContent)
+        ).size
+        let expectedSize = preferences.initialFrame(
+            in: restoredVisible, minimum: restoredMinimum
+        ).size
+        XCTAssertEqual(otherWindow.frame.size, expectedSize)
+        XCTAssertEqual(preferences.saved, saved)
+        XCTAssertEqual(window.frame, unchangedFirstFrame)
         let unchangedOtherFrame = otherWindow.frame
         let visible = try XCTUnwrap(window.screen?.visibleFrame)
         let smaller = NSRect(origin: visible.origin, size: NSSize(width: 800, height: 500))
