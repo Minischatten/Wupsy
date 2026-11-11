@@ -157,21 +157,30 @@ import XCTest
         await assertScalar(.ripple)
         XCTAssertFalse(doc.isDirty)
     }
-    func nativeCanvas() throws -> (WSSEditorWindowController, WSSCanvasScrollView) {
+    func nativeCanvas() throws -> (NSWindow, WSSCanvasScrollView) {
         _ = NSApplication.shared
-        let controller = WSSEditorWindowController(document: doc, onClose: {})
-        controller.window?.contentView?.layoutSubtreeIfNeeded()
-        func find(_ view: NSView) -> WSSCanvasScrollView? {
-            if let canvas = view as? WSSCanvasScrollView { return canvas }
-            return view.subviews.lazy.compactMap(find).first
-        }
-        let canvas = try XCTUnwrap(find(try XCTUnwrap(controller.window?.contentView)))
+        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let window = NSWindow(
+            contentRect: .zero, styleMask: [.titled, .closable, .resizable],
+            backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let frame = NSRect(
+            origin: visible.origin,
+            size: NSSize(width: min(800, visible.width), height: min(600, visible.height)))
+        window.setFrame(frame, display: false)
+        // Exercise native input without the editor's conditional SwiftUI toolbars
+        // changing the viewport while the deliberately early stroke is pending.
+        let canvas = WSSCanvasScrollView(document: doc)
+        window.contentView = canvas
+        canvas.frame = NSRect(origin: .zero, size: window.contentLayoutRect.size)
+        canvas.autoresizingMask = [.width, .height]
+        canvas.update(doc, zoom: 1)
         canvas.layoutSubtreeIfNeeded()
         addTeardownBlock { @MainActor in
             canvas.shutdown()
-            controller.close()
+            window.close()
         }
-        return (controller, canvas)
+        return (window, canvas)
     }
     func event(
         _ type: NSEvent.EventType, canvas: WSSCanvasScrollView, point: SIMD2<Float>,
@@ -186,26 +195,31 @@ import XCTest
                 clickCount: 1, pressure: 1))
     }
     func down(
-        _ controller: WSSEditorWindowController, _ canvas: WSSCanvasScrollView,
+        _ window: NSWindow, _ canvas: WSSCanvasScrollView,
         _ point: SIMD2<Float>, option: Bool = false
     ) throws {
         let e = try event(.leftMouseDown, canvas: canvas, point: point, option: option)
-        let root = try XCTUnwrap(controller.window?.contentView)
+        let root = try XCTUnwrap(window.contentView)
         let parent = try XCTUnwrap(root.superview)
         let hit = try XCTUnwrap(root.hitTest(parent.convert(e.locationInWindow, from: nil)))
         XCTAssertTrue(hit === canvas.surface)
+        XCTAssertEqual(canvas.presentationZoom, 1)
         hit.mouseDown(with: e)
         XCTAssertTrue(mask.isDrawing)
     }
     func testFirstNativePressBeforeExistingMaskLoadUsesScalarBrushAndFrozenErase() async throws {
-        let (controller, canvas) = try nativeCanvas()
+        let (window, canvas) = try nativeCanvas()
+        let stableFrame = canvas.frame
+        let stableSurface = canvas.surface.frame
         let stopTrace = tracePaint(canvas)
         defer { stopTrace() }
         selectRipple()
         XCTAssertTrue(mask.brushEnabled)
         XCTAssertNil(mask.loaded)
         let original = doc.state.workingModel
-        try down(controller, canvas, SIMD2(32, 32), option: true)
+        XCTAssertEqual(canvas.frame, stableFrame)
+        XCTAssertEqual(canvas.surface.frame, stableSurface)
+        try down(window, canvas, SIMD2(32, 32), option: true)
         traceCheckpoint("first erase mouseDown")
         canvas.surface.mouseDragged(
             with: try event(.leftMouseDragged, canvas: canvas, point: SIMD2(48, 32)))
@@ -214,6 +228,9 @@ import XCTest
         await mask.waitForFinish()
         await mask.waitForLoad()
         traceCheckpoint("erase finished and loaded; expected bytes [0, 0]")
+        XCTAssertEqual(canvas.frame, stableFrame)
+        XCTAssertEqual(canvas.surface.frame, stableSurface)
+        XCTAssertEqual(canvas.presentationZoom, 1)
         XCTAssertNil(mask.error)
         XCTAssertFalse(mask.finalizing)
         XCTAssertFalse(doc.hasActivePaintInteraction)
@@ -228,7 +245,9 @@ import XCTest
             "actual=\(String(describing: mask.pixels.map(Array.init))) expected=[0, 255]")
     }
     func testMasklessEffectsPrepareOnlyOnFirstNativeStrokeAndKeepTwoUndoSteps() async throws {
-        let (controller, canvas) = try nativeCanvas()
+        let (window, canvas) = try nativeCanvas()
+        let stableFrame = canvas.frame
+        let stableSurface = canvas.surface.frame
         let stopTrace = tracePaint(canvas)
         defer { stopTrace() }
         for kind: WSSAddableEffect in [.ripple, .clouds] {
@@ -251,7 +270,10 @@ import XCTest
             mask.setOpacity(0.45)
             let frozenDiameter = mask.diameter
             let frozenOpacity = mask.opacity
-            try down(controller, canvas, SIMD2(16, 32))
+            XCTAssertEqual(canvas.frame, stableFrame)
+            XCTAssertEqual(canvas.surface.frame, stableSurface)
+            XCTAssertNil(mask.loaded)
+            try down(window, canvas, SIMD2(16, 32))
             traceCheckpoint("\(kind) mouseDown")
             canvas.surface.mouseDragged(
                 with: try event(.leftMouseDragged, canvas: canvas, point: SIMD2(32, 32)))
@@ -265,6 +287,9 @@ import XCTest
             await mask.waitForLoad()
             await doc.waitForPreview()
             traceCheckpoint("\(kind) finished/loaded/preview; expected nonzero painted bytes")
+            XCTAssertEqual(canvas.frame, stableFrame)
+            XCTAssertEqual(canvas.surface.frame, stableSurface)
+            XCTAssertEqual(canvas.presentationZoom, 1)
             XCTAssertNil(mask.error)
             XCTAssertFalse(mask.finalizing)
             XCTAssertFalse(doc.interactionLocked)

@@ -78,36 +78,58 @@ import XCTest
         host.layoutSubtreeIfNeeded()
         host.display()
         let all = nodes(host)
+        func diagnostic(_ requirement: String) -> String {
+            "Toolbar AX requirement: \(requirement)\n"
+                + "host=\(host.frame) window=\(String(describing: host.window?.frame)) "
+                + "active=\(NSApp.isActive) key=\(host.window?.isKeyWindow == true)\n"
+                + all.enumerated().map { index, node in
+                    "[\(index)] role=\(node.role) label=\(String(reflecting: node.label)) "
+                        + "identifier=\(String(reflecting: node.identifier)) "
+                        + "value=\(String(reflecting: node.value)) actions=\(node.actions)"
+                }.joined(separator: "\n")
+        }
         let brush = try XCTUnwrap(
-            all.first { $0.identifier == "wss.mask.brush-title" }, file: file, line: line)
-        XCTAssertEqual(brush.role, NSAccessibility.Role.staticText.rawValue, file: file, line: line)
+            all.first { $0.identifier == "wss.mask.brush-title" },
+            diagnostic("brush title identifier wss.mask.brush-title must exist"),
+            file: file, line: line)
+        XCTAssertEqual(
+            brush.role, NSAccessibility.Role.staticText.rawValue,
+            diagnostic("brush title must have AXStaticText role"), file: file, line: line)
         XCTAssertFalse(
-            brush.actions.contains(NSAccessibility.Action.press.rawValue), file: file, line: line)
+            brush.actions.contains(NSAccessibility.Action.press.rawValue),
+            diagnostic("brush title must not expose AXPress"), file: file, line: line)
         XCTAssertFalse(
             all.contains {
                 ($0.label == EditorText.brush.text || $0.value == EditorText.brush.text)
                     && ($0.role == NSAccessibility.Role.button.rawValue
                         || $0.role == NSAccessibility.Role.checkBox.rawValue)
-            }, file: file, line: line)
+            }, diagnostic("brush title must not be a button or checkbox"), file: file, line: line)
         XCTAssertTrue(
             all.contains {
                 $0.label == EditorText.maskDiameter.text
                     && $0.role == NSAccessibility.Role.slider.rawValue
-            }, file: file, line: line)
+            },
+            diagnostic("diameter AXSlider with label \(EditorText.maskDiameter.text) must exist"),
+            file: file, line: line)
         XCTAssertTrue(
             all.contains {
                 $0.label == EditorText.maskOpacityAX.text
                     && $0.role == NSAccessibility.Role.slider.rawValue
-            }, file: file, line: line)
+            },
+            diagnostic("opacity AXSlider with label \(EditorText.maskOpacityAX.text) must exist"),
+            file: file, line: line)
         XCTAssertTrue(
             all.contains {
                 $0.value == EditorText.optionErase.text || $0.label == EditorText.optionErase.text
-            }, file: file, line: line)
+            },
+            diagnostic(
+                "Option erase hint \(EditorText.optionErase.text) must exist as label or value"),
+            file: file, line: line)
         XCTAssertFalse(
             all.contains {
                 $0.value == EditorText.maskBlackHint.text
                     || $0.label == EditorText.maskBlackHint.text
-            }, file: file, line: line)
+            }, diagnostic("obsolete black mask hint must not exist"), file: file, line: line)
         let roles: [NSAccessibility.Role] = [
             .staticText, .slider, .textField, .menuButton, .popUpButton,
         ]
