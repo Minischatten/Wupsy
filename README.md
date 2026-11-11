@@ -1,3 +1,5 @@
+[English](README.md) | [Deutsch](README.de.md)
+
 <p align="center"><img src="Brand/Wupsy-Logo-v2.png" width="112" alt="Wupsy icon"></p>
 <h1 align="center">Wupsy</h1>
 

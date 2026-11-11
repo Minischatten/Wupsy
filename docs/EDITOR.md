@@ -1,3 +1,5 @@
+[English](EDITOR.md) | [Deutsch](EDITOR.de.md)
+
 # Native editor
 
 ## Create or open
