@@ -1,7 +1,7 @@
 <p align="center"><img src="Brand/Wupsy-Logo-v2.png" width="112" alt="Wupsy icon"></p>
 <h1 align="center">Wupsy</h1>
 
-Wupsy is a native SwiftUI/AppKit wallpaper and desktop-widget app for **macOS 14+ on Apple silicon**. It plays videos, images, GIFs, local web content and editable native Wupsy scenes.
+Wupsy brings animated wallpapers, a built-in wallpaper editor and desktop widgets to **macOS 14+ on Apple silicon**. Create and edit your own animated wallpapers, play videos, images, GIFs and local web content, and arrange widgets on your desktop. Wupsy is a native SwiftUI/AppKit app, originally based on Ambient and substantially extended with its own wallpaper editor and native scene features; see [license and origin](#license-and-origin).
 
 **Early preview:** compatibility and performance are evolving. Development builds are ad-hoc signed, not Developer ID signed or notarized. No fixed CPU, memory or battery budget is promised.
 
@@ -9,10 +9,16 @@ Wupsy is a native SwiftUI/AppKit wallpaper and desktop-widget app for **macOS 14
 
 - Original-quality looping video, with optional Balanced/Eco conversion and a bounded completed-copy cache.
 - Native Flow, Ripple and Clouds image effects, Rain and CursorTrail layers.
-- Native project creation, masks, Flow direction/region painting, live preview, Undo/Redo, Save and Save As.
+- Built-in editor for native Wupsy projects, with masks, Flow direction/region painting, live preview, Undo/Redo, Save and Save As.
 - Managed library imports, favorites, named playlists, manual backup and restore.
 - Clock, date, CPU, estimated memory and network widgets; movable desktop layout and offline custom HTML/CSS widgets.
 - Multiple displays, launch at login, sleep-aware playback and bounded video recovery.
+
+## Built-in wallpaper editor
+
+Start with your own PNG or JPEG image, or open an existing native Wupsy project. Arrange image layers, move, resize and rotate them, and add Flow for directional motion, Ripple for wave distortion or Clouds for animated cloud patterns. Paint masks to choose where supported effects appear, and paint Flow directions and regions to control movement. Rain and pointer-driven CursorTrail can be added as separate layers.
+
+Use the static editing canvas to arrange the layout and Live Preview to check the animation. Undo/Redo lets you revise edits; Save and Save As keep your work as editable native projects. Imported originals remain unchanged. See [the editor guide](docs/EDITOR.md) for workflows and limitations. The editor works with native Wupsy scenes; it does not convert arbitrary Wallpaper Engine projects.
 
 ## Use Wupsy
 
@@ -20,7 +26,7 @@ Build from source below. In a disk-image distribution, copy Wupsy.app to Applica
 
 Choose **Add wallpaper** in the library to import supported media, a web folder containing index.html, or a native folder containing scene.wss.json. Imports copy content into Wupsy's managed library and leave originals unchanged. Reimporting creates a separate copy. Removing a managed item deletes its local copy.
 
-Use the native editor to create a project or edit an imported native wallpaper. See [the editor guide](docs/EDITOR.md). Closing the library does not stop playback; quit Wupsy from the menu bar to stop it.
+Closing the library does not stop playback; quit Wupsy from the menu bar to stop it.
 
 Named playlists contain library entries; activation requires at least two distinct available wallpapers. Each playlist has its own interval and sequential/shuffle mode. Pause freezes rotation. Manual Apply or Stop disables rotation without deleting playlist definitions. Deleting a playlist never deletes its wallpapers.
 
