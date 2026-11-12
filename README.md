@@ -34,15 +34,23 @@ Named playlists contain library entries; activation requires at least two distin
 
 For widgets, enable the desired widgets, choose **Edit on desktop**, arrange them and choose **Done**. Custom widgets use the [local widget package format](WIDGETS.md).
 
-## Supported content
+## Supported Wallpaper Formats
 
-| Content | Support |
-|---|---|
-| MP4, MOV, M4V | macOS-playable codecs; H.264/HEVC recommended |
-| PNG, JPEG, HEIC, TIFF | Static images |
-| GIF | Native ImageIO animation |
-| HTML / local web folders | WebKit wallpapers; scripts may access the network |
-| Native Wupsy folder / scene.wss.json | Project-local images, masks, fields and regions |
+| Type | Formats | Support |
+|---|---|---|
+| Static images | PNG, JPEG / JPG, HEIC, TIFF | Static desktop wallpapers |
+| Animated GIFs | GIF | Animated desktop wallpapers |
+| Videos | MP4 | Looping video wallpapers with Original, Balanced and Eco quality |
+| Local web wallpapers | HTML, CSS, JavaScript | Local HTML projects with animations, scripts and local resources |
+| Native scenes | WSS (`scene.wss.json`) | Native scene editor, live preview and animated desktop rendering |
+
+These formats have been tested in practice. GIF animation, MP4 playback with quality settings, and local web wallpapers were tested on macOS 26 and 27. PNG and JPEG were also tested with automatic wallpaper changes.
+
+Video playback requires a codec that macOS can play; H.264/HEVC are recommended. The importer also accepts MOV and M4V, but these containers have not yet been practically verified.
+
+**Media import is separate from scene editing.** The native WSS editor currently imports PNG and JPEG as image layers; importing other media does not make them editable scene layers.
+
+Web wallpapers are local HTML files or project folders containing `index.html`, with CSS, JavaScript and local resources. They are not general-purpose browser windows. Scripts may access the network.
 
 Start with the [project guide](PROJECT.md) for task-specific documentation. See [scene support](SCENE-SUPPORT.md), [scene format](WSS-SCENE-FORMAT.md), [effect index](WSS-EFFECTS.md) and [CursorTrail](WSS-TRAIL.md). Use only content you are permitted to use. Personal wallpaper photos and masks are not included.
 

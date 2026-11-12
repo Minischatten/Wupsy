@@ -34,15 +34,23 @@ Benannte Wiedergabelisten enthalten Mediathekseinträge; zur Aktivierung sind mi
 
 Aktiviere für Widgets die gewünschten Widgets, wähle **Desktop-Widgets bearbeiten**, ordne sie an und wähle **Widget-Bearbeitung beenden**. Eigene Widgets verwenden das [lokale Widget-Paketformat](WIDGETS.md).
 
-## Unterstützte Inhalte
+## Unterstützte Wallpaper-Formate
 
-| Inhalt | Unterstützung |
-|---|---|
-| MP4, MOV, M4V | Von macOS abspielbare Codecs; H.264/HEVC empfohlen |
-| PNG, JPEG, HEIC, TIFF | Statische Bilder |
-| GIF | Native ImageIO-Animation |
-| HTML / lokale Webordner | WebKit-Wallpaper; Skripte können auf das Netzwerk zugreifen |
-| Nativer Wupsy-Ordner / scene.wss.json | Projektlokale Bilder, Masken, Felder und Regionen |
+| Typ | Formate | Unterstützung |
+|---|---|---|
+| Statische Bilder | PNG, JPEG / JPG, HEIC, TIFF | Statische Desktop-Wallpaper |
+| Animierte GIFs | GIF | Animierte Desktop-Wallpaper |
+| Videos | MP4 | Video-Wallpaper mit Endloswiedergabe und den Qualitätsstufen Original, Ausgewogen und Effizient |
+| Lokale Web-Wallpaper | HTML, CSS, JavaScript | Lokale HTML-Projekte mit Animationen, Skripten und lokalen Ressourcen |
+| Native Szenen | WSS (`scene.wss.json`) | Nativer Szeneneditor, Live-Vorschau und animierte Desktop-Darstellung |
+
+Diese Formate wurden praktisch getestet. GIF-Animationen, MP4-Wiedergabe samt Qualitätsstufen und lokale Web-Wallpaper wurden unter macOS 26 und 27 geprüft. PNG und JPEG wurden auch mit dem automatischen Wallpaperwechsel getestet.
+
+Die Videowiedergabe setzt einen von macOS abspielbaren Codec voraus; H.264/HEVC werden empfohlen. Der Import akzeptiert außerdem MOV und M4V; diese Container wurden bisher jedoch nicht praktisch geprüft.
+
+**Medienimport und Szenenbearbeitung sind getrennte Funktionen.** Der native WSS-Editor importiert derzeit PNG und JPEG als Bildebenen; andere importierte Medien werden dadurch nicht zu bearbeitbaren Szenenebenen.
+
+Web-Wallpaper sind lokale HTML-Dateien oder Projektordner mit `index.html`, CSS, JavaScript und lokalen Ressourcen. Sie sind keine allgemeinen Browserfenster. Skripte können auf das Netzwerk zugreifen.
 
 Beginne für aufgabenspezifische Dokumentation mit dem [Projektwegweiser](PROJECT.md). Siehe außerdem [Szenenunterstützung](SCENE-SUPPORT.md), [Szenenformat](WSS-SCENE-FORMAT.md), [Effektindex](WSS-EFFECTS.md) und [CursorTrail](WSS-TRAIL.md). Verwende nur Inhalte, zu deren Nutzung du berechtigt bist. Persönliche Wallpaper-Fotos und Masken sind nicht enthalten.
 

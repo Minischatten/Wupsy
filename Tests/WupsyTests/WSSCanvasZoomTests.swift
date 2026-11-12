@@ -44,14 +44,18 @@ import XCTest
         try await helper.tearDown()
         helper = nil
     }
-    func key(_ characters: String, ignoring: String? = nil, flags: NSEvent.ModifierFlags = .command)
+    func key(
+        _ characters: String, ignoring: String? = nil,
+        flags: NSEvent.ModifierFlags = .command, keyCode: UInt16 = 24
+    )
         throws -> NSEvent
     {
         try XCTUnwrap(
             NSEvent.keyEvent(
                 with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
                 windowNumber: window.windowNumber, context: nil, characters: characters,
-                charactersIgnoringModifiers: ignoring ?? characters, isARepeat: false, keyCode: 24))
+                charactersIgnoringModifiers: ignoring ?? characters, isARepeat: false,
+                keyCode: keyCode))
     }
     func testWindowCommandsHandlePlusEqualsShiftPlusMinusAndFitWithoutCanvasFocus() throws {
         var state: CGFloat? = 1
@@ -163,6 +167,117 @@ import XCTest
         XCTAssertEqual(editor.selectedRange(), range)
         XCTAssertFalse(doc.isDirty)
         XCTAssertFalse(doc.undoManager.canUndo)
+    }
+    func testGermanPlusAndWindowDispatchApplyEachZoomExactlyOnce() throws {
+        var changes: [CGFloat?] = []
+        canvas.onZoom = { changes.append($0) }
+        window.sendEvent(try key("+", ignoring: "+", keyCode: 30))
+        XCTAssertEqual(canvas.presentationZoom, 1.25)
+        XCTAssertEqual(changes.count, 1)
+        window.sendEvent(try key("+", ignoring: "+", flags: [.command, .shift], keyCode: 30))
+        XCTAssertEqual(canvas.presentationZoom, 1.5625)
+        XCTAssertEqual(changes.count, 2)
+        window.sendEvent(try key("-", keyCode: 44))
+        XCTAssertEqual(canvas.presentationZoom, 1.25)
+        XCTAssertEqual(changes.count, 3)
+        for (characters, flags): (String, NSEvent.ModifierFlags) in [
+            ("+", []), ("+", [.command, .option]), ("-", [.command, .control]),
+            ("s", .command), ("o", .command), ("p", [.command, .shift]),
+        ] {
+            XCTAssertNil(WSSCanvasZoomCommand.decode(try key(characters, flags: flags)))
+        }
+    }
+    func testCommandZeroUsesFitGeometryAndUpdatesSharedPresentationState() throws {
+        var state: CGFloat? = 1
+        canvas.onZoom = { state = $0 }
+        XCTAssertTrue(canvas.performZoom(.actualSize))
+        window.sendEvent(try key("0", keyCode: 29))
+        XCTAssertNil(state)
+        XCTAssertNil(canvas.presentationZoom)
+        let expected = WSSCanvasGeometry.fit(
+            scene: canvas.surface.sceneSize,
+            viewport: CGSize(
+                width: max(1, canvas.contentSize.width - 56),
+                height: max(1, canvas.contentSize.height - 56)))
+        let left = canvas.viewPoint(for: SIMD2(0, 0))
+        let right = canvas.viewPoint(for: SIMD2(1920, 0))
+        XCTAssertEqual((right.x - left.x) / 1920, expected, accuracy: 0.000001)
+        XCTAssertLessThan(expected, 1)
+        let center = canvas.viewPoint(for: SIMD2(960, 540))
+        canvas.applyMagnification(0.25, at: center)
+        XCTAssertEqual(try XCTUnwrap(state), expected * 1.25, accuracy: 0.000001)
+        XCTAssertEqual(state, canvas.presentationZoom)
+    }
+    func testKeyboardZoomPreservesBrushSettingsForEffectAndImageSelection() async throws {
+        _ = try helper.target()
+        await doc.maskCanvas.waitForLoad()
+        doc.maskCanvas.setDiameter(17)
+        doc.maskCanvas.setOpacity(0.4)
+        doc.maskCanvas.setBrush(true)
+        let diameter = doc.maskCanvas.diameter
+        let opacity = doc.maskCanvas.opacity
+        let model = doc.state.workingModel
+        let layer = doc.identity.layers[0]
+        for selection in [WSSEditorSelection.effect(layer.id, layer.effects[0]), .layer(layer.id)] {
+            doc.select(selection)
+            for character in ["+", "-", "0"] {
+                XCTAssertTrue(window.performKeyEquivalent(with: try key(character)))
+                XCTAssertEqual(doc.selection, selection)
+                XCTAssertEqual(doc.maskCanvas.diameter, diameter)
+                XCTAssertEqual(doc.maskCanvas.opacity, opacity)
+                XCTAssertEqual(doc.state.workingModel, model)
+            }
+        }
+        XCTAssertFalse(doc.isDirty)
+        XCTAssertFalse(doc.undoManager.canUndo)
+    }
+    func testZoomCommandsAreUnavailableInLibraryWindowAndClosedEditor() throws {
+        let library = NSWindow(
+            contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+        library.isReleasedWhenClosed = false
+        defer { library.close() }
+        XCTAssertNil(WSSEditorCommands.inWindow(library))
+        XCTAssertNil(WSSEditorCommands.inWindow(nil))
+        let commands = WSSEditorCommands(document: doc, window: window)
+        XCTAssertTrue(commands.canPerform(.zoom(.zoomIn)))
+        doc.close()
+        for action: WSSCanvasZoomCommand in [.zoomIn, .zoomOut, .fit] {
+            XCTAssertFalse(commands.canPerform(.zoom(action)))
+            XCTAssertFalse(canvas.performZoom(action))
+        }
+        XCTAssertEqual(canvas.presentationZoom, 1)
+    }
+    func testKeyboardZoomIsConsumedWithoutChangingPendingOrActiveTransform() throws {
+        let id = doc.identity.layers.last!.id
+        doc.select(.layer(id))
+        XCTAssertTrue(doc.activateTransformMode(id))
+        canvas.update(doc, zoom: 1)
+        let center = canvas.viewPoint(for: SIMD2(960, 540))
+        func mouse(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+            try XCTUnwrap(
+                NSEvent.mouseEvent(
+                    with: type, location: canvas.surface.convert(point, to: nil), modifierFlags: [],
+                    timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1,
+                    clickCount: 1, pressure: 1))
+        }
+        canvas.surface.mouseDown(with: try mouse(.leftMouseDown, center))
+        XCTAssertTrue(canvas.isTransforming)
+        for character in ["+", "-", "0"] {
+            XCTAssertTrue(window.performKeyEquivalent(with: try key(character)))
+            XCTAssertEqual(canvas.presentationZoom, 1)
+        }
+        let moved = CGPoint(x: center.x + 12, y: center.y)
+        canvas.surface.mouseDragged(with: try mouse(.leftMouseDragged, moved))
+        XCTAssertNotNil(doc.canvasTransform)
+        let model = doc.state.workingModel
+        for character in ["+", "-", "0"] {
+            XCTAssertTrue(window.performKeyEquivalent(with: try key(character)))
+            XCTAssertEqual(canvas.presentationZoom, 1)
+            XCTAssertEqual(doc.state.workingModel, model)
+            XCTAssertNotNil(doc.canvasTransform)
+        }
+        canvas.surface.mouseUp(with: try mouse(.leftMouseUp, moved))
+        XCTAssertEqual(doc.transformModeLayer, id)
     }
     func testInvalidOrZeroMagnificationIsNoOp() {
         for delta: CGFloat in [0, -.infinity, .nan, -1] {
