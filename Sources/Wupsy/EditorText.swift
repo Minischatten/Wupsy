@@ -55,6 +55,8 @@ enum EditorText: String, CaseIterable {
     case scaleX = "editor.scaleX"
     case scaleY = "editor.scaleY"
     case rotation = "editor.rotation"
+    case transform = "editor.transform"
+    case transformImage = "editor.transformImage"
     case transformHint = "editor.transformHint"
     case moveImage = "editor.moveImage"
     case scaleImage = "editor.scaleImage"

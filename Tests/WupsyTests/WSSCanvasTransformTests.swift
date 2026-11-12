@@ -562,6 +562,121 @@ import simd
         XCTAssertTrue(doc.isDirty)
     }
 
+    private func singleMouseEvent(
+        _ type: NSEvent.EventType, at point: CGPoint,
+        canvas: WSSCanvasScrollView, window: NSWindow
+    ) -> NSEvent {
+        NSEvent.mouseEvent(
+            with: type, location: canvas.surface.convert(point, to: nil), modifierFlags: [],
+            timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1,
+            clickCount: 1, pressure: 1)!
+    }
+    private func freeCanvasPoint(_ canvas: WSSCanvasScrollView) throws -> CGPoint {
+        let rect = canvas.surface.visibleRect
+        let point = CGPoint(x: rect.minX + 12, y: rect.minY + 12)
+        XCTAssertTrue(rect.contains(point))
+        XCTAssertNil(canvas.canvasHit(at: point))
+        return point
+    }
+    func testBackgroundSingleClickLeavesTransformModeWithoutChangingSelectionOrModel() throws {
+        let (canvas, window) = canvasWindow()
+        defer {
+            canvas.shutdown()
+            window.close()
+        }
+        let id = doc.identity.layers[1].id
+        doc.select(.layer(id))
+        XCTAssertTrue(doc.activateTransformMode(id))
+        canvas.update(doc, zoom: 3)
+        let before = doc.state.workingModel
+        let point = try freeCanvasPoint(canvas)
+        canvas.surface.mouseDown(
+            with: singleMouseEvent(.leftMouseDown, at: point, canvas: canvas, window: window))
+        canvas.surface.mouseUp(
+            with: singleMouseEvent(.leftMouseUp, at: point, canvas: canvas, window: window))
+        XCTAssertNil(doc.transformModeLayer)
+        XCTAssertFalse(canvas.surface.showsTransformHandles)
+        XCTAssertEqual(doc.selection, .layer(id))
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertFalse(doc.undoManager.canUndo)
+        XCTAssertFalse(doc.isDirty)
+    }
+    func testImageAndHandleSingleClicksKeepTransformMode() throws {
+        let (canvas, window) = canvasWindow()
+        defer {
+            canvas.shutdown()
+            window.close()
+        }
+        let id = doc.identity.layers[1].id
+        doc.select(.layer(id))
+        XCTAssertTrue(doc.activateTransformMode(id))
+        canvas.update(doc, zoom: 3)
+        let before = doc.state.workingModel
+        let center = canvas.viewPoint(for: SIMD2(32, 32))
+        let corner = canvas.viewPoint(for: SIMD2(64, 64))
+        XCTAssertEqual(canvas.canvasHit(at: center), .image(id))
+        XCTAssertEqual(canvas.canvasHit(at: corner), .corner(id, 2))
+        for point in [center, corner] {
+            canvas.surface.mouseDown(
+                with: singleMouseEvent(.leftMouseDown, at: point, canvas: canvas, window: window))
+            XCTAssertEqual(doc.transformModeLayer, id)
+            canvas.surface.mouseUp(
+                with: singleMouseEvent(.leftMouseUp, at: point, canvas: canvas, window: window))
+            XCTAssertEqual(doc.transformModeLayer, id)
+            XCTAssertTrue(canvas.surface.showsTransformHandles)
+        }
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertFalse(doc.undoManager.canUndo)
+    }
+    func testBackgroundWithoutTransformModePreservesSelectionAndModel() throws {
+        let (canvas, window) = canvasWindow()
+        defer {
+            canvas.shutdown()
+            window.close()
+        }
+        let selection = doc.selection
+        let before = doc.state.workingModel
+        let point = try freeCanvasPoint(canvas)
+        canvas.surface.mouseDown(
+            with: singleMouseEvent(.leftMouseDown, at: point, canvas: canvas, window: window))
+        canvas.surface.mouseUp(
+            with: singleMouseEvent(.leftMouseUp, at: point, canvas: canvas, window: window))
+        XCTAssertNil(doc.transformModeLayer)
+        XCTAssertEqual(doc.selection, selection)
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertFalse(doc.undoManager.canUndo)
+    }
+    func testBackgroundDownDuringPendingOrActiveDragDoesNotLeaveMode() throws {
+        let (canvas, window) = canvasWindow()
+        defer {
+            canvas.shutdown()
+            window.close()
+        }
+        let id = doc.identity.layers[1].id
+        doc.select(.layer(id))
+        XCTAssertTrue(doc.activateTransformMode(id))
+        canvas.update(doc, zoom: 3)
+        let center = canvas.viewPoint(for: SIMD2(32, 32))
+        let background = try freeCanvasPoint(canvas)
+        canvas.surface.mouseDown(
+            with: singleMouseEvent(.leftMouseDown, at: center, canvas: canvas, window: window))
+        canvas.surface.mouseDown(
+            with: singleMouseEvent(.leftMouseDown, at: background, canvas: canvas, window: window))
+        XCTAssertEqual(doc.transformModeLayer, id)
+        let moved = CGPoint(x: center.x + 12, y: center.y)
+        canvas.surface.mouseDragged(
+            with: singleMouseEvent(.leftMouseDragged, at: moved, canvas: canvas, window: window))
+        XCTAssertNotNil(doc.canvasTransform)
+        canvas.surface.mouseDown(
+            with: singleMouseEvent(.leftMouseDown, at: background, canvas: canvas, window: window))
+        XCTAssertEqual(doc.transformModeLayer, id)
+        XCTAssertNotNil(doc.canvasTransform)
+        canvas.surface.mouseUp(
+            with: singleMouseEvent(.leftMouseUp, at: moved, canvas: canvas, window: window))
+        XCTAssertEqual(doc.transformModeLayer, id)
+        XCTAssertNil(doc.canvasTransform)
+    }
+
     func testSelectionAndSingleDragDoNotActivateTransformOrMutate() throws {
         let (canvas, window) = canvasWindow()
         defer {

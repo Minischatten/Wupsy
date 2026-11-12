@@ -17,6 +17,21 @@ struct WSSEditorView: View {
                 HStack {
                     Text(EditorText.canvas.text).font(.headline)
                     Spacer()
+                    if case .layer(let id) = document.selection, document.canTransform(id) {
+                        Button {
+                            document.activateStructureRow(.layer(id))
+                        } label: {
+                            Label(
+                                EditorText.transform.text,
+                                systemImage: "arrow.up.left.and.arrow.down.right")
+                        }
+                        .accessibilityLabel(EditorText.transformImage.text)
+                        .accessibilityIdentifier("wss.canvas.transform")
+                        .disabled(
+                            document.paintBrushEnabled || document.hasActivePaintInteraction
+                                || document.canvasTransform != nil || document.saving
+                                || document.saveAsBusy)
+                    }
                     Menu(zoom.map { "\(Int($0 * 100))%" } ?? EditorText.fit.text) {
                         Button(EditorText.fit.text) { zoom = nil }
                         ForEach([25, 50, 100, 200], id: \.self) { value in
@@ -105,18 +120,24 @@ struct WSSEditorView: View {
                                 enabled: !document.interactionLocked,
                                 action: { try? document.toggleVisibility(id) }
                             ).frame(width: 26, height: 26)
+                            if document.canTransform(id) {
+                                Image(systemName: "photo")
+                                    .frame(width: 26, height: 26)
+                                    .contentShape(Rectangle())
+                                    .help(EditorText.transformHint.text)
+                                    .accessibilityLabel(EditorText.transformImage.text)
+                                    .simultaneousGesture(
+                                        TapGesture(count: 2).onEnded {
+                                            document.activateStructureRow(row.id)
+                                        }
+                                    )
+                            }
                         } else {
                             Image(systemName: row.symbol)
                         }
                         Text(row.title)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
-                            .help(document.transformHelp(for: row.id) ?? "")
-                            .simultaneousGesture(
-                                TapGesture(count: 2).onEnded {
-                                    document.activateStructureRow(row.id)
-                                }
-                            )
                     }
                     .padding(.leading, CGFloat(row.depth) * 18)
                     .contentShape(Rectangle())

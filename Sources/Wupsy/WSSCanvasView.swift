@@ -251,6 +251,8 @@ struct WSSCanvasView: NSViewRepresentable {
         if window?.firstResponder !== self {
             guard window?.makeFirstResponder(self) == true else { return }
         }
+        let interactionInProgress =
+            pending != nil || panPoint != nil || document.canvasTransform != nil
         // A new mouse-down also ends an abandoned drag whose outside mouse-up
         // was not delivered. Space is a held key, never a latched tool choice.
         if panPoint != nil { endPan() }
@@ -267,7 +269,15 @@ struct WSSCanvasView: NSViewRepresentable {
             surface.maskCursor = scene
             return
         }
-        guard let hit = canvasHit(at: point) else { return }
+        guard let hit = canvasHit(at: point) else {
+            if event.type == .leftMouseDown, event.clickCount == 1,
+                !interactionInProgress, document.transformModeLayer != nil
+            {
+                _ = document.cancelTransformInteraction()
+                surface.update(document)
+            }
+            return
+        }
         document.select(.layer(hit.layer))
         if event.clickCount >= 2 { document.activateTransformMode(hit.layer) }
         surface.update(document)

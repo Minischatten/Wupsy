@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "editor.transform" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transform"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transformieren"
+          }
+        }
+      }
+    },
+    "editor.transformImage" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transform selected image"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewähltes Bild transformieren"
+          }
+        }
+      }
+    },
     "updates.automatic": {
       "extractionState": "manual",
       "localizations": {
