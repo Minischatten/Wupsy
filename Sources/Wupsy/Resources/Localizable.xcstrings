@@ -1840,13 +1840,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deletes optimized videos in the cache and stops playback and playlist rotation. Needed files are recreated automatically."
+            "value": "Deletes unused optimized videos from the cache. Files currently used for playback are kept."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Löscht optimierte Videos im Cache und beendet die Wiedergabe samt Playlistrotation. Benötigte Dateien werden bei Bedarf neu erstellt."
+            "value": "Löscht nicht verwendete optimierte Videos im Cache. Aktuell zur Wiedergabe verwendete Dateien bleiben erhalten."
           }
         }
       }

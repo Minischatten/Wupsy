@@ -95,7 +95,11 @@ final class ProductCoreLocalizationTests: XCTestCase {
             ProductText.clearOptimized.localized(language: "en"), "Clear optimized copies")
         XCTAssertEqual(
             ProductText.clearCacheHelp.localized(language: "de"),
-            "Löscht optimierte Videos im Cache und beendet die Wiedergabe samt Playlistrotation. Benötigte Dateien werden bei Bedarf neu erstellt."
+            "Löscht nicht verwendete optimierte Videos im Cache. Aktuell zur Wiedergabe verwendete Dateien bleiben erhalten."
+        )
+        XCTAssertEqual(
+            ProductText.clearCacheHelp.localized(language: "en"),
+            "Deletes unused optimized videos from the cache. Files currently used for playback are kept."
         )
         XCTAssertEqual(
             ProductText.clearCacheHelp.localized(language: "zz"),

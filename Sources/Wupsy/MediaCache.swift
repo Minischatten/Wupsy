@@ -139,13 +139,21 @@ actor ImageLoader {
     static let budget: Int64 = 1024 * 1024 * 1024
     let directory: URL
     private var session: AVAssetExportSession?
-    init(directory: URL? = nil) {
+    private let removeFile: (URL) throws -> Void
+    init(
+        directory: URL? = nil,
+        removeFile: @escaping (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+    ) {
         self.directory =
             directory
             ?? ProductPaths.current.videoCache
+        self.removeFile = removeFile
     }
     func cancel() { session?.cancelExport() }
-    func preparedURL(for item: Wallpaper, profile: QualityProfile) async throws -> URL {
+    func preparedURL(
+        for item: Wallpaper, profile: QualityProfile,
+        protectedURLs: () -> [URL] = { [] }
+    ) async throws -> URL {
         guard item.kind == .video, profile != .original else { return item.url }
         try Task.checkCancellation()
         let asset = AVURLAsset(url: item.url)
@@ -233,11 +241,18 @@ actor ImageLoader {
                 "The efficient copy exceeds the 1 GB cache budget. Choose a shorter video or Original quality."
             )
         }
-        try trim(to: Self.budget - size)
+        try trim(to: Self.budget - size, excluding: protectedURLs())
         try FileManager.default.moveItem(at: temporary, to: output)
         return output
     }
-    func trim(to budget: Int64) throws {
+    func trim(to budget: Int64, excluding usedURLs: [URL] = []) throws {
+        let cache = directory.standardizedFileURL.resolvingSymlinksInPath()
+        // Only direct members of this cache can be protected. Canonical URLs also
+        // match percent-encoded paths and macOS /var -> /private/var aliases.
+        let protected = Set(
+            usedURLs.filter { $0.isFileURL }.map {
+                $0.standardizedFileURL.resolvingSymlinksInPath()
+            }.filter { $0.deletingLastPathComponent() == cache })
         let files =
             (try? FileManager.default.contentsOfDirectory(
                 at: directory,
@@ -252,7 +267,10 @@ actor ImageLoader {
         }
         var total = entries.reduce(Int64(0)) { $0 + Int64($1.1?.fileSize ?? 0) }
         for (url, value) in entries where total > budget {
-            try FileManager.default.removeItem(at: url)
+            guard !protected.contains(url.standardizedFileURL.resolvingSymlinksInPath()) else {
+                continue
+            }
+            try removeFile(url)
             total -= Int64(value?.fileSize ?? 0)
         }
     }

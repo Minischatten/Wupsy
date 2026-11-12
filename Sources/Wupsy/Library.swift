@@ -170,6 +170,7 @@ import SwiftUI
     private let targetScreens: () -> [NSScreen]
     private let rendererStart: @MainActor (Renderer, Int) throws -> Void
     private let scenePreparation: (Wallpaper) async throws -> PreparedScenePlayback
+    private let makeVideoOptimizer: @MainActor () -> VideoOptimizer
     init(
         maintenance: MaintenanceCoordinator? = nil,
         storage: URL? = nil, defaults: UserDefaults = .standard, restoreOnLaunch: Bool = true,
@@ -179,12 +180,14 @@ import SwiftUI
         },
         scenePreparation: @escaping (Wallpaper) async throws -> PreparedScenePlayback = {
             try await ScenePlayback.prepare(for: $0)
-        }
+        },
+        makeVideoOptimizer: @escaping @MainActor () -> VideoOptimizer = { VideoOptimizer() }
     ) {
         self.maintenance = maintenance ?? .shared
         self.targetScreens = targetScreens
         self.rendererStart = rendererStart
         self.scenePreparation = scenePreparation
+        self.makeVideoOptimizer = makeVideoOptimizer
         self.storage =
             storage
             ?? ProductPaths.current.library
@@ -586,11 +589,13 @@ import SwiftUI
             await MaintenanceOperation.$id.withValue(admission.id) {
 
                 do {
-                    let optimizer = VideoOptimizer()
+                    let optimizer = makeVideoOptimizer()
                     let scenePlayback =
                         item.kind == .scene
                         ? try await scenePreparation(item) : nil
-                    let url = try await optimizer.preparedURL(for: item, profile: quality)
+                    let url = try await optimizer.preparedURL(
+                        for: item, profile: quality,
+                        protectedURLs: { [weak self] in self?.renderers.map(\.mediaURL) ?? [] })
                     try Task.checkCancellation()
                     guard generation == ticket else { return }
                     let available = targetScreens()
@@ -829,10 +834,12 @@ import SwiftUI
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
         try? maintenance.withMutation {
 
-            stop()
+            guard !preparing else {
+                message = ProductText.operationWait.text
+                return
+            }
             do {
-                try VideoOptimizer().trim(to: 0)
-                Task { await ImageLoader.shared.clear() }
+                try makeVideoOptimizer().trim(to: 0, excluding: renderers.map(\.mediaURL))
             } catch { showProductError(error.localizedDescription, presentation: .cacheError) }
 
         }
