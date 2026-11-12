@@ -20,7 +20,7 @@ Wupsy bietet animierte Wallpaper, einen eingebauten Wallpaper-Editor und Desktop
 
 Beginne mit einem eigenen PNG- oder JPEG-Bild oder öffne ein vorhandenes natives Wupsy-Projekt. Ordne Bildebenen an, verschiebe, skaliere und drehe sie und füge Flow für gerichtete Bewegung, Ripple für Wellenverzerrung oder Clouds für animierte Wolkenmuster hinzu. Male Masken, um festzulegen, in welchen Bereichen unterstützte Effekte sichtbar sind, und male Flow-Richtungen und -Regionen, um die Bewegung zu steuern. Rain und der vom Mauszeiger gesteuerte CursorTrail lassen sich als separate Ebenen hinzufügen.
 
-Nutze die statische Arbeitsfläche zum Anordnen des Layouts und die Live-Vorschau zum Prüfen der Animation. Mit Rückgängig/Wiederholen kannst du Bearbeitungsschritte revidieren; Sichern und Sichern unter erhalten deine Arbeit als bearbeitbare native Projekte. Importierte Originale bleiben unverändert. Die [Editor-Anleitung](docs/EDITOR.de.md) beschreibt Abläufe und Einschränkungen. Der Editor arbeitet mit nativen Wupsy-Szenen; beliebige Wallpaper-Engine-Projekte werden nicht konvertiert.
+Nutze die statische Arbeitsfläche zum Anordnen des Layouts und die Live-Vorschau zum Prüfen der Animation. Mit Rückgängig/Wiederholen kannst du Bearbeitungsschritte revidieren; Sichern und Sichern unter erhalten deine Arbeit als bearbeitbare native Projekte. Importierte Originale bleiben unverändert. Die [Editor-Anleitung](docs/EDITOR.de.md) beschreibt Abläufe und Einschränkungen. Der Editor arbeitet mit nativen Wupsy-Szenen.
 
 ## Wupsy verwenden
 
@@ -43,7 +43,6 @@ Aktiviere für Widgets die gewünschten Widgets, wähle **Desktop-Widgets bearbe
 | GIF | Native ImageIO-Animation |
 | HTML / lokale Webordner | WebKit-Wallpaper; Skripte können auf das Netzwerk zugreifen |
 | Nativer Wupsy-Ordner / scene.wss.json | Projektlokale Bilder, Masken, Felder und Regionen |
-| Wallpaper-Engine-Projekte, PKG/TEX, beliebige Shader | Nicht unterstützt; keine automatische Konvertierung |
 
 Beginne für aufgabenspezifische Dokumentation mit dem [Projektwegweiser](PROJECT.md). Siehe außerdem [Szenenunterstützung](SCENE-SUPPORT.md), [Szenenformat](WSS-SCENE-FORMAT.md), [Effektindex](WSS-EFFECTS.md) und [CursorTrail](WSS-TRAIL.md). Verwende nur Inhalte, zu deren Nutzung du berechtigt bist. Persönliche Wallpaper-Fotos und Masken sind nicht enthalten.
 
@@ -77,6 +76,6 @@ Siehe [Bereitstellung und Signierung](DISTRIBUTION.md). Entwicklungsbuilds benö
 
 ## Lizenz und Herkunft
 
-Wupsy ist ein unabhängig weiterentwickelter Fork von [Ambient](https://github.com/Claude-Reverser/Ambient), ursprünglich von Claude-Reverser und weiteren Mitwirkenden. Die ursprüngliche [MIT-Lizenz samt Copyright-Hinweisen](LICENSE) bleibt erhalten. Die [Drittanbieterhinweise](THIRD-PARTY-NOTICES.md) nennen aktuelle Quellenangaben und historische Grenzen des Herkunftsnachweises. Wupsy steht in keiner Verbindung zu Wallpaper Engine, Steam oder Apple.
+Wupsy ist ein unabhängig weiterentwickelter Fork von [Ambient](https://github.com/Claude-Reverser/Ambient), ursprünglich von Claude-Reverser und weiteren Mitwirkenden. Die ursprüngliche [MIT-Lizenz samt Copyright-Hinweisen](LICENSE) bleibt erhalten. Die [Drittanbieterhinweise](THIRD-PARTY-NOTICES.md) nennen aktuelle Quellenangaben und historische Grenzen des Herkunftsnachweises.
 
 Für die drei ausdrücklich aufgeführten WSS-Branding-Grafiken und ihre technischen Darstellungen als Symbole beziehungsweise Hintergründe gelten gesonderte Nutzungsregeln: [Deutsch](BRANDING.md) / [English](BRANDING.en.md), mit [Brand/LICENSE](Brand/LICENSE). Unveränderte offizielle Apps, DMGs und unveränderte offizielle Quellcodekopien dürfen mit ihren Grafiken und Hinweisen weitergegeben werden. Veränderte Builds/Forks müssen diese offiziellen Grafiken ersetzen oder entfernen, sofern keine gesonderte Erlaubnis vorliegt; bereits bestehende Rechte bleiben vorbehalten. Dies schränkt weder MIT-lizenzierten Code ein noch nachträglich die Nutzung von Ambient-Assets; es werden weder exklusive Urheberrechte an KI-Grafiken noch eingetragene Markenrechte behauptet.
