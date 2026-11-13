@@ -449,12 +449,14 @@ struct WSSCanvasView: NSViewRepresentable {
     }
     private func resizeCanvas() {
         let size = surface.sceneSize
+        let fitContentSize = contentSize
         let z =
             zoom
             ?? WSSCanvasGeometry.fit(
                 scene: size,
                 viewport: CGSize(
-                    width: max(1, contentSize.width - 56), height: max(1, contentSize.height - 56)))
+                    width: max(1, fitContentSize.width - 56),
+                    height: max(1, fitContentSize.height - 56)))
         let imageSize = CGSize(width: size.width * z, height: size.height * z)
         let frameSize = CGSize(
             width: max(contentSize.width, imageSize.width + 80),
@@ -480,6 +482,9 @@ struct WSSCanvasView: NSViewRepresentable {
             reflectScrolledClipView(contentView)
         }
         refreshMaskCursor()
+        // Resizing the document can hide legacy scrollers and change the fit viewport.
+        // Recalculate on the next layout pass only if this calculation used an older size.
+        if zoom == nil, contentSize != fitContentSize { needsLayout = true }
     }
     func shutdown() {
         if surface.ownsMaskSession {

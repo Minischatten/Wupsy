@@ -188,10 +188,28 @@ import XCTest
         }
     }
     func testCommandZeroUsesFitGeometryAndUpdatesSharedPresentationState() throws {
+        try checkCommandZeroFitGeometry()
+    }
+    func testCommandZeroUsesFitGeometryWithOverlayScrollers() throws {
+        try checkCommandZeroFitGeometry(scrollerStyle: .overlay)
+    }
+    func testCommandZeroUsesFitGeometryWithLegacyScrollers() throws {
+        try checkCommandZeroFitGeometry(scrollerStyle: .legacy)
+    }
+    private func checkCommandZeroFitGeometry(scrollerStyle: NSScroller.Style? = nil) throws {
+        // Each test gets its own canvas through setUp(); no global preference is changed.
+        if let scrollerStyle {
+            canvas.scrollerStyle = scrollerStyle
+            XCTAssertEqual(canvas.scrollerStyle, scrollerStyle, "Requested scroller style must apply")
+        }
         var state: CGFloat? = 1
         canvas.onZoom = { state = $0 }
         XCTAssertTrue(canvas.performZoom(.actualSize))
         window.sendEvent(try key("0", keyCode: 29))
+        // Process only layout already requested by production code after viewport changes.
+        // Do not invalidate here: that would conceal a missing fit-layout request.
+        window.contentView?.layoutSubtreeIfNeeded()
+        canvas.layoutSubtreeIfNeeded()
         XCTAssertNil(state)
         XCTAssertNil(canvas.presentationZoom)
         let expected = WSSCanvasGeometry.fit(
