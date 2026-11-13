@@ -200,7 +200,8 @@ import XCTest
         // Each test gets its own canvas through setUp(); no global preference is changed.
         if let scrollerStyle {
             canvas.scrollerStyle = scrollerStyle
-            XCTAssertEqual(canvas.scrollerStyle, scrollerStyle, "Requested scroller style must apply")
+            XCTAssertEqual(
+                canvas.scrollerStyle, scrollerStyle, "Requested scroller style must apply")
         }
         var state: CGFloat? = 1
         canvas.onZoom = { state = $0 }

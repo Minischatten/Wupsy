@@ -180,7 +180,8 @@ import XCTest
         // nodes() deduplicates by ObjectIdentifier, so these are distinct internal objects.
         let sliders = all.filter { $0.role == NSAccessibility.Role.slider.rawValue }
         XCTAssertEqual(
-            sliders.count, 2, diagnostic("exactly two distinct internal AXSlider objects must exist")
+            sliders.count, 2,
+            diagnostic("exactly two distinct internal AXSlider objects must exist")
                 + "\n" + sliderAXDetails(host),
             file: file, line: line)
         for slider in sliders {
@@ -189,7 +190,8 @@ import XCTest
                 diagnostic("internal slider must have AXSlider role"), file: file, line: line)
             XCTAssertTrue(
                 slider.numericValue?.isFinite == true,
-                diagnostic("internal slider must expose a numeric, finite AX value: \(slider.value)"),
+                diagnostic(
+                    "internal slider must expose a numeric, finite AX value: \(slider.value)"),
                 file: file, line: line)
             for action in [NSAccessibility.Action.increment, .decrement] {
                 XCTAssertTrue(
