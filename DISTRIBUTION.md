@@ -51,9 +51,21 @@ Do not commit certificates, private keys, provisioning files, Keychain databases
 
 ## GitHub releases
 
-CI validates formatting, tests and arm64 app packaging without secrets. It uploads development build artifacts only; it does not automatically label them trusted or publish them as releases.
+The `macOS` workflow in `.github/workflows/ci.yml` runs only through `workflow_dispatch`; pushes and pull requests do not start it. To build a release candidate:
 
-A maintainer builds and verifies a DMG locally, then publishes it and its `.sha256` file. Preview releases must say they are ad-hoc signed and not notarized. Use the repository's exact source commit and `VERSION`. Verify that no personal wallpaper assets or local paths enter the archive.
+1. Push the intended source commit to `main` and note its full SHA.
+2. In GitHub, open **Actions → macOS → Run workflow**, select `main` and start one run. Confirm that the run's commit matches the intended SHA.
+3. Wait for the `verify` job to finish successfully. On `macos-26`, it checks formatting, runs `swift test --build-system swiftbuild --jobs 2`, installs the pinned DMG layout tools and runs `scripts/build-dmg.sh` to build and verify the ARM64 app and DMG.
+4. Download the `Wupsy-development` artifact from that run before its seven-day retention expires. Extract `Wupsy-0.5.0.dmg` and `Wupsy-0.5.0.dmg.sha256` for version 0.5.0; filenames follow `VERSION` for future releases.
+5. In the directory containing both extracted files, verify the checksum:
+
+   ```sh
+   shasum -a 256 -c Wupsy-0.5.0.dmg.sha256
+   ```
+
+Test the downloaded DMG's installation and app startup before release. A maintainer then creates the release tag at the exact source commit used by the successful run and uploads the verified DMG and its matching `.sha256` file to the GitHub release, rather than uploading the enclosing Actions artifact ZIP. The checksum refers to the DMG, not the artifact ZIP.
+
+CI uses no signing secrets. It uploads development artifacts only; it does not create tags, publish GitHub releases or notarize the app. Preview releases must say they are ad-hoc signed, not Developer ID signed and not notarized. Verify that no personal wallpaper assets or local paths enter the archive. The local build procedure above remains an alternative for maintainers.
 
 See [third-party notices](THIRD-PARTY-NOTICES.md) for current attribution and historical provenance limits. No personal wallpaper media is included. Branding reuse is separately described in [German](BRANDING.md) and [English](BRANDING.en.md), subject to existing rights.
 
@@ -63,6 +75,4 @@ The build is self-contained. scripts/make-icon.swift converts Brand/Wupsy-Logo-v
 
 The public filename is Wupsy-<Version>.dmg (and .dmg.sha256); arm64 is a property of the executable. Successful verification removes obsolete generated architecture-suffixed files only from the configured output directory, excluding symlinks/subdirectories.
 
-The staged build copies LICENSE, THIRD-PARTY-NOTICES.md, BRANDING.md and BRANDING.en.md into Contents/Resources, and Brand/LICENSE into Contents/Resources/Brand/LICENSE. The staged bundle verifier requires all five notice/policy files before signing. The DMG copies that complete app, so those documents accompany its app/icon/background graphics without changing the disk-image root layout.
-
-The development repository's build scripts are unchanged. This packaging update is confined to the publication staging and was validated through shell syntax and isolated resource-copy/bundle-verifier checks; no new app or DMG was built for this documentation task.
+The app build copies LICENSE, THIRD-PARTY-NOTICES.md, BRANDING.md and BRANDING.en.md into Contents/Resources, and Brand/LICENSE into Contents/Resources/Brand/LICENSE. The bundle verifier requires all five notice/policy files before signing. The DMG copies that complete app, so those documents accompany its app/icon/background graphics without changing the disk-image root layout.

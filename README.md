@@ -5,7 +5,9 @@
 
 Wupsy brings animated wallpapers, a built-in wallpaper editor and desktop widgets to **macOS 14+ on Apple silicon**. Create and edit your own animated wallpapers, play videos, images, GIFs and local web content, and arrange widgets on your desktop. Wupsy is a native SwiftUI/AppKit app, originally based on Ambient and substantially extended with its own wallpaper editor and native scene features; see [license and origin](#license-and-origin).
 
-**Early preview:** compatibility and performance are evolving. Development builds are ad-hoc signed, not Developer ID signed or notarized. No fixed CPU, memory or battery budget is promised.
+**Early preview:** compatibility and performance are evolving. Wupsy 0.5.0 is ad-hoc signed, not Developer ID signed or notarized. No fixed CPU, memory or battery budget is promised.
+
+The minimum deployment target is macOS 14; the provided app is built for Apple silicon (ARM64). Practical validation has been performed on macOS 26 and 27; macOS 14 and 15 have not been verified.
 
 ## Features
 
@@ -24,7 +26,9 @@ Use the static editing canvas to arrange the layout and Live Preview to check th
 
 ## Use Wupsy
 
-Build from source below. In a disk-image distribution, copy Wupsy.app to Applications, wait for the copy, eject the disk image and open the copied app. If macOS blocks a build you trust, use its per-app Privacy & Security approval flow; never disable Gatekeeper globally.
+Download `Wupsy-0.5.0.dmg` from [GitHub Releases](https://github.com/Minischatten/Wupsy/releases). Open the disk image, copy `Wupsy.app` to Applications, wait for the copy to finish, eject the disk image and open the copied app. If macOS blocks the app, you can approve it in **System Settings → Privacy & Security**.
+
+Developers can alternatively [build from source](#build).
 
 Choose **Add wallpaper** in the library to import supported media, a web folder containing index.html, or a native folder containing scene.wss.json. Imports copy content into Wupsy's managed library and leave originals unchanged. Reimporting creates a separate copy. Removing a managed item deletes its local copy.
 
@@ -62,10 +66,10 @@ Library backups are unencrypted and can contain private media, web sources and m
 
 ## Build
 
-Use Xcode with a Swift 6 toolchain selected by xcode-select:
+For a source build, use Xcode with a Swift 6 toolchain selected by xcode-select. The build uses `swiftbuild` to compile localization resources:
 
 ```sh
-swift test --jobs 2
+swift test --build-system swiftbuild --jobs 2
 bash scripts/build-app.sh
 open dist/Wupsy.app
 ```

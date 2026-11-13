@@ -5,7 +5,9 @@
 
 Wupsy bietet animierte Wallpaper, einen eingebauten Wallpaper-Editor und Desktop-Widgets für **macOS 14+ auf Apple silicon**. Erstelle und bearbeite eigene animierte Wallpaper, spiele Videos, Bilder, GIFs und lokale Webinhalte ab und ordne Widgets auf deinem Desktop an. Wupsy ist eine native SwiftUI/AppKit-App, die ursprünglich auf Ambient basiert und um einen eigenen Wallpaper-Editor sowie native Szenenfunktionen wesentlich erweitert wurde; siehe [Lizenz und Herkunft](#lizenz-und-herkunft).
 
-**Frühe Vorabversion:** Kompatibilität und Leistung entwickeln sich noch weiter. Entwicklungsbuilds sind ad-hoc signiert, nicht mit einer Developer ID signiert oder notarisiert. Es werden keine festen Obergrenzen für CPU-Auslastung, Speicherbedarf oder Akkuverbrauch zugesagt.
+**Frühe Vorabversion:** Kompatibilität und Leistung entwickeln sich noch weiter. Wupsy 0.5.0 ist ad-hoc signiert, nicht mit einer Developer ID signiert oder notarisiert. Es werden keine festen Obergrenzen für CPU-Auslastung, Speicherbedarf oder Akkuverbrauch zugesagt.
+
+Das Mindestziel ist macOS 14; die bereitgestellte App wird für Apple silicon (ARM64) gebaut. Praktisch geprüft wurde Wupsy unter macOS 26 und 27; macOS 14 und 15 wurden nicht geprüft.
 
 ## Funktionen
 
@@ -24,7 +26,9 @@ Nutze die statische Arbeitsfläche zum Anordnen des Layouts und die Live-Vorscha
 
 ## Wupsy verwenden
 
-Erstelle die App aus dem Quellcode wie unten beschrieben. Bei einer Bereitstellung als Disk-Image kopierst du Wupsy.app nach Programme (Applications), wartest auf den Abschluss des Kopiervorgangs, wirfst das Disk-Image aus und öffnest die kopierte App. Falls macOS einen Build blockiert, dem du vertraust, nutze die Freigabe für diese einzelne App unter Datenschutz & Sicherheit; deaktiviere Gatekeeper niemals systemweit.
+Lade `Wupsy-0.5.0.dmg` von [GitHub Releases](https://github.com/Minischatten/Wupsy/releases) herunter. Öffne das Disk-Image, kopiere `Wupsy.app` nach Programme (Applications), warte auf den Abschluss des Kopiervorgangs, wirf das Disk-Image aus und öffne die kopierte App. Falls macOS den Start blockiert, kannst du die Anwendung unter **Systemeinstellungen → Datenschutz & Sicherheit** freigeben.
+
+Für Entwickler ist alternativ der [Selbstbau aus dem Quellcode](#build) möglich.
 
 Wähle in der Mediathek **Hintergrundbild hinzufügen**, um unterstützte Medien, einen Webordner mit index.html oder einen nativen Ordner mit scene.wss.json zu importieren. Importe kopieren die Inhalte in Wupsys verwaltete Mediathek und lassen die Originale unverändert. Ein erneuter Import erstellt eine separate Kopie. Beim Entfernen eines verwalteten Eintrags wird seine lokale Kopie gelöscht.
 
@@ -62,10 +66,10 @@ Mediathekssicherungen sind unverschlüsselt und können private Medien, Web-Quel
 
 ## Build
 
-Verwende Xcode mit einer über xcode-select ausgewählten Swift-6-Toolchain:
+Verwende für den Selbstbau Xcode mit einer über xcode-select ausgewählten Swift-6-Toolchain. Der Build nutzt `swiftbuild`, um die Lokalisierungsressourcen zu kompilieren:
 
 ```sh
-swift test --jobs 2
+swift test --build-system swiftbuild --jobs 2
 bash scripts/build-app.sh
 open dist/Wupsy.app
 ```
