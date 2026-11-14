@@ -134,6 +134,7 @@ struct WallpaperCard: View {
     let select: () -> Void
     let apply: () -> Void
     let favorite: () -> Void
+    var reorderItem: LibraryReorderItem? = nil
     @State private var hovered = false
     private var border: Color {
         isSelected
@@ -149,7 +150,7 @@ struct WallpaperCard: View {
                     ).padding(.horizontal, 7).padding(.vertical, 4).background(
                         .black.opacity(0.6), in: Capsule()
                     ).padding(8)
-                }.clipped()
+                }.clipped().modifier(LibraryThumbnailDrag(item: reorderItem))
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title).font(.system(size: 11, weight: .medium)).lineLimit(1)

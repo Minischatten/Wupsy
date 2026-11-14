@@ -1257,74 +1257,38 @@
         }
       }
     },
-    "core.sortWallpapers": {
+    "core.libraryDragHint": {
       "extractionState": "manual",
-      "comment": "Product core: sortWallpapers",
+      "comment": "Library thumbnail drag affordance.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sort wallpapers"
+            "value": "Drag to rearrange your wallpapers."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hintergrundbilder sortieren"
+            "value": "Ziehen, um deine Hintergrundbilder anzuordnen."
           }
         }
       }
     },
-    "core.sortNewest": {
+    "core.libraryMoveError": {
       "extractionState": "manual",
-      "comment": "Product core: sortNewest",
+      "comment": "Library reorder failure; saved order is preserved.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Newest first"
+            "value": "The wallpaper could not be moved. Please try again."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neueste zuerst"
-          }
-        }
-      }
-    },
-    "core.sortName": {
-      "extractionState": "manual",
-      "comment": "Product core: sortName",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name A–Z"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name A–Z"
-          }
-        }
-      }
-    },
-    "core.sortFavorites": {
-      "extractionState": "manual",
-      "comment": "Product core: sortFavorites",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Favorites first"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Favoriten zuerst"
+            "value": "Das Hintergrundbild konnte nicht verschoben werden. Bitte versuche es erneut."
           }
         }
       }

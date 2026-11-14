@@ -83,6 +83,10 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
 <key>UTTypeDescription</key><string>Wupsy playlist entry</string>
 <key>UTTypeConformsTo</key><array><string>public.data</string></array>
 </dict><dict>
+<key>UTTypeIdentifier</key><string>com.wirdschonsoftware.wupsy.library-entry</string>
+<key>UTTypeDescription</key><string>Wupsy library entry</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+</dict><dict>
 <key>UTTypeIdentifier</key><string>com.wirdschonsoftware.wupsy.library-backup</string>
 <key>UTTypeDescription</key><string>Wupsy Wallpaper Library Backup</string>
 <key>UTTypeConformsTo</key><array><string>public.zip-archive</string></array>

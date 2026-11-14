@@ -16,7 +16,7 @@ struct LibraryView: View {
     @State private var search = ""
     @State private var filter: WallpaperFilter = .all
     @State private var favoritesOnly = false
-    @State private var sort: LibrarySort = .newest
+    @StateObject private var reorder = LibraryReorderController()
     @State private var showCompatibility = false
     @State private var showQualityHelp = false
     @State private var isDropTarget = false
@@ -26,7 +26,7 @@ struct LibraryView: View {
             filter.accepts(item) && (!favoritesOnly || library.favorites.contains(item.id))
                 && (search.isEmpty || item.title.localizedCaseInsensitiveContains(search))
         }
-        return sort.ordered(list, favorites: library.favorites)
+        return LibraryOrder.visible(list)
     }
     private var selected: Wallpaper? {
         filtered.first { $0.id == library.selected } ?? filtered.first
@@ -53,9 +53,22 @@ struct LibraryView: View {
         .tint(WupsyTheme.accent)
         .onChange(of: library.favorites) { _, _ in synchronizeSelection() }
         .onChange(of: library.items.map(\.id)) { _, _ in synchronizeSelection() }
-        .onChange(of: filter) { _, _ in synchronizeSelection() }
-        .onChange(of: favoritesOnly) { _, _ in synchronizeSelection() }
-        .onChange(of: search) { _, _ in synchronizeSelection() }
+        .onChange(of: filter) { _, _ in
+            reorder.invalidate()
+            synchronizeSelection()
+        }
+        .onChange(of: favoritesOnly) { _, _ in
+            reorder.invalidate()
+            synchronizeSelection()
+        }
+        .onChange(of: search) { _, _ in
+            reorder.invalidate()
+            synchronizeSelection()
+        }
+        .onChange(of: filtered.map(\.id)) { _, _ in reorder.invalidate() }
+        .onChange(of: page) { _, _ in reorder.invalidate() }
+        .onChange(of: maintenance.state) { _, _ in reorder.invalidate() }
+        .onDisappear { reorder.invalidate() }
         .onAppear { synchronizeSelection() }
         .alert(
             "Wupsy",
@@ -141,13 +154,33 @@ struct LibraryView: View {
                     }
                     collectionToolbar
                     ScrollView {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 178, maximum: 270))], spacing: 16
-                        ) {
-                            ForEach(filtered) { item in
-                                wallpaperCard(item)
+                        VStack(spacing: 0) {
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 178, maximum: 270))],
+                                spacing: 16
+                            ) {
+                                ForEach(filtered) { item in
+                                    wallpaperCard(item)
+                                }
                             }
-                        }.padding(.bottom, 4)
+                            .background(LibraryDragScroll(controller: reorder))
+                            .padding(.bottom, 4)
+                            if let last = filtered.last {
+                                Color.clear.frame(height: 28).contentShape(Rectangle())
+                                    .overlay(alignment: .top) {
+                                        if reorder.insertion
+                                            == LibraryInsertion(
+                                                targetID: last.id, placement: .after)
+                                        {
+                                            Rectangle().fill(WupsyTheme.accent).frame(height: 3)
+                                        }
+                                    }
+                                    .onDrop(
+                                        of: [.wupsyLibraryEntry],
+                                        delegate:
+                                            cardDrop(last.id, width: 1, end: true))
+                            }
+                        }
                     }
                     .background(
                         LibraryCollectionResponder(
@@ -164,6 +197,12 @@ struct LibraryView: View {
         }
     }
 
+    private func cardDrop(_ id: UUID, width: CGFloat, end: Bool = false) -> LibraryCardDrop {
+        LibraryCardDrop(
+            controller: reorder, targetID: id, width: width, end: end,
+            library: library, visibleIDs: { filtered.map(\.id) })
+    }
+
     private func wallpaperCard(_ item: Wallpaper) -> some View {
         WallpaperCard(
             item: item, isSelected: selected?.id == item.id,
@@ -174,7 +213,16 @@ struct LibraryView: View {
                 collectionFocus.focus()
             },
             apply: { library.apply(item) },
-            favorite: { library.toggleFavorite(item) }
+            favorite: { library.toggleFavorite(item) },
+            reorderItem: reorder.isMoving
+                ? nil
+                : LibraryReorderItem(
+                    contextID: reorder.contextID, wallpaperID: item.id)
+        )
+        .modifier(
+            LibraryCardDropModifier(
+                controller: reorder, targetID: item.id, library: library,
+                visibleIDs: { filtered.map(\.id) })
         )
         .contextMenu {
             if item.managed != nil && item.kind == .scene {
@@ -289,15 +337,6 @@ struct LibraryView: View {
                         .plain)
                 }.font(.system(size: 11)).padding(8).frame(width: 185).background(
                     WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 8))
-                Menu {
-                    Picker(ProductText.sortWallpapers.text, selection: $sort) {
-                        ForEach(LibrarySort.allCases, id: \.self) { order in
-                            Text(order.title).tag(order)
-                        }
-                    }
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down").frame(width: 25, height: 25)
-                }.menuStyle(.borderlessButton).fixedSize().help(ProductText.sortWallpapers.text)
             }
             HStack(spacing: 6) {
                 ForEach(WallpaperFilter.allCases) { category in

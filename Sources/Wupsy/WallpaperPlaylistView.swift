@@ -123,7 +123,7 @@ struct WallpaperPlaylistView: View {
                         } else {
                             ScrollView {
                                 LazyVStack(spacing: 6) {
-                                    ForEach(library.items) { item in
+                                    ForEach(LibraryOrder.visible(library.items)) { item in
                                         HStack(spacing: 10) {
                                             WallpaperPreview(item: item).frame(
                                                 width: 44, height: 32

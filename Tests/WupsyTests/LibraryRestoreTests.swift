@@ -47,6 +47,29 @@ final class LibraryRestoreTests: XCTestCase {
                 line: line)
         }
     }
+    func testMovedLibraryOrderRoundtripWithoutFormatChanges() async throws {
+        let items = try (0..<4).map { index -> Wallpaper in
+            let source = try fixture.file("external-\(index).png")
+            return Wallpaper(
+                title: "Entry \(index)", path: source.path,
+                root: source.deletingLastPathComponent().path, kind: .image)
+        }
+        try fixture.save(items)
+        let store = ManagedWallpaperStore(storage: fixture.storage)
+        let moved = try await store.move(
+            wallpaperID: items[0].id,
+            relativeTo: items[3].id, placement: .before)
+        let prepared = try await prepare(backup())
+        defer { try? prepared.discard() }
+        try prepared.validate()
+        let restored = try ManagedWallpaperStore(
+            storage: prepared.newRoot.appendingPathComponent("library.json")
+        ).load()
+        XCTAssertEqual(restored.map(\.id), moved.map(\.id))
+        XCTAssertEqual(prepared.plan.manifest.backupFormatVersion, 1)
+        XCTAssertEqual(prepared.plan.manifest.libraryRepresentationVersion, 1)
+    }
+
     func testEmptyWriterReaderStagingAndDiscard() async throws {
         let prepared = try await prepare(backup())
         XCTAssertTrue(prepared.plan.library.isEmpty)

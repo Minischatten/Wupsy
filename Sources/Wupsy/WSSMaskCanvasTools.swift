@@ -102,6 +102,7 @@ struct WSSMaskCanvasTools: View {
                 Text(EditorText.maskDiameter.text)
             }
             .labelsHidden()
+            .accessibilityIdentifier("wss.mask.diameter")
             .frame(minWidth: 50, idealWidth: 75, maxWidth: 110)
             TextField(
                 EditorText.brushSize.text,
@@ -122,6 +123,7 @@ struct WSSMaskCanvasTools: View {
                 Text(EditorText.maskOpacityAX.text)
             }
             .labelsHidden()
+            .accessibilityIdentifier("wss.mask.opacity")
             .frame(minWidth: 45, idealWidth: 65, maxWidth: 90)
             TextField(
                 EditorText.maskOpacity.text,

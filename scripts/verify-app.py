@@ -23,8 +23,13 @@ def verify(app, version, build):
             raise ValueError(f'Unexpected {key}: {info.get(key)!r}')
     identifiers = {item['UTTypeIdentifier'] for item in info['UTExportedTypeDeclarations']}
     if identifiers != {'com.wirdschonsoftware.wupsy.playlist-entry',
-                       'com.wirdschonsoftware.wupsy.library-backup'}:
+                       'com.wirdschonsoftware.wupsy.library-backup',
+                       'com.wirdschonsoftware.wupsy.library-entry'}:
         raise ValueError(f'Unexpected exported types: {identifiers}')
+    library_type = next(item for item in info['UTExportedTypeDeclarations']
+                        if item['UTTypeIdentifier'] == 'com.wirdschonsoftware.wupsy.library-entry')
+    if library_type.get('UTTypeConformsTo') != ['public.data']:
+        raise ValueError('Library drag type must conform to public.data')
     executable = app / 'Contents/MacOS/Wupsy'
     if not executable.is_file() or not os.access(executable, os.X_OK):
         raise ValueError('Wupsy executable is missing')

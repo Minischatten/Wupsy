@@ -67,6 +67,40 @@ A CPU stroke freezes target revision/resource and settings. Per-texel maximum co
 
 Cancel restores exact pre-stroke bytes; no-op finish creates no generation/history. Changed results encode/stage/validate asynchronously, then recheck session/revision/resource before one catalog/model/Undo adoption. Shared originals and other slot references are unchanged. Undo retains generations rather than replaying pointer events. CPU full pre/result R8 plus Float coverage storage can approach 192 MiB at the scalar pixel limit, excluding codec/renderer allocations; this is separate from the vector-paint 128-MiB work ceiling. Pending preparation pointer input is bounded; no per-pointer-event project file writes or encoded PNG publication occur.
 
+## Library order and metadata publication
+
+library.json and Library.items retain the same internal order; the canonical visible
+order is its reverse. Imports and native First Save/Save As append internally.
+Library.move expresses placement before/after a target UUID in visible order. The
+Store reloads the current array, rejects missing/self/duplicate identities and
+atomically writes only an actual permutation; wallpaper values stay unchanged.
+No order preferences or backup format changes are needed.
+
+LibraryEditQueue serializes import (one entry at a time), removal, rename, native
+publication and moves through their MainActor model publication. This deliberately
+includes each source preparation, avoiding a new split-commit API across import and
+native publication. Batch entries release the queue individually; native thumbnail
+preparation runs after release. A long single import can delay a move, but cannot
+publish an old append after a move snapshot. Maintenance admissions cover queued
+work; cancellation is checked on acquisition, while committed results always publish.
+The existing Store mutation barrier still protects backup snapshots. Direct Store
+calls are low-level/offline operations, not a second live Library writer.
+
+The Library grid and playlist's available-wallpaper picker use LibraryOrder.visible;
+there is no sort mode. Missing/invalid saved selection falls back to the last
+internal item. Thumbnail drags carry an ephemeral context UUID and wallpaper UUID
+using a separate library-entry UTType. Search, filters, page, visible membership
+and maintenance changes invalidate that context. Card halves select before/after;
+the trailing drop surface means after the last visible UUID, including filtered
+views. Only Library.move receives the UUID command; no filtered array is persisted.
+A controller rejects concurrent drops and invalidates accepted capabilities before
+awaiting persistence. Native SwiftUI dragging handles click/drag thresholds; real
+button/double-click/context-menu interaction remains a macOS GUI acceptance check.
+A noninteractive AppKit bridge scrolls the existing clip view near its edges during
+a hovered library drag, using common/event-tracking run-loop modes.
+See [library reorder and accessibility acceptance](LIBRARY-REORDER-QA.md) for the
+confirmed macOS 26.6.2/27.2.1 results and future regression checklist.
+
 ## Named playlists
 
 playlists.json stores named v1 collection definitions and playback metadata. Only one playlist rotates; activation requires two distinct available library items. Double-clicking an active playlist does not restart it. Sequential and shuffle modes preserve the current wallpaper and remaining interval when switched. Shuffle consumes each entry once per round and avoids immediate boundary repeats; changing active membership/order starts a new round with Current consumed. Shuffle bags are not persisted.

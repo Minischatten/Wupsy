@@ -38,21 +38,16 @@ final class PresentationIdentityTests: XCTestCase {
             "Playing · 2 displays")
     }
 
-    func testPagesAndSortUseTechnicalSelectionValues() {
-        var page: LibraryPage = .overview
-        page = .playlist
-        XCTAssertEqual(page, .playlist)
+    func testPagesAndCanonicalLibraryOrder() {
         XCTAssertEqual(Set(LibraryPage.allCases).count, 4)
-        let z = wallpaper("Zulu")
-        let a = wallpaper("Alpha")
-        let b = wallpaper("Beta")
-        XCTAssertEqual(
-            LibrarySort.newest.ordered([z, a, b], favorites: []).map(\.id), [b.id, a.id, z.id])
-        XCTAssertEqual(
-            LibrarySort.name.ordered([z, a, b], favorites: []).map(\.id), [a.id, b.id, z.id])
-        XCTAssertEqual(
-            LibrarySort.favorites.ordered([z, a, b], favorites: [z.id]).map(\.id),
-            [z.id, a.id, b.id])
+        let items = [wallpaper("Zulu"), wallpaper("Alpha"), wallpaper("Beta")]
+        XCTAssertEqual(LibraryOrder.visible(items).map(\.id), items.reversed().map(\.id))
+        let new = wallpaper("New")
+        XCTAssertEqual(LibraryOrder.visible(items + [new]).first?.id, new.id)
+        XCTAssertEqual(LibraryOrder.initialSelection(nil, in: items), items.last?.id)
+        XCTAssertEqual(LibraryOrder.initialSelection(UUID(), in: items), items.last?.id)
+        XCTAssertEqual(LibraryOrder.initialSelection(items[0].id, in: items), items[0].id)
+        XCTAssertNil(LibraryOrder.initialSelection(nil, in: []))
     }
 
     func testMediaSymbolAndFilterDoNotDependOnDisplayName() {

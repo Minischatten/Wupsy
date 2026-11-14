@@ -18,30 +18,10 @@ enum LibraryPage: CaseIterable {
     case overview, wallpapers, widgets, playlist
 }
 
-enum LibrarySort: CaseIterable {
-    case newest, name, favorites
-
-    var title: String {
-        switch self {
-        case .newest: return ProductText.sortNewest.text
-        case .name: return ProductText.sortName.text
-        case .favorites: return ProductText.sortFavorites.text
-        }
-    }
-
-    func ordered(_ items: [Wallpaper], favorites: Set<UUID>) -> [Wallpaper] {
-        switch self {
-        case .newest: return items.reversed()
-        case .name:
-            return items.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
-        case .favorites:
-            return items.sorted { a, b in
-                let af = favorites.contains(a.id)
-                let bf = favorites.contains(b.id)
-                return af == bf
-                    ? a.title.localizedStandardCompare(b.title) == .orderedAscending : af
-            }
-        }
+enum LibraryOrder {
+    static func visible(_ items: [Wallpaper]) -> [Wallpaper] { Array(items.reversed()) }
+    static func initialSelection(_ saved: UUID?, in items: [Wallpaper]) -> UUID? {
+        saved.flatMap { id in items.contains(where: { $0.id == id }) ? id : nil } ?? items.last?.id
     }
 }
 

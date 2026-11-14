@@ -138,6 +138,8 @@ import SwiftUI
     private var maintenanceStopped = false
     private let runtimeTasks = RuntimeTaskDrain()
     private let rendererTasks = RuntimeTaskDrain()
+    private let edits = LibraryEditQueue()
+    private let beforeLibraryPublication: (String) async -> Void
     private var renaming = false
     @Published var importing = false
     @Published private(set) var preparing = false
@@ -173,6 +175,8 @@ import SwiftUI
     private let makeVideoOptimizer: @MainActor () -> VideoOptimizer
     init(
         maintenance: MaintenanceCoordinator? = nil,
+        beforeLibraryPublication: @escaping (String) async -> Void = { _ in },
+        beforeMovePersistence: @escaping () throws -> Void = {},
         storage: URL? = nil, defaults: UserDefaults = .standard, restoreOnLaunch: Bool = true,
         targetScreens: @escaping () -> [NSScreen] = { NSScreen.screens },
         rendererStart: @escaping @MainActor (Renderer, Int) throws -> Void = { renderer, _ in
@@ -183,6 +187,7 @@ import SwiftUI
         },
         makeVideoOptimizer: @escaping @MainActor () -> VideoOptimizer = { VideoOptimizer() }
     ) {
+        self.beforeLibraryPublication = beforeLibraryPublication
         self.maintenance = maintenance ?? .shared
         self.targetScreens = targetScreens
         self.rendererStart = rendererStart
@@ -191,7 +196,8 @@ import SwiftUI
         self.storage =
             storage
             ?? ProductPaths.current.library
-        managedStore = ManagedWallpaperStore(storage: self.storage)
+        managedStore = ManagedWallpaperStore(
+            storage: self.storage, beforeMovePersistence: beforeMovePersistence)
         self.defaults = defaults
         super.init()
         if FileManager.default.fileExists(atPath: self.storage.path) {
@@ -212,9 +218,8 @@ import SwiftUI
         sceneRenderResolution = SceneRenderResolution.stored(in: defaults)
         let savedSceneFPS = defaults.integer(forKey: "sceneFPS")
         sceneFPS = [24, 30, 60].contains(savedSceneFPS) ? savedSceneFPS : 30
-        selected =
-            defaults.string(forKey: "selectedWallpaper").flatMap(UUID.init(uuidString:))
-            ?? items.first?.id
+        selected = LibraryOrder.initialSelection(
+            defaults.string(forKey: "selectedWallpaper").flatMap(UUID.init(uuidString:)), in: items)
         favorites = Set(
             (defaults.stringArray(forKey: "favorites") ?? []).compactMap(UUID.init(uuidString:)))
         let workspace = NSWorkspace.shared.notificationCenter
@@ -348,7 +353,10 @@ import SwiftUI
                 var errors: [ImportFailurePresentation] = []
                 for url in urls {
                     do {
+                        try await edits.acquire()
+                        defer { edits.release() }
                         let item = try await managedStore.importWallpaper(url, existing: items)
+                        await beforeLibraryPublication("import")
                         items.append(item)
                         selected = item.id
                         importedID = item.id
@@ -371,14 +379,18 @@ import SwiftUI
         return try await maintenance.withMutationAsync {
 
             if storageLoadError != nil { throw WSSSaveAsError.library }
-            let receipt = try await managedStore.saveWSSAs(snapshot)
-            // Merge only this UUID; do not replace a newer in-memory library with a stale list.
-            let item = receipt.project.handle.wallpaper
-            if let index = items.firstIndex(where: { $0.id == item.id }) {
-                items[index] = item
-            } else {
-                items.append(item)
+            let receipt = try await edits.withEdit {
+                let receipt = try await managedStore.saveWSSAs(snapshot)
+                await beforeLibraryPublication("saveWSSAs")
+                let item = receipt.project.handle.wallpaper
+                if let index = items.firstIndex(where: { $0.id == item.id }) {
+                    items[index] = item
+                } else {
+                    items.append(item)
+                }
+                return receipt
             }
+            let item = receipt.project.handle.wallpaper
             selected = item.id
             let success: Bool
             if let preview {
@@ -405,13 +417,18 @@ import SwiftUI
         return try await maintenance.withMutationAsync {
 
             guard storageLoadError == nil else { throw WSSSaveAsError.library }
-            let receipt = try await managedStore.publishWSSDraft(snapshot)
-            let item = receipt.project.handle.wallpaper
-            if let index = items.firstIndex(where: { $0.id == item.id }) {
-                items[index] = item
-            } else {
-                items.append(item)
+            let receipt = try await edits.withEdit {
+                let receipt = try await managedStore.publishWSSDraft(snapshot)
+                await beforeLibraryPublication("publishWSSDraft")
+                let item = receipt.project.handle.wallpaper
+                if let index = items.firstIndex(where: { $0.id == item.id }) {
+                    items[index] = item
+                } else {
+                    items.append(item)
+                }
+                return receipt
             }
+            let item = receipt.project.handle.wallpaper
             // Deliberately preserve selection, active playback and playlist state.
             let prepared = await ImageLoader.shared.committedWSS(
                 item,
@@ -481,6 +498,23 @@ import SwiftUI
         return try managedStore.resolve(item)
     }
 
+    /// Placement is expressed in the reversed, visible library order.
+    func move(wallpaperID: UUID, relativeTo targetID: UUID, placement: LibraryMovePlacement)
+        async throws
+    {
+        guard !maintenanceStopped else { throw MaintenanceError.restartRequired }
+        try await maintenance.withMutationAsync {
+            if let storageLoadError { throw ImportFailure.message(storageLoadError) }
+            try await edits.withEdit {
+                let committed = try await managedStore.move(
+                    wallpaperID: wallpaperID, relativeTo: targetID, placement: placement)
+                // The queue remains held through publication; no older append/receipt can follow it.
+                await beforeLibraryPublication("move")
+                if items != committed { items = committed }
+            }
+        }
+    }
+
     func rename(wallpaperID: UUID, newTitle: String) async throws {
         guard !maintenanceStopped else { throw MaintenanceError.restartRequired }
         return try await maintenance.withMutationAsync {
@@ -496,7 +530,10 @@ import SwiftUI
             }
             renaming = true
             defer { renaming = false }
+            try await edits.acquire()
+            defer { edits.release() }
             let saved = try await managedStore.rename(wallpaperID: wallpaperID, newTitle: title)
+            await beforeLibraryPublication("rename")
             // Publish only after persistence. Never replace playback resources or requests.
             if let index = items.firstIndex(where: { $0.id == wallpaperID }),
                 items[index].title != saved.title
@@ -768,7 +805,10 @@ import SwiftUI
 
                 defer { withExtendedLifetime(backupLease) {} }
                 do {
+                    try await edits.acquire()
+                    defer { edits.release() }
                     let warning = try await managedStore.remove(existing, existing: items)
+                    await beforeLibraryPublication("remove")
                     onPlaybackCommand?(.remove(existing.id))
                     items.removeAll { $0.id == existing.id }
                     favorites.remove(existing.id)

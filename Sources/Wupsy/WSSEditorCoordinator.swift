@@ -703,7 +703,13 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
                 snapshot.state.isDirty || document.project.handle.origin == .draft
             window?.title = EditorText.windowTitle.format(document.project.handle.wallpaper.title)
         }
-        document.finishInput = { [weak window] in window?.makeFirstResponder(nil) ?? true }
+        document.finishInput = { [weak window] in
+            guard let window else { return true }
+            // Selection is also driven by native List/AX navigation. Only an actual
+            // text editor needs to resign (and validate); keep other focus intact.
+            guard let text = window.firstResponder as? NSText, text.isEditable else { return true }
+            return window.makeFirstResponder(nil)
+        }
         document.chooseFirstSaveName = { [weak self] proposedName in
             guard let window = self?.window else { return nil }
             return await WSSWallpaperNameRequest.present(

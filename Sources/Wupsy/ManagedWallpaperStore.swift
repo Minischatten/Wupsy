@@ -13,9 +13,18 @@ actor ManagedWallpaperStore {
     enum ImportStage {
         case sourcePublished, libraryPersistence
     }
+    private let beforeMovePersistence: () throws -> Void
     private let importCheckpoint: (ImportStage) throws -> Void
 
     init(storage: URL, importCheckpoint: @escaping (ImportStage) throws -> Void = { _ in }) {
+        self.init(storage: storage, beforeMovePersistence: {}, importCheckpoint: importCheckpoint)
+    }
+
+    init(
+        storage: URL, beforeMovePersistence: @escaping () throws -> Void,
+        importCheckpoint: @escaping (ImportStage) throws -> Void = { _ in }
+    ) {
+        self.beforeMovePersistence = beforeMovePersistence
         self.importCheckpoint = importCheckpoint
         let requestedRoot = storage.deletingLastPathComponent().standardizedFileURL
         let attributes = try? FileManager.default.attributesOfItem(atPath: requestedRoot.path)
@@ -335,6 +344,23 @@ actor ManagedWallpaperStore {
             throw original
         }
     }
+    /// Reads and commits without suspension on this actor. Never accepts a UI snapshot.
+    func move(wallpaperID: UUID, relativeTo targetID: UUID, placement: LibraryMovePlacement)
+        throws -> [Wallpaper]
+    {
+        let lease = try LibraryMutationBarrier.shared.mutation()
+        defer { withExtendedLifetime(lease) {} }
+        try Task.checkCancellation()
+        let current = try load()
+        let reordered = try LibraryMove.reordered(
+            current, wallpaperID: wallpaperID, relativeTo: targetID, placement: placement)
+        if reordered != current {
+            try beforeMovePersistence()
+            try persist(reordered)
+        }
+        return reordered
+    }
+
     /// Edits metadata only; media and native projects are deliberately not inspected.
     func rename(wallpaperID: UUID, newTitle: String) throws -> Wallpaper {
         let backupLease = try LibraryMutationBarrier.shared.mutation()
