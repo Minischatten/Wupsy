@@ -64,6 +64,7 @@ struct WSSFlowRegion: Equatable, Sendable {
             try WSSVectorFieldPaint.workingBytes(
                 width: width, height: height,
                 hasCoverage: false, pointCount: points.count) + pixels.count * 2 + retainedBytes
+            + height * MemoryLayout<Int>.stride * 2
         try WSSVectorFieldEditorBudget.validateWorkingData(byteCount: bytes)
         var result = self
         try result.pixels.withUnsafeMutableBytes { (output: UnsafeMutableRawBufferPointer) in
@@ -71,7 +72,7 @@ struct WSSFlowRegion: Equatable, Sendable {
                 width: width, height: height, imageSize: imageSize, uvPoints: points,
                 brush: WSSVectorBrush(
                     diameter: brush.diameter, magnitude: 0, operation: brush.operation),
-                subpathStarts: subpaths
+                subpathStarts: subpaths, binary: true
             ) { index, _, _ in
                 output[index] = brush.operation == .erase ? 0 : 255
             }

@@ -171,6 +171,7 @@ enum WSSVectorFieldPaint {
     static func support(
         width: Int, height: Int, imageSize: SIMD2<Double>, uvPoints: [SIMD2<Double>],
         brush: WSSVectorBrush, subpathStarts: [Int] = [],
+        binary: Bool = false,
         visit: (Int, Float, SIMD2<Float>) -> Void
     ) throws {
         let geometry = try WSSVectorPaintGeometry(imageSize: imageSize)
@@ -187,10 +188,23 @@ enum WSSVectorFieldPaint {
             try workingBytes(
                 width: width, height: height, hasCoverage: false, pointCount: uvPoints.count)
             + subpathStarts.count * MemoryLayout<Int>.stride
+            + (binary ? height * MemoryLayout<Int>.stride * 2 : 0)
         try WSSVectorFieldEditorBudget.validateWorkingData(byteCount: bytes)
         let texel = imageSize / SIMD2(Double(width), Double(height))
         var visits = 0
         var stamps = 0
+        // Binary consumers need membership only. Cache one contiguous covered span
+        // per row; disjoint spans replace the cache, never bridge an unpainted gap.
+        // This bounded cache is shared across stamps/subpaths, not across strokes.
+        let useIntervals = binary && brush.diameter / 2 >= max(texel.x, texel.y)
+        var coveredLow = useIntervals ? [Int](repeating: width, count: height) : []
+        var coveredHigh = useIntervals ? [Int](repeating: -1, count: height) : []
+        func charge(_ count: Int) throws {
+            guard count <= maximumTexelVisits - visits else {
+                throw WSSVectorPaintError.workLimit
+            }
+            visits += count
+        }
         func stamp(_ point: SIMD2<Double>, target: SIMD2<Float>) throws {
             let radius = brush.diameter / 2
             let integrate = radius < max(texel.x, texel.y)
@@ -206,6 +220,83 @@ enum WSSVectorFieldPaint {
             let y1 = min(
                 height - 1, Int(floor(max(-1, min(Double(height), high.y)))))
             guard x0 <= x1, y0 <= y1 else { return }
+            if useIntervals {
+                for y in y0...y1 {
+                    try charge(1)
+                    var nearest = max(x0, min(x1, Int(floor(point.x / texel.x))))
+                    func dx(_ x: Int) -> Double { (Double(x) + 0.5) * texel.x - point.x }
+                    // Compare actual centers as division can round across a cell edge.
+                    if nearest > x0, abs(dx(nearest - 1)) < abs(dx(nearest)) { nearest -= 1 }
+                    if nearest < x1, abs(dx(nearest + 1)) < abs(dx(nearest)) { nearest += 1 }
+                    func distance(_ x: Int) throws -> Double {
+                        try charge(1)
+                        let center = (SIMD2(Double(x), Double(y)) + SIMD2(repeating: 0.5)) * texel
+                        return hypot(center.x - point.x, center.y - point.y)
+                    }
+                    func interval(_ limit: Double) throws -> ClosedRange<Int>? {
+                        guard try distance(nearest) < limit else { return nil }
+                        var low = x0
+                        var high = nearest
+                        while low < high {
+                            let mid = low + (high - low) / 2
+                            if try distance(mid) < limit { high = mid } else { low = mid + 1 }
+                        }
+                        let first = low
+                        low = nearest
+                        high = x1
+                        while low < high {
+                            let mid = low + (high - low + 1) / 2
+                            if try distance(mid) < limit { low = mid } else { high = mid - 1 }
+                        }
+                        return first...low
+                    }
+                    func emit(_ first: Int, _ last: Int) throws {
+                        guard first <= last else { return }
+                        func write(_ a: Int, _ b: Int) throws {
+                            guard a <= b else { return }
+                            try charge(b - a + 1)
+                            for x in a...b { visit(y * width + x, 1, target) }
+                        }
+                        let oldLow = coveredLow[y]
+                        let oldHigh = coveredHigh[y]
+                        if first <= oldHigh + 1 && last + 1 >= oldLow {
+                            try write(first, min(last, oldLow - 1))
+                            try write(max(first, oldHigh + 1), last)
+                            coveredLow[y] = min(first, oldLow)
+                            coveredHigh[y] = max(last, oldHigh)
+                        } else {
+                            try write(first, last)
+                            coveredLow[y] = first
+                            coveredHigh[y] = last
+                        }
+                    }
+                    guard let outer = try interval(radius) else { continue }
+                    // Smoothstep cancellation near t=1 can produce isolated zero or
+                    // positive roundoff values. Never binary-search that predicate.
+                    // The interior has weight safely above Float underflow/roundoff;
+                    // scan the narrow fringe using the ORIGINAL Float(weight)>0 test.
+                    let inner = try interval(radius * (1 - 1e-6))
+                    func fringe(_ first: Int, _ last: Int) throws {
+                        guard first <= last else { return }
+                        for x in first...last {
+                            if Float(
+                                WSSVectorBrush.weight(
+                                    distance: try distance(x), radius: radius)) > 0
+                            {
+                                try emit(x, x)
+                            }
+                        }
+                    }
+                    if let inner {
+                        try fringe(outer.lowerBound, inner.lowerBound - 1)
+                        try emit(inner.lowerBound, inner.upperBound)
+                        try fringe(inner.upperBound + 1, outer.upperBound)
+                    } else {
+                        try fringe(outer.lowerBound, outer.upperBound)
+                    }
+                }
+                return
+            }
             let area = (x1 - x0 + 1) * (y1 - y0 + 1)
             guard area <= maximumTexelVisits - visits else {
                 throw WSSVectorPaintError.workLimit
