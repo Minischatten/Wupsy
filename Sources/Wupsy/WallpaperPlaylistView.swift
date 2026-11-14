@@ -141,12 +141,15 @@ struct WallpaperPlaylistView: View {
                                                     }
                                                 }
                                             } label: {
-                                                Image(
+                                                PlaylistEntryButtonLabel(
                                                     systemName: definition.wallpaperIDs
                                                         .contains(
                                                             item.id)
                                                         ? "checkmark" : "plus")
                                             }
+                                            .accessibilityIdentifier(
+                                                "playlist.membership.\(item.id)"
+                                            )
                                             .accessibilityLabel(
                                                 definition.wallpaperIDs.contains(item.id)
                                                     ? ProductText.playlistRemoveTitle.format(
@@ -261,8 +264,9 @@ struct WallpaperPlaylistView: View {
             Button {
                 playlist.perform { try playlist.remove(item.id, from: playlistID) }
             } label: {
-                Image(systemName: "xmark.circle")
+                PlaylistEntryButtonLabel(systemName: "xmark.circle")
             }
+            .accessibilityIdentifier("playlist.remove.\(item.id)")
             .help(ProductText.playlistRemove.text)
             .accessibilityLabel(ProductText.playlistRemoveTitle.format(item.title))
             .disabled(!playlist.canEditDefinition(playlistID))
@@ -293,6 +297,26 @@ struct WallpaperPlaylistView: View {
                     }
                 }
             }
+    }
+}
+
+// Keep the standard borderless Button's keyboard/AX behavior. Reserve the hit
+// area in layout (not an overlay); trailing alignment preserves the icon position.
+struct PlaylistEntryButtonLabel: View {
+    let systemName: String
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .frame(width: 36, height: 36, alignment: .trailing)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(isEnabled && hovering ? 0.07 : 0))
+                    .allowsHitTesting(false)
+            }
+            .onHover { hovering = $0 }
     }
 }
 
