@@ -148,7 +148,7 @@ extension WSSEditorWindow {
                         url = await chooseNewImage()
                     } else {
                         let panel = NSOpenPanel()
-                        panel.allowedContentTypes = [.png, .jpeg]
+                        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff]
                         panel.allowsMultipleSelection = false
                         panel.canChooseDirectories = false
                         panel.prompt = EditorText.newWallpaperPanel.text
@@ -181,37 +181,7 @@ extension WSSEditorWindow {
                         try Task.checkCancellation()
                         guard !terminated, !maintenanceClosed, !quitting, maintenance.allowsMutation
                         else { throw CancellationError() }
-                        let id = project.handle.id
-                        guard sessions[id] == nil, pending[id] == nil else {
-                            throw WSSSaveAsError.collision
-                        }
-                        let document = WSSEditorDocument(project: project, save: save)
-                        if let publishDraft {
-                            document.publishDraft = { snapshot in
-                                let receipt = try await publishDraft(snapshot)
-                                onFirstSave?(receipt.project.handle.id)
-                                return receipt
-                            }
-                        }
-                        configureSaveAs(document)
-                        let window: any WSSEditorWindow
-                        do {
-                            window = try makeWindow(document) { [weak self] in
-                                self?.windowClosed(wallpaperID: id)
-                            }
-                        } catch {
-                            document.close()
-                            documentDrains.track(
-                                Task { await document.closeAndDrainForMaintenance() })
-                            await document.waitForDraftCleanup()
-                            throw error
-                        }
-                        sessions[id] = Session(
-                            document: document, window: window,
-                            observation: document.objectWillChange.sink { [weak self] _ in
-                                self?.objectWillChange.send()
-                            })
-                        if let session = sessions[id] { present(session) }
+                        try await presentDraft(project, onFirstSave: onFirstSave)
                     } catch {
                         try project.handle.draftOwner?.discard()
                         throw error
@@ -237,6 +207,56 @@ extension WSSEditorWindow {
 
         })
     }
+    // Both creation entry points use the same draft/session and publication lifecycle.
+    private func presentDraft(
+        _ project: WSSLoadedEditorProject, source: Wallpaper? = nil,
+        replacement: WSSImageReplacementTarget? = nil,
+        onFirstSave: ((UUID) -> Void)? = nil
+    ) async throws {
+        let id = project.handle.id
+        guard sessions[id] == nil, pending[id] == nil else {
+            throw WSSSaveAsError.collision
+        }
+        let document = WSSEditorDocument(project: project, save: save)
+        if let publishDraft {
+            document.publishDraft = { snapshot in
+                let receipt = try await publishDraft(snapshot)
+                onFirstSave?(receipt.project.handle.id)
+                return receipt
+            }
+        }
+        document.libraryImageSource = source
+        document.libraryImageReplacement = replacement
+        document.didPublishDraft = { [weak self, weak document] targetID in
+            guard let self, let document,
+                let oldID = sessions.first(where: { $0.value.document === document })?.key,
+                oldID != targetID, let session = sessions.removeValue(forKey: oldID)
+            else { return }
+            sessions[targetID] = session
+        }
+        configureSaveAs(document)
+        let window: any WSSEditorWindow
+        do {
+            window = try makeWindow(document) { [weak self, weak document] in
+                guard let self, let document,
+                    let key = sessions.first(where: { $0.value.document === document })?.key
+                else { return }
+                windowClosed(wallpaperID: key)
+            }
+        } catch {
+            document.close()
+            documentDrains.track(
+                Task { await document.closeAndDrainForMaintenance() })
+            await document.waitForDraftCleanup()
+            throw error
+        }
+        sessions[id] = Session(
+            document: document, window: window,
+            observation: document.objectWillChange.sink { [weak self] _ in
+                self?.objectWillChange.send()
+            })
+        if let session = sessions[id] { present(session) }
+    }
     func open(wallpaperID id: UUID) async throws {
         guard !maintenanceClosed else { throw MaintenanceError.restartRequired }
         try await maintenance.withMutationAsync {
@@ -245,6 +265,12 @@ extension WSSEditorWindow {
                 throw CancellationError()
             }
             guard !saveAsReservations.contains(id) else { throw WSSSaveAsError.busy }
+            if let session = sessions.values.first(where: {
+                $0.document.libraryImageSource?.id == id
+            }) {
+                present(session)
+                return
+            }
             if let session = sessions[id] {
                 present(session)
                 return
@@ -254,14 +280,22 @@ extension WSSEditorWindow {
                 return
             }
             let wallpaper = try lookup(id)
-            guard wallpaper.id == id, wallpaper.managed != nil, wallpaper.kind == .scene else {
+            guard wallpaper.id == id, wallpaper.canOpenInEditor else {
                 throw WSSEditorOpenError.unavailable
             }
             let token = UUID()
             let task = Task { @MainActor [weak self] in
                 guard let self else { throw CancellationError() }
                 do {
-                    let project = try await load(wallpaper)
+                    let project: WSSLoadedEditorProject
+                    let replacement: WSSImageReplacementTarget?
+                    if wallpaper.kind == .image {
+                        (project, replacement) = try await draftPreparation.create(
+                            libraryImage: wallpaper)
+                    } else {
+                        project = try await load(wallpaper)
+                        replacement = nil
+                    }
                     try Task.checkCancellation()
                     guard !terminated, !quitting, pending[id]?.token == token else {
                         throw CancellationError()
@@ -271,6 +305,11 @@ extension WSSEditorWindow {
                         current.root == wallpaper.root, current.path == wallpaper.path,
                         current.sceneSource == wallpaper.sceneSource
                     else { throw WSSEditorOpenError.unavailable }
+                    if wallpaper.kind == .image {
+                        try await presentDraft(project, source: wallpaper, replacement: replacement)
+                        pending[id] = nil
+                        return
+                    }
                     let document = WSSEditorDocument(project: project, save: save)
                     configureSaveAs(document)
                     let window = try makeWindow(document) { [weak self] in
@@ -715,6 +754,11 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
             return await WSSWallpaperNameRequest.present(
                 title: EditorText.saveWallpaper.text, proposedName: proposedName, window: window)
         }
+        document.chooseImageFirstSave = { [weak self] proposedName in
+            guard let window = self?.window else { return nil }
+            return await WSSWallpaperNameRequest.presentImage(
+                proposedName: proposedName, window: window)
+        }
         document.chooseSaveAsName = { [weak self] proposedName in
             guard let window = self?.window else { return nil }
             return await WSSWallpaperNameRequest.present(
@@ -739,7 +783,7 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         document.chooseImageFile = { [weak self] in
             guard let window = self?.window else { return nil }
             let panel = NSOpenPanel()
-            panel.allowedContentTypes = [.png, .jpeg]
+            panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff]
             panel.allowsMultipleSelection = false
             panel.canChooseDirectories = false
             panel.canChooseFiles = true

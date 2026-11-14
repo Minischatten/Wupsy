@@ -6,7 +6,7 @@
 
 Erstelle in Wupsy ein natives Wallpaper oder importiere einen Projektordner mit scene.wss.json. Öffne das native Wallpaper im Editor. Bilder und Masken sind Benutzerinhalte; Wupsy liefert keine persönlichen Referenz-Wallpaper mit und konvertiert keine Projekte externer Engines. Ein ungültiges Projekt ist ein Fehler und kein Auftrag, fehlende Dateien zu rekonstruieren.
 
-Die Ebenenliste bestimmt die Zeichenreihenfolge. Füge Bild-, Rain- oder CursorTrail-Ebenen hinzu, ordne sie um, benenne unterstützte Bildebenen um, schalte die Sichtbarkeit um oder lösche Ebenen, solange eine gültige Szene erhalten bleibt. Bildtransformationen verwenden logische Canvas-Koordinaten; das Hinzufügen oder Ersetzen eines Bildes normalisiert PNG/JPEG-Eingaben zu unabhängig verwalteten PNG-Daten. Beim Ersetzen bleiben die vorhandenen Transformations- und Effektregeln der Ebene erhalten; ihre Felder werden nicht automatisch neu abgetastet.
+Die Ebenenliste bestimmt die Zeichenreihenfolge. Füge Bild-, Rain- oder CursorTrail-Ebenen hinzu, ordne sie um, benenne unterstützte Bildebenen um, schalte die Sichtbarkeit um oder lösche Ebenen, solange eine gültige Szene erhalten bleibt. Bildtransformationen verwenden logische Canvas-Koordinaten; das Hinzufügen oder Ersetzen eines Bildes normalisiert PNG/JPEG/HEIC/TIFF-Eingaben zu unabhängig verwalteten PNG-Daten. Beim Ersetzen bleiben die vorhandenen Transformations- und Effektregeln der Ebene erhalten; ihre Felder werden nicht automatisch neu abgetastet.
 
 ## Bildeffekte
 
@@ -41,3 +41,18 @@ Die Bearbeitung aktualisiert das Arbeitsmodell. Sichern validiert das codierte J
 Sichern unter erstellt ein unabhängig verwaltetes Projekt in der Mediathek, begrenzt auf 512 MiB, mit neuem Titel und neuer Identität. Nach erfolgreicher Übernahme wechselt derselbe Editor zum gesicherten Projekt B ohne ausstehende Änderungen und mit leerem Rückgängig-/Wiederholen-Verlauf; A sowie die Verweise von Desktop und Wiedergabelisten bleiben unverändert. Scheitert die Übernahme in die Mediathek, kann ein vollständiges, aber nicht referenziertes Projekt zurückbleiben; es findet keine automatische Speicherbereinigung statt.
 
 Beim Schließen werden ungesicherte Änderungen geklärt. Eine native Sicherung erfasst den gesicherten Stand, nicht ungesicherte Editorentwürfe oder den Rückgängig-Verlauf. Die Wiederherstellung klärt den Zustand aller Editoren und wartet vor der unumkehrbaren Übernahme auf das Ende laufender Laufzeitoperationen; anschließend muss die App beendet und erneut geöffnet werden. Siehe [Architektur](ARCHITECTURE.md), [Sicherung](../BACKUP-FORMAT.md) und [Wiederherstellung](../RESTORE-TRANSACTION.md).
+
+Verwaltete statische Bilder lassen sich über „Hintergrundbild bearbeiten …“ als unabhängige WSS-Entwürfe öffnen. Das erste Speichern bietet eine zusätzliche Szene (Voreinstellung) oder das Ersetzen des ursprünglichen Eintrags an. Erneutes Öffnen derselben Quelle fokussiert die vorhandene Editorsitzung. Akzeptiert werden nur Einzelbilder; mehrseitige TIFFs werden abgewiesen. Die Normalisierung verwendet acht Bit sRGB-PNG und erhält daher nicht den vollen HDR-/Wide-Gamut-Farbumfang. Die Herkunft bleibt Sitzungszustand und wird nicht im Szenen-JSON gespeichert.
+
+Beim Ersetzen bleiben Quell-UUID und aktuelle Mediathekposition erhalten; Favoriten und Playlist-Verweise bleiben gültig. Datensatz und Fingerprint der beim Öffnen gelesenen Bildbytes werden erneut geprüft. Erst nach unabhängiger Projektveröffentlichung wird library.json atomar ausgetauscht. Umbenennen, Entfernen, Ersetzen oder geänderte Bildbytes führen zu einem Konflikt; zusätzliches Speichern bleibt möglich. Gleiche Anzeigenamen bleiben erlaubt. Externe und alte verwaltete Bilddateien werden nicht gelöscht. Ersetzen ist während der Hintergrundbild- und Playlist-Wiedergabe möglich. Inaktive Einträge lösen keinen Desktopwechsel aus; die Playlist verwendet die Szene beim nächsten regulären Durchlauf. Aktive Einträge erhalten zunächst verdeckt gestartete Ersatzrenderer. Nur Renderer mit derselben UUID werden ausgetauscht; Pause, Playlist-Timer und Shuffle-Zustand bleiben erhalten. Neuere Aktionen haben Vorrang. Bei einem Fehler der Desktopaktualisierung bleibt die Szene gespeichert und eine Warnung erscheint; bei synchronem Startfehler bleibt der vorherige Renderer erhalten. Laufende Apply-Anfragen werden ohne zweiten Request auf den neuen Datensatz umgestellt. Displayänderungen können die automatische Übergabe verhindern; die nächste Aktivierung verwendet die gespeicherte Szene. Ein erfolgreicher Start garantiert noch keinen ersten sichtbaren GPU-Frame. Normales Erstellen und „Speichern unter …“ behalten ihren bisherigen Namensdialog.
+
+## Abgeschlossene Abnahme
+
+Der Maintainer hat die abschließende Abnahme der Bearbeitung und Ersetzung von Mediathek-Bildern am 14.11.2026 bestätigt:
+
+| System | Tests | Fehler | Skips | Praktische GUI-Prüfungen | Ersetzen des aktiven Playlist-Wallpapers |
+| --- | ---: | ---: | ---: | --- | --- |
+| macOS 26 | 1.250 | 0 | 11 | Erfolgreich | Erfolgreich |
+| macOS 27 | 1.250 | 0 | 11 | Erfolgreich | Erfolgreich |
+
+Die Ergebnisse gelten für die abgeschlossene Funktion aus Etappe 1–3 einschließlich zusätzlichem Speichern, Ersetzen mit erhaltener Identität und Sortierung sowie der Wiedergabeübergabe während einer laufenden Playlist.

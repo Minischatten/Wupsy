@@ -179,6 +179,11 @@ import SwiftUI
     let directionUndoHistory = WSSDirectionUndoHistory()
     @Published var saveAsBusy = false
     typealias PublishDraft = (WSSSaveAsSnapshot) async throws -> WSSSaveAsReceipt
+    // Session-only provenance; never encoded in the scene or used as a save destination.
+    var libraryImageSource: Wallpaper?
+    var libraryImageReplacement: WSSImageReplacementTarget?
+    var chooseImageFirstSave: ((String) async -> WSSImageFirstSaveChoice?)?
+    var didPublishDraft: ((UUID) -> Void)?
     var publishDraft: PublishDraft?
     private(set) var draftPublicationReceipt: WSSSaveAsReceipt?
     private var draftCleanupTask: Task<Void, Never>?
@@ -615,18 +620,30 @@ import SwiftUI
                 if let committed = draftPublicationReceipt {
                     receipt = committed
                 } else {
-                    guard let name = await chooseFirstSaveName?(state.workingModel.title), !closed
-                    else {
-                        return false
+                    let name: String
+                    let publication: WSSDraftPublication
+                    if let basis = libraryImageReplacement, let chooseImageFirstSave {
+                        guard let choice = await chooseImageFirstSave(state.workingModel.title),
+                            !closed
+                        else { return false }
+                        name = choice.name
+                        publication = choice.replace ? .replacing(basis) : .additional
+                    } else {
+                        guard let chosen = await chooseFirstSaveName?(state.workingModel.title),
+                            !closed
+                        else { return false }
+                        name = chosen
+                        publication = .additional
                     }
                     let title = try WSSSaveAsSnapshot.title(name)
                     let snapshot = try WSSSaveAsSnapshot(
                         document: state.workingModel, state: state,
                         source: project.handle, name: title,
-                        destinationID: project.handle.id)
+                        destinationID: project.handle.id, publication: publication)
                     receipt = try await publishDraft(snapshot)
                     // Library commit is authoritative. Never repeat publication after this point.
                     draftPublicationReceipt = receipt
+                    didPublishDraft?(receipt.project.handle.id)
                 }
                 guard !closed else { return true }
                 let owner = project.handle.draftOwner
@@ -639,6 +656,8 @@ import SwiftUI
                 guard !closed else { return true }
                 // In-place takeover preserves the native window, pan/zoom and its player clock.
                 project = receipt.project
+                libraryImageSource = nil
+                libraryImageReplacement = nil
                 snapshot = Snapshot(
                     state: WSSEditorDocumentState(
                         model: receipt.project.document,

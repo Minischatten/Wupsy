@@ -225,7 +225,7 @@ struct LibraryView: View {
                 visibleIDs: { filtered.map(\.id) })
         )
         .contextMenu {
-            if item.managed != nil && item.kind == .scene {
+            if item.canOpenInEditor {
                 Button(ProductText.editWallpaper.text) {
                     Task {
                         do {

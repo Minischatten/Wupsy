@@ -34,14 +34,39 @@ final class WSSDraftOwner: @unchecked Sendable {
 }
 
 actor WSSDraftPreparation {
-    func create(image url: URL) async throws -> WSSLoadedEditorProject {
+    func create(libraryImage: Wallpaper) async throws -> (
+        WSSLoadedEditorProject, WSSImageReplacementTarget
+    ) {
+        guard libraryImage.kind == .image, let managed = libraryImage.managed else {
+            throw WSSEditorOpenError.unavailable
+        }
+        let basis = WSSImageReplacementTarget(
+            wallpaper: libraryImage,
+            fingerprint: WSSContentFingerprint(
+                try WSSAssetIO.read(
+                    root: URL(fileURLWithPath: libraryImage.root), path: managed.entry,
+                    limit: WSSImageImporter.inputLimit)))
+        let project = try await create(image: libraryImage.url, title: libraryImage.title)
+        do {
+            try basis.verify([libraryImage])
+            return (project, basis)
+        } catch {
+            try project.handle.draftOwner?.discard()
+            throw error
+        }
+    }
+
+    func create(image url: URL, title proposedTitle: String? = nil) async throws
+        -> WSSLoadedEditorProject
+    {
         let generation = try await WSSImageImporter().load(url)
         try Task.checkCancellation()
         let id = UUID()
         let owner = try WSSDraftOwner(wallpaperID: id)
         do {
             let stem = url.deletingPathExtension().lastPathComponent
-            let title = (try? WSSSaveAsSnapshot.title(stem)) ?? "Untitled Wallpaper"
+            let title =
+                (try? WSSSaveAsSnapshot.title(proposedTitle ?? stem)) ?? "Untitled Wallpaper"
             let width = generation.width
             let height = generation.height
             // Decode through the same strict DTO boundary as any native project.

@@ -153,6 +153,7 @@ import SwiftUI
     private var preparation: Task<Void, Never>?
     private var generation = UUID()
     private var pendingApply: WallpaperApplyRequest?
+    private var replacementPreparationID: UUID?
     private var startingRenderers = false
     private var startupError: String?
     private var memoryRecovery: Task<Void, Never>?
@@ -171,6 +172,7 @@ import SwiftUI
     private let defaults: UserDefaults
     private let targetScreens: () -> [NSScreen]
     private let rendererStart: @MainActor (Renderer, Int) throws -> Void
+    private let draftPreview: ((WSSLoadedEditorProject) async -> Bool)?
     private let scenePreparation: (Wallpaper) async throws -> PreparedScenePlayback
     private let makeVideoOptimizer: @MainActor () -> VideoOptimizer
     init(
@@ -185,13 +187,15 @@ import SwiftUI
         scenePreparation: @escaping (Wallpaper) async throws -> PreparedScenePlayback = {
             try await ScenePlayback.prepare(for: $0)
         },
-        makeVideoOptimizer: @escaping @MainActor () -> VideoOptimizer = { VideoOptimizer() }
+        makeVideoOptimizer: @escaping @MainActor () -> VideoOptimizer = { VideoOptimizer() },
+        draftPreview: ((WSSLoadedEditorProject) async -> Bool)? = nil
     ) {
         self.beforeLibraryPublication = beforeLibraryPublication
         self.maintenance = maintenance ?? .shared
         self.targetScreens = targetScreens
         self.rendererStart = rendererStart
         self.scenePreparation = scenePreparation
+        self.draftPreview = draftPreview
         self.makeVideoOptimizer = makeVideoOptimizer
         self.storage =
             storage
@@ -429,19 +433,72 @@ import SwiftUI
                 return receipt
             }
             let item = receipt.project.handle.wallpaper
-            // Deliberately preserve selection, active playback and playlist state.
-            let prepared = await ImageLoader.shared.committedWSS(
-                item,
-                basis: receipt.project.diskBasis, resources: receipt.project.resources)
+            var warnings = receipt.warnings
+            if snapshot.publication.replacement != nil {
+                warnings += completeImageReplacement(receipt.project)
+            }
+            // Thumbnail work cannot repeat or roll back committed publication.
+            let prepared: Bool
+            if let draftPreview {
+                prepared = await draftPreview(receipt.project)
+            } else {
+                prepared = await defaultCommittedDraftPreview(receipt.project)
+            }
             NotificationCenter.default.post(name: .wssPreviewCommitted, object: item.id)
             return WSSSaveAsReceipt(
                 operationID: receipt.operationID, project: receipt.project,
-                warnings: receipt.warnings
-                    + (prepared
-                        ? []
-                        : [EditorText.thumbnailWarning.text]))
+                warnings: warnings + (prepared ? [] : [EditorText.thumbnailWarning.text]))
 
         }
+    }
+
+    private func completeImageReplacement(_ project: WSSLoadedEditorProject) -> [String] {
+        let item = project.handle.wallpaper
+        guard !maintenanceStopped, maintenance.allowsMutation,
+            active?.id == item.id && active?.kind == .image
+                || renderers.contains(where: {
+                    $0.wallpaper.id == item.id && $0.wallpaper.kind == .image
+                }),
+            items.first(where: { $0.id == item.id }) == item
+        else { return [] }
+        do {
+            // A newer editor save must never be replaced by this older receipt.
+            try project.diskBasis.verify(project.handle)
+            if active?.id == item.id && (pendingApply != nil || preparing || renderers.isEmpty) {
+                retargetPreparation(to: item)
+            } else {
+                try refreshActiveWallpaper(
+                    id: item.id, playback: .init(wss: project.resources), committedItem: item)
+            }
+            return []
+        } catch is CancellationError {
+            // A newer action wins; the saved project is still authoritative.
+            return []
+        } catch {
+            return [EditorText.desktopWarning.format(EditorErrorPresentation.message(error))]
+        }
+    }
+
+    // Preserve the original request/outcome and playlist transition. No apply(),
+    // manual command, preference write, Stop or intermediate ready state.
+    private func retargetPreparation(to item: Wallpaper) {
+        generation = UUID()
+        preparation?.cancel()
+        preparation = nil
+        active = item
+        replacementPreparationID = item.id
+        if let pauseReason {
+            preparing = false
+            playbackStatus = .paused(pauseReason)
+        } else {
+            prepare(item)
+        }
+    }
+
+    private func defaultCommittedDraftPreview(_ project: WSSLoadedEditorProject) async -> Bool {
+        await ImageLoader.shared.committedWSS(
+            project.handle.wallpaper,
+            basis: project.diskBasis, resources: project.resources)
     }
 
     // Explicit editor save; only an already-active UUID may refresh after commit.
@@ -493,7 +550,7 @@ import SwiftUI
         if let storageLoadError { throw ImportFailure.message(storageLoadError) }
         guard removingWallpaper != id, items.filter({ $0.id == id }).count == 1,
             let item = items.first(where: { $0.id == id }), item.managed != nil,
-            item.kind == .scene
+            item.canOpenInEditor
         else { throw WSSEditorOpenError.unavailable }
         return try managedStore.resolve(item)
     }
@@ -549,8 +606,9 @@ import SwiftUI
 
     /// Existing UI callers may discard the handle; automatic callers await its outcome.
     @discardableResult func apply(
-        _ item: Wallpaper, source: WallpaperApplySource = .manual
+        _ requested: Wallpaper, source: WallpaperApplySource = .manual
     ) -> WallpaperApplyRequest {
+        let item = currentPlaybackRecord(requested)
         guard !maintenanceStopped, maintenance.allowsMutation else {
             let request = WallpaperApplyRequest()
             request.finish(.superseded)
@@ -580,6 +638,14 @@ import SwiftUI
         return request
 
     }
+    private func currentPlaybackRecord(_ requested: Wallpaper) -> Wallpaper {
+        if requested.kind == .image,
+            let current = items.first(where: { $0.id == requested.id }), current.kind == .scene
+        {
+            return current
+        }
+        return requested
+    }
     private func reject(_ request: WallpaperApplyRequest, _ text: String) {
         message = text
         request.finish(.failed(ImportFailure.message(text)))
@@ -594,16 +660,18 @@ import SwiftUI
         pendingApply = nil
         stopPlayback(preserveSelection: true)
     }
-    private func rendererFailed(_ diagnostic: RuntimeDiagnostic, ticket: UUID) {
+    private func rendererFailed(_ diagnostic: RuntimeDiagnostic, ticket: UUID, renderer: Renderer) {
         let text = diagnostic.technicalDescription
-        guard generation == ticket else { return }
+        guard generation == ticket, !renderer.stopped else { return }
         if startingRenderers {
             startupError = startupError ?? text
         } else {
             // Resume can report a synchronous load error inside updatePolicy's
             // renderer loop. Defer policy mutation to avoid reentrant unpausing.
-            Task { @MainActor [weak self] in
-                guard let self, self.generation == ticket else { return }
+            Task { @MainActor [weak self, weak renderer] in
+                guard let self, let renderer, !renderer.stopped, self.generation == ticket else {
+                    return
+                }
                 self.showProductError(text, presentation: .playbackError)
                 self.messagePresentation = diagnostic.localized()
                 self.recordPlayback(.diagnostic(diagnostic))
@@ -612,6 +680,7 @@ import SwiftUI
         }
     }
     private func prepare(_ item: Wallpaper) {
+        let afterImageReplacement = replacementPreparationID == item.id
         guard !maintenanceStopped, let admission = try? maintenance.beginMutation(kind: .runtime)
         else { return }
 
@@ -635,6 +704,11 @@ import SwiftUI
                         protectedURLs: { [weak self] in self?.renderers.map(\.mediaURL) ?? [] })
                     try Task.checkCancellation()
                     guard generation == ticket else { return }
+                    let current = currentPlaybackRecord(item)
+                    if current != item {
+                        retargetPreparation(to: current)
+                        return
+                    }
                     let available = targetScreens()
                     let screens = allDisplays ? available : Array(available.prefix(1))
                     guard !screens.isEmpty else {
@@ -648,8 +722,8 @@ import SwiftUI
                         let renderer = makeRenderer(
                             item, screen: screen, mediaURL: url, quality: quality,
                             playback: scenePlayback, ticket: ticket,
-                            onError: { [weak self] error in
-                                self?.rendererFailed(error, ticket: ticket)
+                            onError: { [weak self] error, renderer in
+                                self?.rendererFailed(error, ticket: ticket, renderer: renderer)
                             })
                         renderers.append(renderer)
                         try rendererStart(renderer, index)
@@ -660,6 +734,7 @@ import SwiftUI
                     // navigation and later runtime health remain Renderer responsibilities.
                     preparation = nil
                     preparing = false
+                    replacementPreparationID = nil
                     defaults.set(item.id.uuidString, forKey: "activeWallpaper")
                     pendingApply?.finish(.accepted)
                     pendingApply = nil
@@ -667,6 +742,12 @@ import SwiftUI
                 } catch {
                     guard generation == ticket, !Task.isCancelled else { return }
                     failPreparation(error)
+                    if afterImageReplacement {
+                        let warning = EditorText.desktopWarning.format(
+                            EditorErrorPresentation.message(error))
+                        message = warning
+                        messagePresentation = warning
+                    }
                 }
 
             }
@@ -678,71 +759,100 @@ import SwiftUI
     private func makeRenderer(
         _ item: Wallpaper, screen: NSScreen, mediaURL: URL, quality: QualityProfile,
         playback: PreparedScenePlayback?, ticket: UUID,
-        onError: @escaping (RuntimeDiagnostic) -> Void
+        onError: @escaping (RuntimeDiagnostic, Renderer) -> Void
     ) -> Renderer {
-        Renderer(
+        weak var owner: Renderer?
+        let renderer = Renderer(
             maintenance: maintenance, wallpaper: item, screen: screen, mediaURL: mediaURL,
             profile: quality,
             initiallyPaused: true, scenePlayback: playback, sceneFPS: sceneFPS,
             sceneRenderResolution: sceneRenderResolution,
             onEvent: { [weak self] event in
-                guard let self, self.generation == ticket else { return }
+                guard let self, let owner, !owner.stopped, self.generation == ticket else { return }
                 self.recordPlayback(.diagnostic(event))
-            }, onDiagnostic: onError, onError: { onError(.failure($0)) })
+            },
+            onDiagnostic: { diagnostic in
+                guard let owner, !owner.stopped else { return }
+                onError(diagnostic, owner)
+            },
+            onError: { message in
+                guard let owner, !owner.stopped else { return }
+                onError(.failure(message), owner)
+            })
+        owner = renderer
+        return renderer
     }
 
-    private func refreshActiveWallpaper(id: UUID, playback: PreparedScenePlayback) throws {
+    private func refreshActiveWallpaper(
+        id: UUID, playback: PreparedScenePlayback, committedItem: Wallpaper? = nil
+    ) throws {
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
-
-        guard let item = active, item.id == id else { return }
-        let previousGeneration = generation
-        let ticket = UUID()
-        let available = targetScreens()
-        let screens = allDisplays ? available : Array(available.prefix(1))
-        guard !screens.isEmpty else {
-            throw ImportFailure.message(ProductText.noDisplay.text)
+        let previous = active
+        guard previous?.id == id || renderers.contains(where: { $0.wallpaper.id == id }) else {
+            return
         }
-        var replacements: [Renderer] = []
+        guard let item = committedItem ?? items.first(where: { $0.id == id }) ?? previous,
+            item.id == id, item.kind == .scene
+        else { throw ScenePlaybackError.notSceneWallpaper }
+        if pendingApply != nil || preparing || renderers.isEmpty {
+            guard previous?.id == id else { throw CancellationError() }
+            retargetPreparation(to: item)
+            return
+        }
+        let ticket = generation
+        let available = targetScreens()
+        let topology = WSSDesktopRefreshTargets.topology(available)
+        let targets = try WSSDesktopRefreshTargets.select(
+            id: id, renderers: renderers, screens: available)
+        guard !targets.isEmpty else { return }
+        var replacements: [(Int, Renderer)] = []
         var installing = true
         var startupFailure: String?
+        func verifyCurrent() throws {
+            guard !maintenanceStopped, maintenance.allowsMutation,
+                active == previous, generation == ticket
+            else { throw CancellationError() }
+            guard topology == WSSDesktopRefreshTargets.topology(targetScreens()) else {
+                throw ImportFailure.message(EditorText.desktopTopologyChanged.text)
+            }
+            if let startupFailure { throw ImportFailure.message(startupFailure) }
+        }
         do {
-            for (index, screen) in screens.enumerated() {
+            for target in targets {
+                try verifyCurrent()
                 let renderer = makeRenderer(
-                    item, screen: screen, mediaURL: item.url, quality: profile,
-                    playback: playback, ticket: ticket,
-                    onError: { [weak self] text in
+                    item, screen: target.screen, mediaURL: item.url,
+                    quality: profile, playback: playback, ticket: ticket,
+                    onError: { [weak self] diagnostic, renderer in
                         if installing {
-                            startupFailure = text.technicalDescription
+                            startupFailure = diagnostic.technicalDescription
                         } else {
-                            self?.rendererFailed(text, ticket: ticket)
+                            self?.rendererFailed(diagnostic, ticket: ticket, renderer: renderer)
                         }
                     })
-                replacements.append(renderer)
-                try rendererStart(renderer, index)
-                if let startupFailure { throw ImportFailure.message(startupFailure) }
+                renderer.deferPresentation()
+                replacements.append((target.index, renderer))
+                try rendererStart(renderer, target.index)
+                try verifyCurrent()
             }
-            guard active?.id == id, generation == previousGeneration else {
-                throw CancellationError()
-            }
-            // Keep a paused desktop paused; no policy or playlist transition is emitted.
-            for renderer in replacements { renderer.setPaused(pauseReason != nil) }
-            if let startupFailure { throw ImportFailure.message(startupFailure) }
+            for (_, renderer) in replacements { renderer.setPaused(pauseReason != nil) }
+            try verifyCurrent()
         } catch {
             installing = false
-            for renderer in replacements { retire(renderer) }
+            for (_, renderer) in replacements { retire(renderer) }
             throw error
         }
-        let old = renderers
-        generation = ticket
-        preparation?.cancel()
-        preparation = nil
-        preparing = false
-        renderers = replacements
+        let old = targets.map(\.renderer)
+        // Keep the action generation: unaffected renderer callbacks remain valid.
+        // Retired renderer lifetimes suppress their own delayed diagnostics.
+        for (index, renderer) in replacements { renderers[index] = renderer }
+        if previous?.id == id {
+            active = item
+            usingOptimizedVideo = false
+        }
         installing = false
+        for (_, renderer) in replacements { renderer.presentPreparedContent() }
         for renderer in old { retire(renderer) }
-        pendingApply?.finish(.accepted)
-        pendingApply = nil
-
     }
 
     func toggleFavorite(_ item: Wallpaper) {
@@ -764,9 +874,11 @@ import SwiftUI
 
         guard let item = active else { return }
         let request = pendingApply
+        let replacementID = replacementPreparationID
         pendingApply = nil
         stopPlayback(preserveSelection: true)
         pendingApply = request
+        replacementPreparationID = replacementID
         active = item
         updatePolicy()
 
@@ -835,6 +947,7 @@ import SwiftUI
 
     }
     private func stopPlayback(preserveSelection: Bool = false) {
+        replacementPreparationID = nil
         pendingApply?.finish(.superseded)
         pendingApply = nil
         if !preserveSelection { defaults.removeObject(forKey: "activeWallpaper") }

@@ -434,7 +434,9 @@ extension ManagedWallpaperStore {
         _ snapshot: WSSSaveAsSnapshot, id requestedID: UUID? = nil,
         checkpoint: WSSSaveAsCheckpoint? = nil
     ) async throws -> WSSSaveAsReceipt {
-        guard snapshot.source.origin != .draft else { throw WSSSaveAsError.conflict }
+        guard snapshot.publication.replacement == nil, snapshot.source.origin != .draft else {
+            throw WSSSaveAsError.conflict
+        }
         return try await publishWSSProject(
             snapshot, id: requestedID ?? snapshot.destinationID,
             ownedDraft: false, checkpoint: checkpoint)
@@ -454,6 +456,8 @@ extension ManagedWallpaperStore {
         _ snapshot: WSSSaveAsSnapshot, id: UUID,
         ownedDraft: Bool, checkpoint: WSSSaveAsCheckpoint?
     ) async throws -> WSSSaveAsReceipt {
+        let replacement = snapshot.publication.replacement
+        let entryID = replacement?.wallpaper.id ?? id
         let backupLease = try LibraryMutationBarrier.shared.mutation()
         defer { withExtendedLifetime(backupLease) {} }
         func readLibrary() throws -> (bytes: Data?, items: [Wallpaper]) {
@@ -475,6 +479,7 @@ extension ManagedWallpaperStore {
         }
         func verifySource(_ items: [Wallpaper]) throws {
             if ownedDraft {
+                try replacement?.verify(items)
                 guard let owner = snapshot.source.draftOwner,
                     snapshot.diskBasis.identity.draftToken == owner.token
                 else { throw WSSSaveAsError.conflict }
@@ -505,7 +510,10 @@ extension ManagedWallpaperStore {
         let location = ManagedWallpaperLocation(
             directory: "WSS/" + id.uuidString, entry: "scene.wss.json")
         guard
-            !initial.contains(where: { $0.id == id || $0.managed?.directory == location.directory })
+            !initial.contains(where: {
+                ($0.id == entryID && replacement == nil)
+                    || $0.managed?.directory == location.directory
+            })
         else { throw WSSSaveAsError.collision }
         let final = try folder(for: location)
         let root = try WSSAssetIO.directory(wallpaperRoot)
@@ -515,7 +523,7 @@ extension ManagedWallpaperStore {
         }
         guard fsync(root) == 0 else { throw WSSSaveAsError.storage }
         let item = Wallpaper(
-            id: id, title: snapshot.model.title,
+            id: entryID, title: snapshot.model.title,
             path: final.appendingPathComponent("scene.wss.json").path, root: final.path,
             kind: .scene, managed: location, sceneSource: .nativeWSS)
         let staging: WSSSaveAsStaging
@@ -543,14 +551,27 @@ extension ManagedWallpaperStore {
             try verifySource(current)
             guard
                 !current.contains(where: {
-                    $0.id == id || $0.managed?.directory == location.directory
+                    $0.managed?.directory == location.directory
+                        || ($0.id == entryID && replacement == nil)
                 })
             else { throw WSSSaveAsError.collision }
             try project.diskBasis.verify(project.handle)
-            current.append(item)
+            if let replacement {
+                guard let index = current.firstIndex(where: { $0.id == replacement.wallpaper.id })
+                else {
+                    throw WSSImagePublicationError.conflict
+                }
+                current[index] = item
+            } else {
+                current.append(item)
+            }
             let warnings = try WSSSaveAsLibraryWriter.commit(
                 before: before, after: JSONEncoder().encode(current), storage: storage,
-                checkpoint: checkpoint)
+                checkpoint: checkpoint,
+                precommit: {
+                    try verifySource(readLibrary().items)
+                    try project.diskBasis.verify(project.handle)
+                })
             return WSSSaveAsReceipt(
                 operationID: snapshot.operationID, project: project, warnings: warnings)
         } catch {
@@ -561,12 +582,14 @@ extension ManagedWallpaperStore {
                     let current = try readLibrary().items
                     guard
                         !current.contains(where: {
-                            $0.id == id || $0.managed?.directory == location.directory
+                            $0.managed?.directory == location.directory
+                                || ($0.id == entryID && replacement == nil)
                         })
                     else { throw WSSSaveAsError.cleanup }
                     try staging.rollbackUnregisteredPublication()
                 } catch { throw WSSSaveAsError.cleanup }
             }
+            if let known = error as? WSSImagePublicationError { throw known }
             if let known = error as? WSSSaveAsError { throw known }
             throw staging.published ? WSSSaveAsError.library : WSSSaveAsError.invalid
         }

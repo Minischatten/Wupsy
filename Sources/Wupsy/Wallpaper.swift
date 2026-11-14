@@ -34,6 +34,12 @@ struct Wallpaper: Identifiable, Codable, Hashable {
     }
 
     // Native WSS is the only scene backend. Persisted backend selectors are rejected.
+    var canOpenInEditor: Bool {
+        guard managed != nil else { return false }
+        return kind == .scene
+            || (kind == .image
+                && ["png", "jpg", "jpeg", "heic", "tiff"].contains(url.pathExtension.lowercased()))
+    }
     var playbackMode: ScenePlaybackMode { .wss }
     var ownership: Ownership { managed == nil ? .external : .managed }
     var url: URL { URL(fileURLWithPath: path) }

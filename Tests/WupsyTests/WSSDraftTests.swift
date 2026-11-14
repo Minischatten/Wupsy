@@ -55,6 +55,87 @@ import XCTest
         doc.chooseFirstSaveName = { $0 }
         return doc
     }
+    func testLibraryImageOpenFocusCancelAndPublishIndependentCopy() async throws {
+        let store = store()
+        let source = try image()
+        let originalBytes = try Data(contentsOf: source)
+        let imported = try await store.importWallpaper(source, existing: [])
+        let item = try await store.rename(wallpaperID: imported.id, newTitle: "Library title")
+        let before = try Data(contentsOf: store.storage)
+        var docs: [WSSEditorDocument] = []
+        var windows: [DraftTestWindow] = []
+        let coordinator = WSSEditorCoordinator(
+            lookup: { id in try XCTUnwrap(store.load().first { $0.id == id }) },
+            publishDraft: { try await store.publishWSSDraft($0) },
+            makeWindow: { doc, close in
+                docs.append(doc)
+                let window = DraftTestWindow(close)
+                windows.append(window)
+                return window
+            })
+        coordinator.chooseNewImage = {
+            XCTFail("Unexpected file picker")
+            return nil
+        }
+        defer { coordinator.shutdown() }
+        async let first: Void = coordinator.open(wallpaperID: item.id)
+        async let second: Void = coordinator.open(wallpaperID: item.id)
+        _ = try await (first, second)
+        try await coordinator.open(wallpaperID: item.id)
+        XCTAssertEqual(docs.count, 1)
+        XCTAssertGreaterThanOrEqual(windows[0].focusCount, 2)
+        let doc = try XCTUnwrap(docs.first)
+        XCTAssertEqual(doc.libraryImageSource, item)
+        XCTAssertEqual(doc.state.workingModel.title, "Library title")
+        XCTAssertNotEqual(doc.project.handle.id, item.id)
+        XCTAssertNotEqual(doc.project.handle.root.path, item.root)
+        doc.chooseFirstSaveName = { _ in nil }
+        let cancelled = await doc.save()
+        XCTAssertFalse(cancelled)
+        XCTAssertEqual(try Data(contentsOf: store.storage), before)
+        windows[0].close()
+        await doc.waitForDraftCleanup()
+        XCTAssertTrue(coordinator.openIDs.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: store.storage), before)
+        try await coordinator.open(wallpaperID: item.id)
+        XCTAssertEqual(docs.count, 2)
+        docs[1].chooseFirstSaveName = { $0 }
+        let saved = await docs[1].save()
+        XCTAssertTrue(saved)
+        XCTAssertEqual(try store.load().count, 2)
+        XCTAssertEqual(try store.load().first, item)
+        XCTAssertEqual(try Data(contentsOf: item.url), originalBytes)
+        XCTAssertEqual(try Data(contentsOf: source), originalBytes)
+        XCTAssertFalse(docs[1].isUnpublished)
+        await docs[1].closeAndDrainForMaintenance()
+    }
+
+    func testLibraryResolvesManagedImageForEditorAndRejectsMissingIdentity() async throws {
+        let store = store()
+        let item = try await store.importWallpaper(image(), existing: [])
+        let suite = "ImageEditor-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let library = Library(storage: store.storage, defaults: defaults, restoreOnLaunch: false)
+        defer { library.stop() }
+        XCTAssertEqual(try library.wallpaperForEditor(id: item.id), item)
+        XCTAssertThrowsError(try library.wallpaperForEditor(id: UUID()))
+    }
+
+    func testEditorEligibilityRequiresManagedSupportedContent() {
+        for kind in [WallpaperKind.image, .scene, .video, .web] {
+            for ext in ["png", "jpg", "jpeg", "heic", "tiff", "gif", "mp4"] {
+                var item = Wallpaper(title: "Test", path: "/test." + ext, root: "/", kind: kind)
+                XCTAssertFalse(item.canOpenInEditor)
+                item.managed = .init(directory: "Media/test", entry: "test." + ext)
+                XCTAssertEqual(
+                    item.canOpenInEditor,
+                    kind == .scene
+                        || (kind == .image && ["png", "jpg", "jpeg", "heic", "tiff"].contains(ext)))
+            }
+        }
+    }
+
     func testMaintenanceDraftFirstSaveAndNamingCancel() async throws {
         for cancel in [false, true] {
             let maintenance = MaintenanceCoordinator()
@@ -680,7 +761,8 @@ import XCTest
 @MainActor private final class DraftTestWindow: WSSEditorWindow {
     let onClose: () -> Void
     init(_ onClose: @escaping () -> Void) { self.onClose = onClose }
-    func focus() {}
+    var focusCount = 0
+    func focus() { focusCount += 1 }
     func close() { onClose() }
 }
 

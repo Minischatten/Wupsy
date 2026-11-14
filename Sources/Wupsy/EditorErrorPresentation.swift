@@ -54,6 +54,10 @@ enum EditorErrorPresentation {
             case .writeFailed(let evidence): return detail(text(.errorSaveWrite), evidence)
             case .commitFailed(let evidence): return detail(text(.errorSaveCommit), evidence)
             }
+        case let error as WSSImagePublicationError:
+            switch error {
+            case .conflict: return text(.imageReplacementConflict)
+            }
         case let error as WSSSaveAsError:
             switch error {
             case .busy: return text(.waitSaveAs)

@@ -1,6 +1,108 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "editor.desktopTopologyChanged": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The display configuration changed during the update. The saved scene will be used on its next activation."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildschirmkonfiguration hat sich während der Aktualisierung geändert. Bei der nächsten Aktivierung wird die gespeicherte Szene verwendet."
+          }
+        }
+      }
+    },
+    "editor.imageSaveAdditional": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as a new wallpaper"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als neues Hintergrundbild speichern"
+          }
+        }
+      }
+    },
+    "editor.imageSaveReplace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace existing wallpaper"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorhandenes Hintergrundbild ersetzen"
+          }
+        }
+      }
+    },
+    "editor.imageSaveMode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save mode"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicherart"
+          }
+        }
+      }
+    },
+    "editor.imageSaveExplanation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New: keep the image and add an independent scene. Replace: keep its position, favorites and playlists; the external image stays unchanged."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu: Das Bild bleibt erhalten; eine unabhängige Szene kommt hinzu. Ersetzen: Position, Favoriten und Playlists bleiben erhalten; das externe Bild bleibt unverändert."
+          }
+        }
+      }
+    },
+    "editor.imageReplacementConflict": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The source image was renamed, changed, removed or replaced. Your draft is still available. Choose Save as a new wallpaper, or reopen the current source."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ursprüngliche Bild wurde umbenannt, verändert, entfernt oder ersetzt. Dein Entwurf bleibt erhalten. Wähle „Als neues Hintergrundbild speichern“ oder öffne die aktuelle Quelle erneut."
+          }
+        }
+      }
+    },
     "editor.transform" : {
       "extractionState": "manual",
       "localizations": {
@@ -8853,13 +8955,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose one PNG or JPEG image with a matching file extension."
+            "value": "Choose one PNG, JPEG, HEIC or TIFF image with a matching file extension."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wähle ein PNG- oder JPEG-Bild mit passender Dateiendung."
+            "value": "Wähle ein einzelnes PNG-, JPEG-, HEIC- oder TIFF-Bild mit passender Dateiendung."
           }
         }
       }
@@ -8871,13 +8973,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The image could not be decoded. Choose a valid PNG or JPEG."
+            "value": "The image could not be decoded. Choose a valid single-image PNG, JPEG, HEIC or TIFF."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Bild konnte nicht dekodiert werden. Wähle ein gültiges PNG- oder JPEG-Bild."
+            "value": "Das Bild konnte nicht dekodiert werden. Wähle eine gültige PNG-, JPEG-, HEIC- oder TIFF-Datei mit genau einem Bild."
           }
         }
       }

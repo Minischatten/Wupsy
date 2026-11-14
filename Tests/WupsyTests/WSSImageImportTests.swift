@@ -38,8 +38,10 @@ import XCTest
         XCTAssertTrue(CGImageDestinationFinalize(dest))
         return data as Data
     }
-    func testPNGAndJPEGBecomeExplicitEightBitSRGBPNG() async throws {
-        for (type, ext) in [(UTType.png, "png"), (.jpeg, "jpg"), (.jpeg, "jpeg")] {
+    func testSupportedFormatsBecomeExplicitEightBitSRGBPNG() async throws {
+        for (type, ext) in [
+            (UTType.png, "png"), (.jpeg, "jpg"), (.jpeg, "jpeg"), (.heic, "heic"), (.tiff, "tiff"),
+        ] {
             let generation = try await importer.normalize(image(type), extension: ext)
             let bytes = try generation.read()
             let source = try XCTUnwrap(CGImageSourceCreateWithData(bytes as CFData, nil))
@@ -72,6 +74,31 @@ import XCTest
             (properties[kCGImagePropertyExifDictionary] as? [CFString: Any])?[
                 kCGImagePropertyExifUserComment])
     }
+    func testTIFFMultiplePagesAndCorruptNewFormatsRejected() async throws {
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(try image() as CFData, nil))
+        let decoded = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let data = NSMutableData()
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithData(data, UTType.tiff.identifier as CFString, 2, nil))
+        CGImageDestinationAddImage(destination, decoded, nil)
+        CGImageDestinationAddImage(destination, decoded, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        for (bytes, ext) in [
+            (data as Data, "tiff"), (Data("invalid".utf8), "heic"), (Data("invalid".utf8), "tiff"),
+        ] {
+            do {
+                _ = try await importer.normalize(bytes, extension: ext)
+                XCTFail("Accepted invalid or multipage image")
+            } catch { XCTAssertNotNil(error as? WSSImageImportError) }
+        }
+        for (type, ext) in [(UTType.heic, "heic"), (.tiff, "tiff")] {
+            let generation = try await importer.normalize(
+                image(type, orientation: 6), extension: ext)
+            XCTAssertEqual(generation.width, 8)
+            XCTAssertEqual(generation.height, 12)
+        }
+    }
+
     func testWrongExtensionAndUnsupportedActualContentRejected() async throws {
         for (data, ext) in [
             (try image(.jpeg), "png"), (try image(), "jpg"),

@@ -101,8 +101,11 @@ enum WSSImageImportError: LocalizedError {
         stagingBudget, incompatible, stale, storage, cleanup
     var errorDescription: String? {
         switch self {
-        case .unsupported: return "Choose one PNG or JPEG image with a matching file extension."
-        case .corrupt: return "The image could not be decoded. Choose a valid PNG or JPEG."
+        case .unsupported:
+            return "Choose one PNG, JPEG, HEIC or TIFF image with a matching file extension."
+        case .corrupt:
+            return
+                "The image could not be decoded. Choose a valid single-image PNG, JPEG, HEIC or TIFF."
         case .dimensions: return "Images must be no larger than 8192 pixels on either axis."
         case .pixels: return "The image exceeds the 32-million-pixel limit."
         case .decodedBudget: return "The images exceed the 128 MiB decoded-image budget."
@@ -277,7 +280,9 @@ actor WSSImageImporter {
         -> WSSImageGeneration
     {
         guard bytes.count <= Self.inputLimit else { throw WSSImageImportError.fileSize }
-        guard ["png", "jpg", "jpeg"].contains(ext) else { throw WSSImageImportError.unsupported }
+        guard ["png", "jpg", "jpeg", "heic", "tiff"].contains(ext) else {
+            throw WSSImageImportError.unsupported
+        }
         guard
             let source = CGImageSourceCreateWithData(
                 bytes as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
@@ -286,6 +291,8 @@ actor WSSImageImporter {
         guard
             (type == UTType.png.identifier && ext == "png")
                 || (type == UTType.jpeg.identifier && ["jpg", "jpeg"].contains(ext))
+                || (type == UTType.heic.identifier && ext == "heic")
+                || (type == UTType.tiff.identifier && ext == "tiff")
         else { throw WSSImageImportError.unsupported }
         guard CGImageSourceGetCount(source) == 1,
             let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],

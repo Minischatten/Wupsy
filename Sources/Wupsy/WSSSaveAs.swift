@@ -1,9 +1,47 @@
 import Darwin
 import Foundation
 
+// Source receipt captured when opening a managed image. Ordering is deliberately absent.
+struct WSSImageReplacementTarget {
+    let wallpaper: Wallpaper
+    let fingerprint: WSSContentFingerprint
+    func verify(_ items: [Wallpaper]) throws {
+        do {
+            let matches = items.filter { $0.id == wallpaper.id }
+            guard wallpaper.kind == .image, let location = wallpaper.managed,
+                matches.count == 1, matches.first == wallpaper,
+                items.filter({ $0.managed?.directory == location.directory }).count == 1,
+                WSSContentFingerprint(
+                    try WSSAssetIO.read(
+                        root: URL(fileURLWithPath: wallpaper.root), path: location.entry,
+                        limit: WSSImageImporter.inputLimit)) == fingerprint
+            else { throw WSSImagePublicationError.conflict }
+        } catch { throw WSSImagePublicationError.conflict }
+    }
+}
+
+enum WSSDraftPublication {
+    case additional
+    case replacing(WSSImageReplacementTarget)
+    var replacement: WSSImageReplacementTarget? {
+        if case .replacing(let target) = self { return target }
+        return nil
+    }
+}
+
+enum WSSImagePublicationError: LocalizedError {
+    case conflict
+    var errorDescription: String? {
+        switch self {
+        case .conflict: return EditorText.imageReplacementConflict.text
+        }
+    }
+}
+
 // A separate creation operation, never a normal save/receipt for source A.
 struct WSSSaveAsSnapshot {
     let operationID = UUID()
+    let publication: WSSDraftPublication
     let destinationID: UUID
     let sessionID: UUID
     let revision: UInt64
@@ -14,8 +52,9 @@ struct WSSSaveAsSnapshot {
     let generations: [String: WSSImageGeneration]
     init(
         document: WSSSceneDocumentV1, state: WSSEditorDocumentState, source: WSSProjectHandle,
-        name: String, destinationID: UUID = UUID()
+        name: String, destinationID: UUID = UUID(), publication: WSSDraftPublication = .additional
     ) throws {
+        self.publication = publication
         self.destinationID = destinationID
         let title = try Self.title(name)
         sessionID = state.sessionID
@@ -306,7 +345,10 @@ actor WSSSaveAsPreparation {
 
 // Library replacement is the logical commit point, not the preceding project rename.
 enum WSSSaveAsLibraryWriter {
-    static func commit(before: Data?, after: Data, storage: URL, checkpoint: WSSSaveAsCheckpoint?)
+    static func commit(
+        before: Data?, after: Data, storage: URL, checkpoint: WSSSaveAsCheckpoint?,
+        precommit: (() throws -> Void)? = nil
+    )
         throws -> [String]
     {
         guard (before?.count ?? 0) <= WSSSaveAsPreparation.projectLimit,
@@ -367,6 +409,7 @@ enum WSSSaveAsLibraryWriter {
                         path: storage.lastPathComponent, limit: before.count) == before
                 else { throw WSSSaveAsError.library }
             }
+            try precommit?()
             try Task.checkCancellation()
             let publishResult =
                 before == nil
@@ -380,6 +423,7 @@ enum WSSSaveAsLibraryWriter {
             if ownsTemp, unlinkat(parent, temp, 0) != 0, errno != ENOENT {
                 throw WSSSaveAsError.cleanup
             }
+            if let conflict = error as? WSSImagePublicationError { throw conflict }
             throw WSSSaveAsError.library
         }
         var warnings: [String] = []

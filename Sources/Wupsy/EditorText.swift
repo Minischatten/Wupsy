@@ -3,6 +3,13 @@ import Foundation
 // Typed presentation resources in the existing catalog. IDs, names and model values
 // remain independent of these captions. Language injection is for tests/audits only.
 enum EditorText: String, CaseIterable {
+    case desktopTopologyChanged = "editor.desktopTopologyChanged"
+    case imageSaveAdditional = "editor.imageSaveAdditional"
+    case imageSaveReplace = "editor.imageSaveReplace"
+    case imageSaveMode = "editor.imageSaveMode"
+    case imageSaveExplanation = "editor.imageSaveExplanation"
+    case imageReplacementConflict = "editor.imageReplacementConflict"
+
     case rainCapacity = "editor.rainCapacity"
     case rainSmallRegion = "editor.rainSmallRegion"
     case addRain = "editor.addRain"

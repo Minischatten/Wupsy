@@ -91,7 +91,8 @@ final class EditorErrorLocalizationTests: XCTestCase {
             "Bilder dürfen auf keiner Achse größer als 8.192 Pixel sein.")
         XCTAssertEqual(
             EditorErrorPresentation.message(WSSImageImportError.corrupt, language: "de"),
-            "Das Bild konnte nicht dekodiert werden. Wähle ein gültiges PNG- oder JPEG-Bild.")
+            "Das Bild konnte nicht dekodiert werden. Wähle eine gültige PNG-, JPEG-, HEIC- oder TIFF-Datei mit genau einem Bild."
+        )
         XCTAssertEqual(
             EditorErrorPresentation.message(WSSImageImportError.layerLimit, language: "en"),
             "The wallpaper already has 128 layers.")

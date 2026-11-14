@@ -6,7 +6,7 @@
 
 Create a native wallpaper in Wupsy or import a project folder containing scene.wss.json. Open the native wallpaper in the editor. Images and masks are user content; Wupsy does not supply personal reference wallpapers or convert external engine projects. An invalid project is an error, not a request to reconstruct missing files.
 
-The layer list controls painter order. Add image, Rain or CursorTrail layers, reorder them, rename supported image layers, toggle visibility or delete layers while retaining a valid scene. Image transforms use logical canvas coordinates; image Add/Replace normalizes PNG/JPEG input to independently owned PNG data. Replacing an image preserves the layer's existing transform/effect semantics rather than automatically resampling its fields.
+The layer list controls painter order. Add image, Rain or CursorTrail layers, reorder them, rename supported image layers, toggle visibility or delete layers while retaining a valid scene. Image transforms use logical canvas coordinates; image Add/Replace normalizes PNG/JPEG/HEIC/TIFF input to independently owned PNG data. Replacing an image preserves the layer's existing transform/effect semantics rather than automatically resampling its fields.
 
 ## Image effects
 
@@ -51,3 +51,18 @@ Editing updates the working model. Save validates encoded JSON, referenced asset
 Save As creates an independently owned managed project, limited to 512 MiB, with a new title/identity. Successful publication switches the same editor to clean B with empty Undo/Redo, leaving A and desktop/playlist references unchanged. Failed library publication may leave a complete unreferenced project; no automatic garbage collection is performed.
 
 Closing resolves unsaved changes. Native backup captures saved state, not dirty editor drafts or Undo history. Restore resolves all editors and drains runtime before irreversible publication, then requires quitting/reopening. See [architecture](ARCHITECTURE.md), [backup](../BACKUP-FORMAT.md) and [restore](../RESTORE-TRANSACTION.md).
+
+Managed static images can be opened with “Edit Wallpaper…” as independent WSS drafts. First Save offers an additional scene (default) or replacement of the original entry. Reopening the same source focuses its existing editor session. Only single-image inputs are accepted; multipage TIFFs are rejected. Normalization uses eight-bit sRGB PNG, so HDR/wide-gamut fidelity is not preserved. Source provenance remains session-only and is not encoded in scene JSON.
+
+Image replacement keeps the source UUID and its current library position, so favorites and playlist references remain valid. It validates the opening receipt (record and source-byte fingerprint), publishes an independent project, then atomically replaces library.json. Source rename/removal/replacement/content changes are conflicts; the draft can still be saved additionally. Duplicate display names remain allowed. Neither external nor old managed image bytes are deleted. Replacing is supported during wallpaper and playlist playback. Inactive replacements do not switch the desktop; the playlist uses the scene on its next regular turn. Active replacements stage new renderer windows before exchanging only matching UUID slots, preserving pause, playlist timer and shuffle state. A newer action takes priority. A failed desktop update leaves the saved scene committed and reports a warning; the prior renderer is retained when synchronous startup fails. A pending Apply is retargeted without creating a second request. Display changes can defer automatic handoff; the next activation uses the saved scene. Startup is not a guarantee of a first visible GPU frame. Ordinary creation and Save As keep their existing naming flow.
+
+## Completed acceptance
+
+The maintainer reported final acceptance of managed-image editing and replacement on 2026-11-14:
+
+| System | Tests | Failures | Skips | Practical GUI checks | Active playlist wallpaper replacement |
+| --- | ---: | ---: | ---: | --- | --- |
+| macOS 26 | 1,250 | 0 | 11 | Passed | Passed |
+| macOS 27 | 1,250 | 0 | 11 | Passed | Passed |
+
+These results cover the completed three-stage feature, including saving an additional scene, replacement with retained identity and order, and playback handoff during playlist rotation.

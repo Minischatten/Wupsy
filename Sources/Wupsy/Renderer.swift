@@ -24,6 +24,7 @@ final class VideoView: NSView {
     }
 }
 @MainActor final class Renderer: NSObject, WKNavigationDelegate {
+    let screen: NSScreen
     let wallpaper: Wallpaper
     let window: DesktopWindow
     let mediaURL: URL
@@ -41,7 +42,8 @@ final class VideoView: NSView {
     private let sceneFPS: Int
     private let displayScale: CGFloat
     private(set) var paused = true
-    private var stopped = false
+    private(set) var stopped = false
+    private var presentationDeferred = false
     private var resumeTime = CMTime.zero
     private let runtimeTasks = RuntimeTaskDrain()
     private var imageTask: Task<Void, Never>? {
@@ -71,6 +73,7 @@ final class VideoView: NSView {
         self.sceneRenderResolution = sceneRenderResolution
         self.sceneFPS = sceneFPS
         self.displayScale = screen.backingScaleFactor
+        self.screen = screen
         self.wallpaper = wallpaper
         self.mediaURL = mediaURL ?? wallpaper.url
         self.profile = profile
@@ -187,7 +190,14 @@ final class VideoView: NSView {
                 loadWeb()
             }
         }
-        window.orderBack(nil)
+        if !presentationDeferred { window.orderBack(nil) }
+    }
+    // Refresh candidates load through the normal player path while the old window
+    // remains visible. Showing the candidate is a separate, synchronous handoff.
+    func deferPresentation() { presentationDeferred = true }
+    func presentPreparedContent() {
+        presentationDeferred = false
+        if !paused && !stopped { window.orderBack(nil) }
     }
     func setSceneRenderResolution(_ resolution: SceneRenderResolution) {
         sceneRenderResolution = resolution
