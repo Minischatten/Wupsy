@@ -27,6 +27,9 @@ extension WSSEditorDocument {
             return
         }
         selection = target
+        if case .layer(let id) = target, stormLayer(id)?.visible == true {
+            _ = activateTransformMode(id)
+        }
     }
     func visibilityHelp(_ layer: WSSLayerID) -> String {
         guard let index = identity.layers.firstIndex(where: { $0.id == layer }) else { return "" }
@@ -45,6 +48,9 @@ extension WSSEditorDocument {
         case .image(var image):
             image.visible = visible
             model.layers[index].content = .image(image)
+        case .storm(var storm):
+            storm.visible = visible
+            model.layers[index].content = .storm(storm)
         case .rain(var rain):
             rain.visible = visible
             model.layers[index].content = .rain(rain)

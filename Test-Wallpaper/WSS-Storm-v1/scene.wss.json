@@ -1,0 +1,39 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Storm v1",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "background": [
+    0.01,
+    0.02,
+    0.04
+  ],
+  "layers": [
+    {
+      "type": "storm",
+      "name": "Lightning",
+      "storm": {
+        "x": 960,
+        "y": 1000,
+        "direction": 0,
+        "length": 800,
+        "spread": 120,
+        "width": 2,
+        "glow": 24,
+        "brightness": 1,
+        "red": 0.55,
+        "green": 0.7,
+        "blue": 1,
+        "branchDepth": 2,
+        "interval": 4,
+        "duration": 0.12,
+        "flashes": 2,
+        "flashGap": 0.1,
+        "seed": 1
+      }
+    }
+  ]
+}

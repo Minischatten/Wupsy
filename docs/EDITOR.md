@@ -66,3 +66,14 @@ The maintainer reported final acceptance of managed-image editing and replacemen
 | macOS 27 | 1,250 | 0 | 11 | Passed | Passed |
 
 These results cover the completed three-stage feature, including saving an additional scene, replacement with retained identity and order, and playback handoff during playlist rotation.
+
+## Storm
+
+Add a native Storm layer for visible lightning. Its inspector supports rename
+(Return or Rename), exact numeric position, direction, RGB, geometry and event
+controls and the native macOS color picker. Accepted edits use document Undo/Redo.
+Selecting Storm shows a fixed authoring frame in the static Edit Canvas; move it,
+use corners to scale (Shift: independent axes), or the round handle to rotate.
+The frame maps to the existing position/direction/length/spread parameters.
+Storm animation appears in Live Preview and desktop playback.
+See [Storm](effects/STORM.md) for bounds, timing and compatibility.

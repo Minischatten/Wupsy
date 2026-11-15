@@ -34,11 +34,13 @@ enum WSSSceneLayer {
     case image(WSSImageLayer)
     case rain(WSSRainLayer)
     case trail(WSSTrailLayer)
+    case storm(WSSStormLayer)
     var visible: Bool {
         switch self {
         case .image(let l): return l.visible
         case .rain(let l): return l.visible
         case .trail(let l): return l.visible
+        case .storm(let l): return l.visible
         }
     }
 }
@@ -79,6 +81,7 @@ struct WSSScene {
                         }
                     }
             case .trail(let l): return l.visible
+            case .storm(let l): return l.visible && l.storm.brightness > 0
             case .rain(let l):
                 return l.visible && l.rain.speed > 0 && l.rain.density > 0 && l.rain.opacity.max > 0
             }
@@ -98,6 +101,18 @@ struct WSSScene {
                 throw WSSSceneError.invalid("scene effect pass budget exceeded (256)")
             }
         }
+        var stormCount = 0
+        var stormSegments = 0
+        for node in layers {
+            if case .storm(let layer) = node {
+                try layer.validate()
+                stormCount += 1
+                stormSegments += layer.storm.segmentCount
+            }
+        }
+        guard stormCount <= WSSStormGeometry.maximumLayers,
+            stormSegments <= WSSStormGeometry.maximumSegmentsPerScene
+        else { throw WSSSceneError.invalid("storm scene budget") }
         var trailBudget = 0.0
         var rainCount = 0
         for node in layers {

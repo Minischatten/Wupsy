@@ -1,7 +1,8 @@
 # Native WSS scene format, version 1
 
 Supported image effect types are `flow`, `ripple` and `clouds`; native `rain` and
-`cursorTrail` layers remain supported. Unknown effect types, including the removed
+`cursorTrail` layers remain supported. Native `storm` layers add visible seeded lightning;
+see the [Storm contract](docs/effects/STORM.md). Unknown effect types, including the removed
 `surfaceAdvection` and `waterSurface`, fail explicitly, even on hidden layers or
 inside effect chains. No legacy normalization, migration or fallback is performed.
 This boundary also applies to native projects in backup/restore/recovery payloads.
@@ -51,7 +52,7 @@ Canvas dimensions are positive integers, at most 8192 per axis and 32 Mi pixels
 in total. `title` is required, nonblank and at most 1024 UTF-8 bytes. Optional
 `background` is an RGB array in 0…1, default `[0,0,0]`.
 
-There are 1…128 ordered image, Rain or CursorTrail layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
+There are 1…128 ordered image, Rain, CursorTrail or Storm layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
 
 - `name`: optional user-facing image-layer name (same single-line, non-empty,
   at-most-256-character rules as wallpaper titles). Display metadata only; it is
@@ -173,11 +174,13 @@ v1 fields only. Session layer/effect IDs, selection, edit targets, split positio
 and canvas navigation are never serialized. Resource inspection is read-only;
 manifest saves may change the referenced subset of known project assets without
 deleting assets. New images use exclusively installed immutable generation paths. Session undo retains access to unchanged old assets.
-The static Edit Canvas composites image layers without effects, Rain or Trail;
+The static Edit Canvas composites image layers without effects, Rain, Trail or Storm;
 this working representation does not redefine native playback/effect semantics.
 The separate Live Preview shows the full working wallpaper.
 
-Direct Canvas move/scale/rotation edits only the existing image transform fields.
+Direct Canvas move/scale/rotation edits existing image transform fields or maps a
+session-only Storm authoring frame into its existing position/direction/length/spread
+fields; see the [Storm contract](docs/effects/STORM.md).
 Gesture state and handles are session-local; size and scale retain their existing
 separate meaning, with positive scales and no new persisted fields.
 

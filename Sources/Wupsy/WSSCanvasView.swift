@@ -284,7 +284,7 @@ struct WSSCanvasView: NSViewRepresentable {
         guard document.transformModeLayer == hit.layer else { return }
         guard document.selection == .layer(hit.layer),
             let index = document.identity.layers.firstIndex(where: { $0.id == hit.layer }),
-            let transform = document.state.workingModel.layers[index].imageTransform
+            let transform = document.state.workingModel.layers[index].canvasTransform
         else { return }
         let kind: WSSCanvasGesture.Kind
         switch hit {
@@ -615,12 +615,7 @@ struct WSSCanvasView: NSViewRepresentable {
                 && document.transformModeLayer != nil
                 && scene.layers.indices.contains(document.selectedLayer)
             ? {
-                if case .image(let image) = scene.layers[document.selectedLayer],
-                    image.visible
-                {
-                    return image.transform
-                }
-                return nil
+                return scene.layers[document.selectedLayer].canvasTransform
             }() : nil
         outline.needsDisplay = true
         let candidate = document.canvasModel

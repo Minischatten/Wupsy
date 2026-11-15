@@ -11,13 +11,13 @@ extension WSSEditorDocument {
     func canTransform(_ layer: WSSLayerID) -> Bool {
         guard !closed, !interactionLocked,
             let index = identity.layers.firstIndex(where: { $0.id == layer }),
-            case .image(let image) = state.workingModel.layers[index].content
+            state.workingModel.layers[index].canvasTransform != nil
         else { return false }
-        return image.visible
+        return workingScene.layers[index].visible
     }
     func transformHelp(for target: WSSEditorSelection) -> String? {
         guard case .layer(let id) = target, canTransform(id) else { return nil }
-        return EditorText.transformHint.text
+        return stormLayer(id) == nil ? EditorText.transformHint.text : WSSStormText.transformHelp
     }
     @discardableResult
     func activateStructureRow(_ target: WSSEditorSelection) -> Bool {
@@ -61,7 +61,7 @@ extension WSSEditorDocument {
     func beginCanvasTransform(_ layer: WSSLayerID, kind: WSSCanvasGesture.Kind) -> Bool {
         guard finishEditing(), !closed, !interactionLocked,
             let index = identity.layers.firstIndex(where: { $0.id == layer }),
-            case .image = state.workingModel.layers[index].content
+            state.workingModel.layers[index].canvasTransform != nil
         else { return false }
         canvasTransform = WSSCanvasTransformTransaction(
             layer: layer, kind: kind, model: state.workingModel, identity: identity,
@@ -70,13 +70,26 @@ extension WSSEditorDocument {
     }
     func updateCanvasTransform(_ transform: WSSSceneDocumentV1.Transform) throws {
         guard let transaction = canvasTransform, !closed, !interactionLocked,
-            let index = identity.layers.firstIndex(where: { $0.id == transaction.layer }),
-            case .image(var image) = state.workingModel.layers[index].content
+            let index = identity.layers.firstIndex(where: { $0.id == transaction.layer })
         else { return }
         _ = try transform.native()
-        image.transform = transform
         var model = state.workingModel
-        model.layers[index].content = .image(image)
+        switch model.layers[index].content {
+        case .image(var image):
+            image.transform = transform
+            model.layers[index].content = .image(image)
+        case .storm(var layer):
+            guard
+                let originalIndex = transaction.identity.layers.firstIndex(where: {
+                    $0.id == transaction.layer
+                }),
+                case .storm(let original) = transaction.model.layers[originalIndex].content
+            else { return }
+            layer.storm = try WSSStormCanvas.applying(
+                transform, original: original.storm, kind: transaction.kind)
+            model.layers[index].content = .storm(layer)
+        default: return
+        }
         _ = try model.scene()
         installMutation(model, ids: nil, selected: nil)
     }
@@ -94,8 +107,11 @@ extension WSSEditorDocument {
             case .scale: name = EditorText.scaleImage.text
             case .rotate: name = EditorText.rotateImage.text
             }
+            let undoName =
+                stormLayer(transaction.layer) == nil
+                ? name : WSSStormText.transformUndo(transaction.kind)
             registerModelUndo(
-                transaction.model, name: name, ids: transaction.identity,
+                transaction.model, name: undoName, ids: transaction.identity,
                 selected: transaction.selection)
         }
     }

@@ -39,11 +39,11 @@ enum WSSCanvasInteractionGeometry {
     ) -> WSSCanvasHit? {
         guard zoom > 0 else { return nil }
         if let selected, let index = identity.layers.firstIndex(where: { $0.id == selected }),
-            scene.layers.indices.contains(index), case .image(let image) = scene.layers[index],
-            image.visible
+            scene.layers.indices.contains(index),
+            let transform = scene.layers[index].canvasTransform
         {
             let points = handles(
-                transform: image.transform, origin: origin, zoom: zoom,
+                transform: transform, origin: origin, zoom: zoom,
                 height: CGFloat(scene.height))
             // Nearest handle wins even when a very small quad makes hit zones overlap.
             if let index = points.indices.min(by: {
@@ -55,6 +55,15 @@ enum WSSCanvasInteractionGeometry {
         }
         let p = WSSCanvasGeometry.scenePoint(
             point, origin: origin, zoom: zoom, height: CGFloat(scene.height))
+        // An explicitly selected Storm region remains draggable through foreground images.
+        if let selected, let index = identity.layers.firstIndex(where: { $0.id == selected }),
+            scene.layers.indices.contains(index), case .storm = scene.layers[index],
+            let transform = scene.layers[index].canvasTransform,
+            let uv = WSSCanvasGeometry.uv(p, transform: transform),
+            (0...1).contains(uv.x), (0...1).contains(uv.y)
+        {
+            return .image(selected)
+        }
         for index in scene.layers.indices.reversed() {
             guard identity.layers.indices.contains(index),
                 case .image(let image) = scene.layers[index], image.visible,

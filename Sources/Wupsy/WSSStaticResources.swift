@@ -17,6 +17,7 @@ final class WSSStaticResources: @unchecked Sendable {
     }
     let images: [WSSAssetID: Image]
     let trail: WSSTrailRenderer?
+    let storm: WSSStormRenderer?
     let rain: WSSRainResources?
     let ripple: WSSRippleResources?
     let flow: WSSFlowResources?
@@ -131,6 +132,12 @@ final class WSSStaticResources: @unchecked Sendable {
                 return false
             }
             ? WSSTrailRenderer(device: device) : nil
+        storm =
+            try scene.layers.contains {
+                if case .storm = $0 { return true }
+                return false
+            }
+            ? WSSStormRenderer(device: device) : nil
         let fieldIDs = scene.imageLayers.flatMap { layer in
             layer.effects.compactMap { e -> WSSAssetID? in
                 if case .flow(let f) = e { return f.flowMap }
@@ -217,7 +224,7 @@ final class WSSStaticResources: @unchecked Sendable {
             }
         }
     }
-    // Only the scene transforms change. Every GPU resource remains immutable/shared.
+    // Transform/Storm value updates reuse immutable prepared GPU resources.
     private init(
         scene: WSSScene, sharing original: WSSStaticResources, flowOverride: WSSFlowResources? = nil
     ) {
@@ -227,6 +234,7 @@ final class WSSStaticResources: @unchecked Sendable {
         queue = original.queue
         images = original.images
         trail = original.trail
+        storm = original.storm
         rain = original.rain
         ripple = original.ripple
         flow = flowOverride ?? original.flow
@@ -302,6 +310,14 @@ final class WSSStaticResources: @unchecked Sendable {
         var normalized = candidate
         var updated = scene
         for index in previous.layers.indices {
+            if case .storm = previous.layers[index].content,
+                case .storm(let new) = normalized.layers[index].content
+            {
+                try new.validate()
+                updated.layers[index] = .storm(new)
+                normalized.layers[index].content = previous.layers[index].content
+                continue
+            }
             if case .image(let old) = previous.layers[index].content,
                 case .image(var new) = normalized.layers[index].content,
                 case .image(var native) = updated.layers[index]
@@ -420,7 +436,8 @@ final class WSSStaticResources: @unchecked Sendable {
         command: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, size: CGSize,
         time: Double = 0, rippleContext: WSSRippleRenderContext? = nil,
         trailContext: WSSTrailRenderContext? = nil, pointer: SIMD2<Float>? = nil,
-        projection: WSSRenderProjection = .cover, advanceTrail: Bool = true
+        projection: WSSRenderProjection = .cover, advanceTrail: Bool = true,
+        stormContext: WSSStormRenderContext? = nil
     ) throws {
         guard time.isFinite, time >= 0 else { throw WSSSceneError.invalid("playback time") }
         guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0,
@@ -508,7 +525,21 @@ final class WSSStaticResources: @unchecked Sendable {
             throw WSSSceneError.invalid("image encoder")
         }
         encoder.setCullMode(.none)
+        let storms = stormContext ?? WSSStormRenderContext()
         for (index, node) in scene.layers.enumerated() where node.visible {
+            if case .storm(let layer) = node {
+                do {
+                    guard let storm else { throw WSSSceneError.invalid("missing storm renderer") }
+                    try storm.encode(
+                        index: index, layer: layer, encoder: encoder, command: command,
+                        context: storms, time: time,
+                        canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop)
+                } catch {
+                    encoder.endEncoding()
+                    throw error
+                }
+                continue
+            }
             if case .trail(let layer) = node {
                 do {
                     guard let trail, let trailContext else {

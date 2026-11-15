@@ -410,6 +410,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         enum Content: Equatable {
             case image(Image)
             case rain(RainLayer)
+            case storm(WSSStormLayer)
             case trail(WSSTrailConfiguration, visible: Bool)
         }
         var content: Content
@@ -431,12 +432,20 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask
+                trail, mask, storm
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
-            if type == "cursorTrail" {
+            if type == "storm" {
+                try decoder.fields(["type", "name", "visible", "storm"])
+                let layer = WSSStormLayer(
+                    name: try c.decodeIfPresent(String.self, forKey: .name),
+                    visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
+                    storm: try c.decode(WSSStormConfiguration.self, forKey: .storm))
+                try layer.validate()
+                content = .storm(layer)
+            } else if type == "cursorTrail" {
                 try decoder.fields(["type", "trail", "visible"])
                 content = .trail(
                     try c.decode(WSSTrailConfiguration.self, forKey: .trail),
@@ -509,6 +518,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         rain: layer.rain.effect, visible: layer.visible,
                         composition: layer.composition == "additive" ? .additive : .sourceOver,
                         mask: layer.mask.map { WSSImageMask(asset: WSSAssetID(value: $0.asset)) }))
+            case .storm(let layer): return .storm(layer)
             case .trail(let configuration, let visible):
                 return .trail(WSSTrailLayer(configuration: configuration, visible: visible))
             }

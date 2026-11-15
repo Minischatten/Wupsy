@@ -25,7 +25,10 @@ struct WSSEditorView: View {
                                 EditorText.transform.text,
                                 systemImage: "arrow.up.left.and.arrow.down.right")
                         }
-                        .accessibilityLabel(EditorText.transformImage.text)
+                        .accessibilityLabel(
+                            document.stormLayer(id) == nil
+                                ? EditorText.transformImage.text : WSSStormText.transformHelp
+                        )
                         .accessibilityIdentifier("wss.canvas.transform")
                         .disabled(
                             document.paintBrushEnabled || document.hasActivePaintInteraction
@@ -69,6 +72,12 @@ struct WSSEditorView: View {
                     Button(EditorText.effectTrail.text) {
                         do {
                             try document.addTrail()
+                            effectCreationError = nil
+                        } catch { effectCreationError = EditorErrorPresentation.message(error) }
+                    }.disabled(!document.permitsStructureEditing)
+                    Button(WSSStormText.title) {
+                        do {
+                            try document.addStorm()
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
@@ -121,16 +130,22 @@ struct WSSEditorView: View {
                                 action: { try? document.toggleVisibility(id) }
                             ).frame(width: 26, height: 26)
                             if document.canTransform(id) {
-                                Image(systemName: "photo")
-                                    .frame(width: 26, height: 26)
-                                    .contentShape(Rectangle())
-                                    .help(EditorText.transformHint.text)
-                                    .accessibilityLabel(EditorText.transformImage.text)
-                                    .simultaneousGesture(
-                                        TapGesture(count: 2).onEnded {
-                                            document.activateStructureRow(row.id)
-                                        }
-                                    )
+                                Image(
+                                    systemName: document.stormLayer(id) == nil
+                                        ? "photo" : "bolt.fill"
+                                )
+                                .frame(width: 26, height: 26)
+                                .contentShape(Rectangle())
+                                .help(
+                                    document.transformHelp(for: .layer(id))
+                                        ?? EditorText.transformHint.text
+                                )
+                                .accessibilityLabel(EditorText.transformImage.text)
+                                .simultaneousGesture(
+                                    TapGesture(count: 2).onEnded {
+                                        document.activateStructureRow(row.id)
+                                    }
+                                )
                             }
                         } else {
                             Image(systemName: row.symbol)
@@ -299,6 +314,11 @@ struct WSSEditorView: View {
                             }
                         }
                     }
+                }
+                if document.effectAddress == nil, let id = document.selection?.layer,
+                    document.stormLayer(id) != nil
+                {
+                    WSSStormParameterControls(document: document, layer: id)
                 }
                 if document.effectAddress == nil, let id = document.selection?.layer,
                     document.rainLayer(id) != nil

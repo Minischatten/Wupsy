@@ -5,6 +5,7 @@ import MetalKit
     let view: MTKView
     let metrics = SceneMetrics()
     let trailContext = WSSTrailRenderContext()
+    let stormContext = WSSStormRenderContext()
     let rippleContext: WSSRippleRenderContext
     private var clock: WSSPlaybackClock
     private let scale: CGFloat
@@ -24,13 +25,15 @@ import MetalKit
             textureBytes: resources.textureBytes,
             intermediateTextureBytes: rippleContext.textureBytes,
             deviceName: resources.device.name,
-            shader: resources.flow != nil
-                ? "WSS flow v1"
-                : resources.rain != nil
-                    ? "WSS rain v1"
-                    : (resources.ripple != nil
-                        ? "WSS ripple v1"
-                        : (resources.scene.isAnimated ? "WSS clouds v1" : "WSS static images")))
+            shader: resources.storm != nil
+                ? "WSS storm v1"
+                : resources.flow != nil
+                    ? "WSS flow v1"
+                    : resources.rain != nil
+                        ? "WSS rain v1"
+                        : (resources.ripple != nil
+                            ? "WSS ripple v1"
+                            : (resources.scene.isAnimated ? "WSS clouds v1" : "WSS static images")))
     }
     init(
         resources: WSSStaticResources, size: CGSize, scale: CGFloat, maxDimension: Int, fps: Int,
@@ -66,6 +69,10 @@ import MetalKit
     func updateTransforms(_ candidate: WSSStaticResources) -> Bool {
         guard !stopped, resources.sharesPreparedResources(with: candidate) else { return false }
         resources = candidate
+        if !paused {
+            view.enableSetNeedsDisplay = !resources.scene.isAnimated
+            view.isPaused = !resources.scene.isAnimated
+        }
         view.needsDisplay = true
         return true
     }
@@ -96,6 +103,7 @@ import MetalKit
     }
     func stop() {
         trailContext.reset()
+        stormContext.reset()
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         stopped = true
         view.isPaused = true
@@ -154,7 +162,7 @@ import MetalKit
                 command: command, descriptor: pass, size: view.drawableSize, time: elapsed,
                 rippleContext: rippleContext, trailContext: trailContext,
                 pointer: resources.trail == nil || paused ? nil : currentPointer(),
-                projection: projection, advanceTrail: !paused)
+                projection: projection, advanceTrail: !paused, stormContext: stormContext)
         } catch {
             inFlight.signal()
             stop()

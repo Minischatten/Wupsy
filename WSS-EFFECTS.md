@@ -14,6 +14,10 @@ See [Clouds arithmetic](docs/effects/CLOUDS.md#coverage-and-tone-arithmetic).
 
 Procedural rain streaks in a scene region: [Rain contract](docs/effects/RAIN.md), [random generation](docs/RAIN-RANDOM.md).
 
+## Storm
+
+Seeded procedural lightning layer: [Storm contract](docs/effects/STORM.md).
+
 ## Ripple
 
 Seeded wave displacement on images: [Ripple contract](docs/effects/RIPPLE.md).

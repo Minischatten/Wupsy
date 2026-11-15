@@ -224,6 +224,7 @@ import SwiftUI
     private var saveTask: Task<Bool, Never>?
     private var previewTask: Task<Void, Never>?
     private var desiredPreview: UInt64?
+    var stormColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var trailDrag: (WSSLayerID, String, WSSSceneDocumentV1)?
     var rainDrag: (WSSLayerID, WSSRainParameter, WSSSceneDocumentV1)?
     private var drag: (WSSEffectAddress, WSSEditorParameter, Float)?
@@ -249,6 +250,9 @@ import SwiftUI
         self.project = project
         undoManager.hasPendingInteraction = { [weak self] in
             guard let self else { return false }
+            if let (_, original) = self.stormColorDrag, original != self.state.workingModel {
+                return true
+            }
             if let (_, _, original) = self.trailDrag, original != self.state.workingModel {
                 return true
             }
@@ -258,6 +262,7 @@ import SwiftUI
             self?.finishCanvasInteraction?()
             self?.endCanvasTransform()
             self?.endTrailInteraction()
+            self?.endStormColorInteraction()
         }
         undoManager.permitsEditing = { [weak self] in
             self.map { !$0.closed && !$0.interactionLocked && !$0.hasActivePaintInteraction }
@@ -392,6 +397,7 @@ import SwiftUI
         endImageSlider()
         endRainSlider()
         endTrailInteraction()
+        endStormColorInteraction()
         return finishInput?() ?? true
     }
     func setParameter(
@@ -735,6 +741,7 @@ import SwiftUI
                     name = EditorText.imageFilename.format(
                         URL(fileURLWithPath: image.asset.value).lastPathComponent)
                 }
+            case .storm(let layer): name = layer.name ?? WSSStormText.title
             case .rain: name = EditorText.effectRain.text
             case .trail: name = EditorText.effectTrail.text
             }
@@ -788,6 +795,7 @@ import SwiftUI
                 sections += effectSections
             }
             if image.effects.isEmpty { section(.effects, "Effects", [.init(.count, "0")]) }
+        case .storm: break  // Dedicated editable storm inspector.
         case .rain(let layer):
             let r = layer.rain
             section(
