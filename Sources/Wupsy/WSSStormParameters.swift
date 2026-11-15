@@ -70,6 +70,10 @@ enum WSSStormParameter: String, CaseIterable {
     var title: String { Localization.string(key: "editor.storm." + rawValue) }
 }
 enum WSSStormText {
+    static var boltEnabled: String { Localization.string(key: "editor.storm.boltEnabled") }
+    static var lightEnabled: String { Localization.string(key: "editor.storm.light.enabled") }
+    static var lightColor: String { Localization.string(key: "editor.storm.light.color") }
+    static var lightHelp: String { Localization.string(key: "editor.storm.light.help") }
     static func transformUndo(_ kind: WSSCanvasGesture.Kind) -> String {
         let key: String
         switch kind {

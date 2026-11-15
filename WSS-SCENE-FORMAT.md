@@ -1,7 +1,7 @@
 # Native WSS scene format, version 1
 
 Supported image effect types are `flow`, `ripple` and `clouds`; native `rain` and
-`cursorTrail` layers remain supported. Native `storm` layers add visible seeded lightning;
+`cursorTrail` layers remain supported. Native `storm` layers add visible seeded lightning and optional global illumination;
 see the [Storm contract](docs/effects/STORM.md). Unknown effect types, including the removed
 `surfaceAdvection` and `waterSurface`, fail explicitly, even on hidden layers or
 inside effect chains. No legacy normalization, migration or fallback is performed.

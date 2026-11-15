@@ -1,4 +1,4 @@
-# Storm: visible native lightning (stage 1)
+# Storm: native lightning and global illumination
 
 Original Swift/Metal implementation developed for Wupsy from the requested visual
 requirements. No Blender/Geometry Nodes implementation, shader or asset is used.
@@ -8,7 +8,8 @@ No runtime dependencies or image resources are required.
 
 An additive WSS-v1 layer has required `type: "storm"` and `storm` configuration;
 optional `visible` defaults to true, optional `name` uses WallpaperTitle rules.
-All configuration fields below are required in JSON. Unknown fields, nulls,
+All original configuration fields below are required in JSON. The optional
+stage-2 fields are described below. Unknown fields, nulls,
 invalid values and hidden invalid layers fail explicitly. Old projects retain
 meaning; older readers reject the new type. No format migration.
 
@@ -67,8 +68,9 @@ previous/next path points. The fragment shader assigns capsule overlap to the
 nearest connected segment (previous wins ties, with a subpixel tolerance), so a
 join emits once instead of adding two cores/glows. Separate branches and actual
 crossings can still add light. The seeded path coordinates are unchanged.
-Alpha is left unchanged. No blur pass, scene buffer, global illumination, mask or
-image effect. Native BGRA8 UNorm clamps bright overlaps; this is not HDR.
+Alpha is left unchanged. Bolt rendering adds no blur pass, mask or image effect.
+Optional illumination uses the bounded final pass described below. Native BGRA8
+UNorm clamps bright bolt overlaps; this is not HDR.
 Painter order determines foreground occlusion for both core and glow.
 
 At most eight declared storm layers, including hidden layers. Scene segment ceiling
@@ -111,6 +113,94 @@ The inspector uses the existing native ColorPicker, Trail color adapter and 400-
 coalescing pattern. Linear RGB components remain the existing red/green/blue JSON
 fields; opening the picker does not rewrite them. Accepted picker edits update RGB
 atomically; Save, selection change, Undo or panel disappearance finishes the
-transaction. Global illumination and arbitrary event jitter remain deferred.
+transaction. Arbitrary event jitter remains deferred.
 
 Synthetic example: [WSS-Storm-v1](../../Test-Wallpaper/WSS-Storm-v1/README.md).
+
+## Optional global illumination (stage 2)
+
+Two independent configuration fields enable the three modes: `boltEnabled`
+(default true) and `illumination.enabled` (default false). Disabling a layer hides
+both. Both switches may be false. Old manifests without these fields retain the
+same geometry, event times and rendered appearance. Encoding omits the new fields
+when they have their complete legacy defaults. No format version change or assets
+are required. Older readers reject newly configured illumination explicitly.
+
+`illumination`, when present, has exactly these required fields:
+
+| Field | Default | Bounds |
+| --- | --- | --- |
+| enabled | false | boolean |
+| intensity | 1.5 | 0…4 EV |
+| red, green, blue | 1, 1, 1 | 0…1 linear RGB |
+| shadowLift | 0.02 | 0…0.25 linear contribution |
+
+All numbers must be finite; invalid or unknown fields fail even when disabled or
+hidden. Light-only mode does not depend on bolt brightness, position or geometry.
+Pulse duration and the minimum 50-ms presentation duration remain coupled to the
+existing Storm event, including its flashes and gaps. Illumination smooths the
+existing event intensity with `p=t²(3−2t)`; it has no second clock, timer or random
+stream. Restart, seeks, pause and resume keep the existing event semantics.
+
+### Color and tone arithmetic
+
+The final pass treats the completed native composition's stored RGB as
+sRGB-encoded display values, including additive emission. It does not unpremultiply
+or alter composed alpha. Only this optional pass uses the standard piecewise sRGB
+transfer function to convert RGB to linear and back; existing image/effect/bolt
+pipelines and the drawable's sRGB presentation setting stay unchanged.
+
+For each visible active emitter, add `intensity × linearColor × p` to per-channel
+exposure E and `shadowLift × linearColor × p` to S. Clamp scene-wide E to 0…4 and
+S to 0…0.25. Contributions are aggregated before a single tone operation. For
+linear input x, luminance Y = dot(x, [0.2126,0.7152,0.0722]):
+
+```
+gain = 2^E
+lift = S × (1−Y)^2
+outputLinear = (x × gain + lift) / (1 + x × (gain−1) + lift)
+```
+
+All vector operations are component-wise. The anchored highlight shoulder is
+identity at zero energy, keeps white white and limits values without hard clipping
+of exposed highlights. Shadow lift can lighten pure black but cannot reconstruct
+missing source detail. This is a global image-based tone change, not physical
+lighting, depth, shadows or a white overlay. All completed layers participate,
+including foreground images, Rain, Trail, visible bolts and clear background.
+The light contribution is independent of the emitter's painter-order position;
+bolt occlusion continues to use ordinary layer order.
+
+### Render path and resource ownership
+
+At a nonzero light impulse, native composition renders once to a readable private
+BGRA8 UNorm target at the actual drawable dimensions. A fullscreen triangle reads
+exact pixels and writes the illuminated result to the original target. No drawable
+sampling or change to framebufferOnly is needed. With lighting disabled, zero
+energy or between pulses, the original direct composition path runs unchanged.
+Non-clear render descriptors retain their original direct behavior.
+
+Each player/display owns a separate context with at most two leased targets,
+256 MiB total allocated size, at most 8192 per axis and 32 Mi pixels per target.
+4K requires about 31.6 MiB raw per target (actual Metal allocation can be larger),
+or about 63.3 MiB raw for both in-flight slots, in addition to existing image-effect
+resources. The existing intermediateTextureBytes diagnostic sums both pools.
+Cached sizes are reused during enabled playback. No scene texture is allocated
+before the first effective impulse. Disabling all effective illumination or
+stopping drops idle targets immediately and retires GPU-owned targets at actual
+completion. Shader state is immutable and can be shared; textures cannot.
+
+Unavailable allocation/capacity/budget or pipeline preparation falls back to direct
+composition. Failed allocations have a one-second monotonic retry backoff for the
+same size; no timer is installed. Encode errors release uncommitted leases; callers
+must not commit a failed encode, matching the existing image-effect contract.
+GPU-owned leases survive until command completion, including stop/disable/resize.
+These ceilings are safety limits, not guaranteed performance or allocation targets.
+
+The inspector exposes both switches, intensity, shadow lift and a separate native
+light color picker. It reuses the existing color adapter and role-aware coalesced
+Undo. The existing duration/flashes/interval controls govern both effects.
+Parameter edits reuse the native preview/player where compatible and do not
+invalidate matching bolt geometry. No new Canvas tools are added.
+
+Original synthetic 4K acceptance scene:
+[WSS-Storm-Lighting-v1](../../Test-Wallpaper/WSS-Storm-Lighting-v1/README.md).

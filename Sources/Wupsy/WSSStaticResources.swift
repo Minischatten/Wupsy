@@ -18,6 +18,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let images: [WSSAssetID: Image]
     let trail: WSSTrailRenderer?
     let storm: WSSStormRenderer?
+    let stormLighting: WSSStormLightingRenderer?
     let rain: WSSRainResources?
     let ripple: WSSRippleResources?
     let flow: WSSFlowResources?
@@ -138,6 +139,9 @@ final class WSSStaticResources: @unchecked Sendable {
                 return false
             }
             ? WSSStormRenderer(device: device) : nil
+        stormLighting =
+            scene.hasEffectiveStormIllumination
+            ? try? WSSStormLightingRenderer(device: device) : nil
         let fieldIDs = scene.imageLayers.flatMap { layer in
             layer.effects.compactMap { e -> WSSAssetID? in
                 if case .flow(let f) = e { return f.flowMap }
@@ -226,7 +230,9 @@ final class WSSStaticResources: @unchecked Sendable {
     }
     // Transform/Storm value updates reuse immutable prepared GPU resources.
     private init(
-        scene: WSSScene, sharing original: WSSStaticResources, flowOverride: WSSFlowResources? = nil
+        scene: WSSScene, sharing original: WSSStaticResources,
+        flowOverride: WSSFlowResources? = nil,
+        lightingOverride: WSSStormLightingRenderer? = nil
     ) {
         self.scene = scene
         family = original.family
@@ -235,6 +241,7 @@ final class WSSStaticResources: @unchecked Sendable {
         images = original.images
         trail = original.trail
         storm = original.storm
+        stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
         ripple = original.ripple
         flow = flowOverride ?? original.flow
@@ -337,7 +344,10 @@ final class WSSStaticResources: @unchecked Sendable {
         }
         guard normalized == previous else { return nil }
         try updated.validate(allowEmpty: staticCanvas)
-        return WSSStaticResources(scene: updated, sharing: self)
+        let lighting =
+            updated.hasEffectiveStormIllumination && stormLighting == nil
+            ? try? WSSStormLightingRenderer(device: device) : stormLighting
+        return WSSStaticResources(scene: updated, sharing: self, lightingOverride: lighting)
     }
     private static func upload(_ asset: WSSImageAsset, device: MTLDevice, queue: MTLCommandQueue)
         throws -> MTLTexture
@@ -437,7 +447,61 @@ final class WSSStaticResources: @unchecked Sendable {
         time: Double = 0, rippleContext: WSSRippleRenderContext? = nil,
         trailContext: WSSTrailRenderContext? = nil, pointer: SIMD2<Float>? = nil,
         projection: WSSRenderProjection = .cover, advanceTrail: Bool = true,
-        stormContext: WSSStormRenderContext? = nil
+        stormContext: WSSStormRenderContext? = nil,
+        lightingContext: WSSStormLightingRenderContext? = nil
+    ) throws {
+        if !scene.hasEffectiveStormIllumination { lightingContext?.discardResources() }
+        let frame = WSSStormLightingFrame.illumination(scene: scene, at: time)
+        guard frame.isEffective, let stormLighting,
+            descriptor.colorAttachments[0].loadAction == .clear,
+            let output = descriptor.colorAttachments[0].texture,
+            size == CGSize(width: output.width, height: output.height),
+            command.commandQueue.device.registryID == device.registryID,
+            !effectInputs.contains(where: { $0 === output })
+        else {
+            try encodeComposition(
+                command: command, descriptor: descriptor, size: size, time: time,
+                rippleContext: rippleContext, trailContext: trailContext, pointer: pointer,
+                projection: projection, advanceTrail: advanceTrail, stormContext: stormContext)
+            return
+        }
+        let context = lightingContext ?? WSSStormLightingRenderContext(device: device)
+        guard let lease = context.acquire(output: output, inputs: effectInputs) else {
+            try encodeComposition(
+                command: command, descriptor: descriptor, size: size, time: time,
+                rippleContext: rippleContext, trailContext: trailContext, pointer: pointer,
+                projection: projection, advanceTrail: advanceTrail, stormContext: stormContext)
+            return
+        }
+        var completionOwnsLease = false
+        defer { if !completionOwnsLease { context.release(lease) } }
+        let composition = MTLRenderPassDescriptor()
+        composition.colorAttachments[0].texture = lease.texture
+        composition.colorAttachments[0].loadAction = .clear
+        composition.colorAttachments[0].clearColor = descriptor.colorAttachments[0].clearColor
+        composition.colorAttachments[0].storeAction = .store
+        try encodeComposition(
+            command: command, descriptor: composition, size: size, time: time,
+            rippleContext: rippleContext, trailContext: trailContext, pointer: pointer,
+            projection: projection, advanceTrail: advanceTrail, stormContext: stormContext)
+        if !stormLighting.encode(
+            command: command, descriptor: descriptor, input: lease.texture, frame: frame)
+        {
+            // A final encoder failure must not advance mutable Trail history twice.
+            try encodeComposition(
+                command: command, descriptor: descriptor, size: size, time: time,
+                rippleContext: rippleContext, trailContext: trailContext, pointer: nil,
+                projection: projection, advanceTrail: false, stormContext: stormContext)
+        }
+        command.addCompletedHandler { _ in context.release(lease) }
+        completionOwnsLease = true
+    }
+    private func encodeComposition(
+        command: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, size: CGSize,
+        time: Double, rippleContext: WSSRippleRenderContext?,
+        trailContext: WSSTrailRenderContext?, pointer: SIMD2<Float>?,
+        projection: WSSRenderProjection, advanceTrail: Bool,
+        stormContext: WSSStormRenderContext?
     ) throws {
         guard time.isFinite, time >= 0 else { throw WSSSceneError.invalid("playback time") }
         guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0,

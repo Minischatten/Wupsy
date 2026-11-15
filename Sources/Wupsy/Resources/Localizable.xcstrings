@@ -12334,13 +12334,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "0° points down, 90° right. Pulses are displayed for at least 0.05 s. The complete event must fit within 75% of its interval. Global illumination is not included."
+            "value": "0° points down, 90° right. Pulses are displayed for at least 0.05 s. The complete event must fit within 75% of its interval."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "0° zeigt nach unten, 90° nach rechts. Impulse werden mindestens 0,05 s dargestellt. Das gesamte Ereignis muss in 75 % seines Intervalls passen. Globale Beleuchtung ist nicht enthalten."
+            "value": "0° zeigt nach unten, 90° nach rechts. Impulse werden mindestens 0,05 s dargestellt. Das gesamte Ereignis muss in 75 % seines Intervalls passen."
           }
         }
       }
@@ -12426,6 +12426,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gewitter drehen"
+          }
+        }
+      }
+    },
+    "editor.storm.boltEnabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visible lightning"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichtbarer Blitz"
+          }
+        }
+      }
+    },
+    "editor.storm.light.enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storm illumination"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gewitterbeleuchtung"
+          }
+        }
+      }
+    },
+    "editor.storm.light.color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lichtfarbe"
+          }
+        }
+      }
+    },
+    "editor.storm.light.intensity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light intensity (EV)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lichtintensität (EV)"
+          }
+        }
+      }
+    },
+    "editor.storm.light.shadowLift": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadow lift"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schattenanhebung"
+          }
+        }
+      }
+    },
+    "editor.storm.light.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses the same event interval, pulse duration and flashes as the bolt. Illuminates the entire composition, including foreground layers."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwendet denselben Ereignisabstand, dieselbe Impulsdauer und dasselbe Aufflackern wie der Blitz. Hellt die gesamte Komposition einschließlich Vordergrund auf."
           }
         }
       }

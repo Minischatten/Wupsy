@@ -224,6 +224,7 @@ import SwiftUI
     private var saveTask: Task<Bool, Never>?
     private var previewTask: Task<Void, Never>?
     private var desiredPreview: UInt64?
+    var stormColorRole: WSSStormColorRole?
     var stormColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var trailDrag: (WSSLayerID, String, WSSSceneDocumentV1)?
     var rainDrag: (WSSLayerID, WSSRainParameter, WSSSceneDocumentV1)?

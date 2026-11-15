@@ -6,6 +6,7 @@ import MetalKit
     let metrics = SceneMetrics()
     let trailContext = WSSTrailRenderContext()
     let stormContext = WSSStormRenderContext()
+    let lightingContext: WSSStormLightingRenderContext
     let rippleContext: WSSRippleRenderContext
     private var clock: WSSPlaybackClock
     private let scale: CGFloat
@@ -23,7 +24,7 @@ import MetalKit
         ScenePlaybackDiagnostics(
             sourceWidth: resources.scene.width, sourceHeight: resources.scene.height,
             textureBytes: resources.textureBytes,
-            intermediateTextureBytes: rippleContext.textureBytes,
+            intermediateTextureBytes: rippleContext.textureBytes + lightingContext.textureBytes,
             deviceName: resources.device.name,
             shader: resources.storm != nil
                 ? "WSS storm v1"
@@ -46,6 +47,7 @@ import MetalKit
         self.projection = projection
         self.pointerProvider = pointerProvider
         rippleContext = WSSRippleRenderContext(device: resources.device)
+        lightingContext = WSSStormLightingRenderContext(device: resources.device)
         self.scale = scale
         self.maxDimension = maxDimension
         self.resolution = resolution
@@ -69,6 +71,7 @@ import MetalKit
     func updateTransforms(_ candidate: WSSStaticResources) -> Bool {
         guard !stopped, resources.sharesPreparedResources(with: candidate) else { return false }
         resources = candidate
+        if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
             view.enableSetNeedsDisplay = !resources.scene.isAnimated
             view.isPaused = !resources.scene.isAnimated
@@ -104,6 +107,7 @@ import MetalKit
     func stop() {
         trailContext.reset()
         stormContext.reset()
+        lightingContext.discardResources()
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         stopped = true
         view.isPaused = true
@@ -162,7 +166,8 @@ import MetalKit
                 command: command, descriptor: pass, size: view.drawableSize, time: elapsed,
                 rippleContext: rippleContext, trailContext: trailContext,
                 pointer: resources.trail == nil || paused ? nil : currentPointer(),
-                projection: projection, advanceTrail: !paused, stormContext: stormContext)
+                projection: projection, advanceTrail: !paused, stormContext: stormContext,
+                lightingContext: lightingContext)
         } catch {
             inFlight.signal()
             stop()

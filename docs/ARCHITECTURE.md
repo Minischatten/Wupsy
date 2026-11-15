@@ -29,6 +29,12 @@ Preparation and renderer ownership are separate from immutable document values. 
 Image effect array order and layer painter order are independent; the
 [shared stack contract](effects/COMMON.md#ordered-stacks) defines stage planning,
 explicit input/bindings, intermediate budgets and final composition.
+Optional Storm illumination wraps completed native composition in one bounded
+per-player scene target and a final tone pass during active impulses only. The
+original direct path remains authoritative for disabled/neutral/fallback frames.
+Its separate two-slot leases follow GPU completion, and diagnostics include their
+allocated bytes; see [Storm illumination](effects/STORM.md#optional-global-illumination-stage-2).
+
 Preview and desktop share native rendering; the static editing canvas deliberately
 omits effects/Rain/Trail. Pause/resume uses an explicit elapsed playback clock;
 transient Trail simulation belongs to the player, not the saved document.

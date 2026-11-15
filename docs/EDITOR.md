@@ -77,3 +77,8 @@ use corners to scale (Shift: independent axes), or the round handle to rotate.
 The frame maps to the existing position/direction/length/spread parameters.
 Storm animation appears in Live Preview and desktop playback.
 See [Storm](effects/STORM.md) for bounds, timing and compatibility.
+
+Storm also offers independent Visible lightning and Storm illumination switches.
+Use the existing impulse duration/flashes/interval for both. The separate Light
+color picker, exposure intensity and shadow lift affect the complete wallpaper,
+including foreground layers. Old projects open with illumination disabled.

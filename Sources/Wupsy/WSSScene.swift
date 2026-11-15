@@ -81,7 +81,10 @@ struct WSSScene {
                         }
                     }
             case .trail(let l): return l.visible
-            case .storm(let l): return l.visible && l.storm.brightness > 0
+            case .storm(let l):
+                return l.visible
+                    && ((l.storm.boltEnabled && l.storm.brightness > 0)
+                        || l.storm.illumination.isEffective)
             case .rain(let l):
                 return l.visible && l.rain.speed > 0 && l.rain.density > 0 && l.rain.opacity.max > 0
             }

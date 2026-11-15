@@ -1,0 +1,69 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Storm Lighting v1",
+  "canvas": {
+    "width": 3840,
+    "height": 2160
+  },
+  "layers": [
+    {
+      "image": "assets/background.png",
+      "transform": {
+        "center": [
+          1920,
+          1080
+        ],
+        "size": [
+          3840,
+          2160
+        ]
+      },
+      "composition": "replace"
+    },
+    {
+      "type": "storm",
+      "name": "Storm behind foreground",
+      "storm": {
+        "x": 2500,
+        "y": 2070,
+        "direction": 0,
+        "length": 1530,
+        "spread": 180,
+        "width": 3,
+        "glow": 30,
+        "brightness": 1,
+        "red": 0.55,
+        "green": 0.7,
+        "blue": 1,
+        "branchDepth": 2,
+        "interval": 3,
+        "duration": 0.16,
+        "flashes": 2,
+        "flashGap": 0.12,
+        "seed": 1,
+        "illumination": {
+          "enabled": true,
+          "intensity": 2,
+          "red": 0.8,
+          "green": 0.9,
+          "blue": 1,
+          "shadowLift": 0.025
+        }
+      }
+    },
+    {
+      "image": "assets/foreground.png",
+      "transform": {
+        "center": [
+          1920,
+          1080
+        ],
+        "size": [
+          3840,
+          2160
+        ]
+      }
+    }
+  ]
+}

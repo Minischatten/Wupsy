@@ -16,34 +16,14 @@ struct WSSStormParameterControls: View {
                         .onSubmit { rename() }
                     Button(WSSStormText.rename) { rename() }
                 }
-                ColorPicker(
-                    WSSStormText.color,
-                    selection: Binding(
-                        get: {
-                            Color(
-                                nsColor: WSSTrailColorAdapter.system(
-                                    .init(
-                                        r: Float(storm.storm.red), g: Float(storm.storm.green),
-                                        b: Float(storm.storm.blue))))
-                        },
-                        set: { color in
-                            guard let linear = WSSTrailColorAdapter.linear(NSColor(color)) else {
-                                return
-                            }
-                            if document.stormColorDrag?.0 != layer {
-                                document.beginStormColorInteraction(layer)
-                            }
-                            do {
-                                try document.setStormColor(linear, layer: layer, undo: false)
-                                error = nil
-                            } catch { self.error = EditorErrorPresentation.message(error) }
-                            colorEnd?.cancel()
-                            colorEnd = Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(400))
-                                guard !Task.isCancelled else { return }
-                                document.endStormColorInteraction()
-                            }
-                        }), supportsOpacity: false)
+                Toggle(
+                    WSSStormText.boltEnabled,
+                    isOn: Binding(
+                        get: { storm.storm.boltEnabled },
+                        set: { value in
+                            perform { try document.setStormBoltEnabled(value, layer: layer) }
+                        }))
+                colorPicker(storm.storm, role: .bolt)
                 ForEach(
                     WSSStormParameter.allCases.filter { ![.red, .green, .blue].contains($0) },
                     id: \.self
@@ -67,6 +47,40 @@ struct WSSStormParameterControls: View {
                         ).frame(width: 110)
                     }
                 }
+                Divider()
+                Toggle(
+                    WSSStormText.lightEnabled,
+                    isOn: Binding(
+                        get: { storm.storm.illumination.enabled },
+                        set: { value in
+                            perform {
+                                try document.setStormIlluminationEnabled(value, layer: layer)
+                            }
+                        }))
+                colorPicker(storm.storm, role: .illumination)
+                ForEach(WSSStormIlluminationParameter.allCases, id: \.self) { parameter in
+                    HStack {
+                        Text(parameter.title).font(.caption)
+                        Spacer()
+                        WSSParameterTextField(
+                            value: Float(parameter.value(storm.storm.illumination)),
+                            range: Float(
+                                parameter.range.lowerBound)...Float(parameter.range.upperBound),
+                            title: parameter.title, maximumFractionDigits: 3,
+                            exactValue: parameter.value(storm.storm.illumination),
+                            exactRange: parameter.range,
+                            commitExact: {
+                                try document.setStormIllumination(
+                                    parameter, value: $0, layer: layer)
+                            },
+                            commit: {
+                                try document.setStormIllumination(
+                                    parameter, value: Double($0), layer: layer)
+                            }
+                        ).frame(width: 110)
+                    }
+                }
+                Text(WSSStormText.lightHelp).font(.caption).foregroundStyle(.secondary)
                 Text(WSSStormText.help).font(.caption).foregroundStyle(.secondary)
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -86,6 +100,39 @@ struct WSSStormParameterControls: View {
             name = value ?? WSSStormText.title
         }
         .disabled(document.interactionLocked)
+    }
+    private func perform(_ change: () throws -> Void) {
+        do {
+            try change()
+            error = nil
+        } catch { self.error = EditorErrorPresentation.message(error) }
+    }
+    private func colorPicker(_ c: WSSStormConfiguration, role: WSSStormColorRole) -> some View {
+        let color =
+            role == .bolt
+            ? WSSTrailColor(r: Float(c.red), g: Float(c.green), b: Float(c.blue))
+            : WSSTrailColor(
+                r: Float(c.illumination.red), g: Float(c.illumination.green),
+                b: Float(c.illumination.blue))
+        return ColorPicker(
+            role == .bolt ? WSSStormText.color : WSSStormText.lightColor,
+            selection: Binding(
+                get: { Color(nsColor: WSSTrailColorAdapter.system(color)) },
+                set: { value in
+                    guard let linear = WSSTrailColorAdapter.linear(NSColor(value)) else { return }
+                    if document.stormColorDrag?.0 != layer || document.stormColorRole != role {
+                        document.beginStormColorInteraction(layer, role: role)
+                    }
+                    perform {
+                        try document.setStormColor(linear, layer: layer, role: role, undo: false)
+                    }
+                    colorEnd?.cancel()
+                    colorEnd = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled else { return }
+                        document.endStormColorInteraction()
+                    }
+                }), supportsOpacity: false)
     }
     private func rename() {
         do {

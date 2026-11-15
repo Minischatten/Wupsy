@@ -49,17 +49,23 @@ extension WSSEditorDocument {
         model.layers[index].content = .storm(layer)
         try mutate(model, name: WSSStormText.rename)
     }
-    func beginStormColorInteraction(_ layer: WSSLayerID) {
+    func beginStormColorInteraction(_ layer: WSSLayerID, role: WSSStormColorRole = .bolt) {
         endStormColorInteraction()
         endCanvasTransform()
         stormColorDrag = (layer, state.workingModel)
+        stormColorRole = role
     }
     func endStormColorInteraction() {
         guard let (_, before) = stormColorDrag else { return }
+        let name = stormColorRole == .illumination ? WSSStormText.lightColor : WSSStormText.color
         stormColorDrag = nil
-        if before != state.workingModel { registerModelUndo(before, name: WSSStormText.color) }
+        stormColorRole = nil
+        if before != state.workingModel { registerModelUndo(before, name: name) }
     }
-    func setStormColor(_ color: WSSTrailColor, layer id: WSSLayerID, undo: Bool = true) throws {
+    func setStormColor(
+        _ color: WSSTrailColor, layer id: WSSLayerID,
+        role: WSSStormColorRole = .bolt, undo: Bool = true
+    ) throws {
         guard permitsStructureEditing,
             let index = identity.layers.firstIndex(where: { $0.id == id }),
             case .storm(var layer) = state.workingModel.layers[index].content
@@ -68,13 +74,54 @@ extension WSSEditorDocument {
             endStormColorInteraction()
             endCanvasTransform()
         }
-        layer.storm.red = Double(color.r)
-        layer.storm.green = Double(color.g)
-        layer.storm.blue = Double(color.b)
+        switch role {
+        case .bolt:
+            layer.storm.red = Double(color.r)
+            layer.storm.green = Double(color.g)
+            layer.storm.blue = Double(color.b)
+        case .illumination:
+            layer.storm.illumination.red = Double(color.r)
+            layer.storm.illumination.green = Double(color.g)
+            layer.storm.illumination.blue = Double(color.b)
+        }
         try layer.validate()
         var model = state.workingModel
         model.layers[index].content = .storm(layer)
-        try mutate(model, name: WSSStormText.color, undo: undo)
+        try mutate(
+            model, name: role == .bolt ? WSSStormText.color : WSSStormText.lightColor, undo: undo)
+    }
+
+    private func changeStormLighting(
+        _ id: WSSLayerID, name: String,
+        change: (inout WSSStormConfiguration) throws -> Void
+    ) throws {
+        guard permitsStructureEditing else { return }
+        endStormColorInteraction()
+        endCanvasTransform()
+        guard let index = identity.layers.firstIndex(where: { $0.id == id }),
+            case .storm(var layer) = state.workingModel.layers[index].content
+        else { return }
+        try change(&layer.storm)
+        try layer.validate()
+        var model = state.workingModel
+        model.layers[index].content = .storm(layer)
+        try mutate(model, name: name)
+    }
+    func setStormBoltEnabled(_ enabled: Bool, layer: WSSLayerID) throws {
+        try changeStormLighting(layer, name: WSSStormText.boltEnabled) { $0.boltEnabled = enabled }
+    }
+    func setStormIlluminationEnabled(_ enabled: Bool, layer: WSSLayerID) throws {
+        try changeStormLighting(layer, name: WSSStormText.lightEnabled) {
+            $0.illumination.enabled = enabled
+        }
+    }
+    func setStormIllumination(
+        _ parameter: WSSStormIlluminationParameter, value: Double,
+        layer: WSSLayerID
+    ) throws {
+        try changeStormLighting(layer, name: parameter.title) {
+            try parameter.apply(value, to: &$0.illumination)
+        }
     }
 
 }

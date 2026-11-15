@@ -82,7 +82,8 @@ final class WSSStormRenderer {
         canvas: SIMD2<Float>, crop: SIMD2<Float>
     ) throws {
         let c = layer.storm
-        guard c.brightness > 0, let event = WSSStormEvents.event(c, at: time), event.intensity > 0
+        guard c.boltEnabled, c.brightness > 0, let event = WSSStormEvents.event(c, at: time),
+            event.intensity > 0
         else { return }
         let entry = try context.entry(
             index: index, configuration: c, event: event.identity, device: device)

@@ -20,10 +20,12 @@ struct WSSStormConfiguration: Codable, Equatable {
     var flashes: Int = 2
     var flashGap: Double = 0.1
     var seed: UInt32 = 1
+    var boltEnabled = true
+    var illumination = WSSStormIllumination()
     init() {}
     enum CodingKeys: String, CodingKey, CaseIterable {
         case x, y, direction, length, spread, width, glow, brightness, red, green, blue
-        case branchDepth, interval, duration, flashes, flashGap, seed
+        case branchDepth, interval, duration, flashes, flashGap, seed, boltEnabled, illumination
     }
     init(from decoder: Decoder) throws {
         try decoder.fields(CodingKeys.allCases.map(\.rawValue))
@@ -45,7 +47,27 @@ struct WSSStormConfiguration: Codable, Equatable {
         flashes = try c.decode(Int.self, forKey: .flashes)
         flashGap = try c.decode(Double.self, forKey: .flashGap)
         seed = try c.decode(UInt32.self, forKey: .seed)
+        boltEnabled = try c.decodeIfPresent(Bool.self, forKey: .boltEnabled) ?? true
+        illumination =
+            try c.decodeIfPresent(WSSStormIllumination.self, forKey: .illumination) ?? .init()
         try validate()
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        // Preserve legacy canonical fields, precision and integer spellings.
+        for parameter in WSSStormParameter.allCases {
+            let key = CodingKeys(rawValue: parameter.rawValue)!
+            switch parameter {
+            case .seed: try c.encode(seed, forKey: key)
+            case .flashes: try c.encode(flashes, forKey: key)
+            case .branchDepth: try c.encode(branchDepth, forKey: key)
+            default: try c.encode(parameter.value(self), forKey: key)
+            }
+        }
+        if !boltEnabled { try c.encode(false, forKey: .boltEnabled) }
+        if illumination != WSSStormIllumination() {
+            try c.encode(illumination, forKey: .illumination)
+        }
     }
     // A minimum presentation width keeps short authored pulses visible at 24 fps.
     var presentationDuration: Double { max(0.05, duration) }
@@ -54,6 +76,7 @@ struct WSSStormConfiguration: Codable, Equatable {
     }
     var segmentCount: Int { 64 * (branchDepth + 1) }
     func validate() throws {
+        try illumination.validate()
         guard
             WSSStormParameter.allCases.allSatisfy({
                 let value = $0.value(self)
