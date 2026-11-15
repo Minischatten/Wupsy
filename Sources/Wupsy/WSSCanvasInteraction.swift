@@ -17,7 +17,8 @@ enum WSSCanvasInteractionGeometry {
         SIMD2(-0.5, -0.5), SIMD2(0.5, -0.5), SIMD2(0.5, 0.5), SIMD2(-0.5, 0.5),
     ]
     static func handles(
-        transform: WSSImageTransform, origin: CGPoint, zoom: CGFloat, height: CGFloat
+        transform: WSSImageTransform, origin: CGPoint, zoom: CGFloat, height: CGFloat,
+        allowsRotation: Bool = true
     )
         -> [CGPoint]
     {
@@ -31,6 +32,7 @@ enum WSSCanvasInteractionGeometry {
         let dx = top.x - center.x
         let dy = top.y - center.y
         let length = max(0.0001, hypot(dx, dy))
+        if !allowsRotation { return points }
         return points + [CGPoint(x: top.x + dx / length * 28, y: top.y + dy / length * 28)]
     }
     static func hit(
@@ -44,7 +46,7 @@ enum WSSCanvasInteractionGeometry {
         {
             let points = handles(
                 transform: transform, origin: origin, zoom: zoom,
-                height: CGFloat(scene.height))
+                height: CGFloat(scene.height), allowsRotation: !scene.layers[index].isStarfield)
             // Nearest handle wins even when a very small quad makes hit zones overlap.
             if let index = points.indices.min(by: {
                 hypot(points[$0].x - point.x, points[$0].y - point.y)
@@ -55,9 +57,9 @@ enum WSSCanvasInteractionGeometry {
         }
         let p = WSSCanvasGeometry.scenePoint(
             point, origin: origin, zoom: zoom, height: CGFloat(scene.height))
-        // An explicitly selected Storm region remains draggable through foreground images.
+        // An explicitly selected procedural region remains draggable through foreground images.
         if let selected, let index = identity.layers.firstIndex(where: { $0.id == selected }),
-            scene.layers.indices.contains(index), case .storm = scene.layers[index],
+            scene.layers.indices.contains(index), scene.layers[index].isPositionableRegion,
             let transform = scene.layers[index].canvasTransform,
             let uv = WSSCanvasGeometry.uv(p, transform: transform),
             (0...1).contains(uv.x), (0...1).contains(uv.y)

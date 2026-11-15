@@ -12531,6 +12531,295 @@
           }
         }
       }
+    },
+    "editor.starfield.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starfield"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternenfeld"
+          }
+        }
+      }
+    },
+    "editor.starfield.x": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Region X"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich X"
+          }
+        }
+      }
+    },
+    "editor.starfield.y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Region Y"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich Y"
+          }
+        }
+      }
+    },
+    "editor.starfield.width": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Region width"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereichsbreite"
+          }
+        }
+      }
+    },
+    "editor.starfield.height": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Region height"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereichshöhe"
+          }
+        }
+      }
+    },
+    "editor.starfield.count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Star count"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternanzahl"
+          }
+        }
+      }
+    },
+    "editor.starfield.size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Star size"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sterngröße"
+          }
+        }
+      }
+    },
+    "editor.starfield.brightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helligkeit"
+          }
+        }
+      }
+    },
+    "editor.starfield.color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grundfarbe"
+          }
+        }
+      }
+    },
+    "editor.starfield.colorVariation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color variation (0–1)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbvariation (0–1)"
+          }
+        }
+      }
+    },
+    "editor.starfield.seed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed"
+          }
+        }
+      }
+    },
+    "editor.starfield.twinkleEnabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twinkling"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funkeln"
+          }
+        }
+      }
+    },
+    "editor.starfield.twinkleIntensity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twinkle intensity"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funkelintensität"
+          }
+        }
+      }
+    },
+    "editor.starfield.twinkleSpeed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twinkle speed (Hz)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funkelgeschwindigkeit (Hz)"
+          }
+        }
+      }
+    },
+    "editor.starfield.driftX": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal drift (units/s)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontale Drift (Einheiten/s)"
+          }
+        }
+      }
+    },
+    "editor.starfield.driftY": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical drift (units/s)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertikale Drift (Einheiten/s)"
+          }
+        }
+      }
+    },
+    "editor.starfield.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the frame to move; use corners to resize (Shift: independent axes). Stars appear in Live Preview. Zero drift and disabled twinkling keep the layer static."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rahmen verschieben; Ecken skalieren (Umschalt: unabhängige Achsen). Sterne erscheinen in der Live Preview. Ohne Drift und Funkeln bleibt die Ebene statisch."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,0 +1,53 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "WSS Starfield v1",
+  "canvas": {
+    "width": 3840,
+    "height": 2160
+  },
+  "background": [
+    0,
+    0,
+    0
+  ],
+  "layers": [
+    {
+      "type": "starfield",
+      "name": "Static seeded sky",
+      "starfield": {
+        "x": 0,
+        "y": 0,
+        "width": 3840,
+        "height": 2160,
+        "count": 3000,
+        "size": 1.6,
+        "brightness": 1.2,
+        "red": 1,
+        "green": 1,
+        "blue": 1,
+        "colorVariation": 0.15,
+        "seed": 42,
+        "twinkleEnabled": false,
+        "twinkleIntensity": 0.3,
+        "twinkleSpeed": 0.3,
+        "driftX": 0,
+        "driftY": 0
+      }
+    },
+    {
+      "image": "assets/foreground.png",
+      "composition": "sourceOver",
+      "transform": {
+        "center": [
+          1920,
+          1080
+        ],
+        "size": [
+          3840,
+          2160
+        ]
+      }
+    }
+  ]
+}

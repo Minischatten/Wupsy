@@ -35,12 +35,14 @@ enum WSSSceneLayer {
     case rain(WSSRainLayer)
     case trail(WSSTrailLayer)
     case storm(WSSStormLayer)
+    case starfield(WSSStarfieldLayer)
     var visible: Bool {
         switch self {
         case .image(let l): return l.visible
         case .rain(let l): return l.visible
         case .trail(let l): return l.visible
         case .storm(let l): return l.visible
+        case .starfield(let l): return l.visible
         }
     }
 }
@@ -81,6 +83,7 @@ struct WSSScene {
                         }
                     }
             case .trail(let l): return l.visible
+            case .starfield(let l): return l.visible && l.starfield.isAnimated
             case .storm(let l):
                 return l.visible
                     && ((l.storm.boltEnabled && l.storm.brightness > 0)
@@ -104,6 +107,18 @@ struct WSSScene {
                 throw WSSSceneError.invalid("scene effect pass budget exceeded (256)")
             }
         }
+        var starCount = 0
+        var starLayers = 0
+        for node in layers {
+            if case .starfield(let layer) = node {
+                try layer.validate()
+                starLayers += 1
+                starCount += layer.starfield.count
+            }
+        }
+        guard starLayers <= WSSStarfieldPopulation.maximumLayers,
+            starCount <= WSSStarfieldPopulation.maximumPerScene
+        else { throw WSSSceneError.invalid("starfield scene budget") }
         var stormCount = 0
         var stormSegments = 0
         for node in layers {

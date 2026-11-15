@@ -26,8 +26,8 @@ struct WSSEditorView: View {
                                 systemImage: "arrow.up.left.and.arrow.down.right")
                         }
                         .accessibilityLabel(
-                            document.stormLayer(id) == nil
-                                ? EditorText.transformImage.text : WSSStormText.transformHelp
+                            document.transformHelp(for: .layer(id))
+                                ?? EditorText.transformImage.text
                         )
                         .accessibilityIdentifier("wss.canvas.transform")
                         .disabled(
@@ -72,6 +72,12 @@ struct WSSEditorView: View {
                     Button(EditorText.effectTrail.text) {
                         do {
                             try document.addTrail()
+                            effectCreationError = nil
+                        } catch { effectCreationError = EditorErrorPresentation.message(error) }
+                    }.disabled(!document.permitsStructureEditing)
+                    Button(WSSStarfieldText.title) {
+                        do {
+                            try document.addStarfield()
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
@@ -314,6 +320,11 @@ struct WSSEditorView: View {
                             }
                         }
                     }
+                }
+                if document.effectAddress == nil, let id = document.selection?.layer,
+                    document.starfieldLayer(id) != nil
+                {
+                    WSSStarfieldParameterControls(document: document, layer: id)
                 }
                 if document.effectAddress == nil, let id = document.selection?.layer,
                     document.stormLayer(id) != nil

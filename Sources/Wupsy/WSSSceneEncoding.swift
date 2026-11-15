@@ -167,6 +167,11 @@ extension WSSSceneDocumentV1.Layer {
             try c.encode(image.visible, forKey: .visible)
             try c.encode(image.composition, forKey: .composition)
             try c.encode(image.effects, forKey: .effects)
+        case .starfield(let layer):
+            try c.encode("starfield", forKey: .type)
+            try c.encodeIfPresent(layer.name, forKey: .name)
+            try c.encode(layer.visible, forKey: .visible)
+            try c.encode(layer.starfield, forKey: .starfield)
         case .storm(let layer):
             try c.encode("storm", forKey: .type)
             try c.encodeIfPresent(layer.name, forKey: .name)

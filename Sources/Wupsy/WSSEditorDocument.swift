@@ -225,6 +225,7 @@ import SwiftUI
     private var previewTask: Task<Void, Never>?
     private var desiredPreview: UInt64?
     var stormColorRole: WSSStormColorRole?
+    var starfieldColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var stormColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var trailDrag: (WSSLayerID, String, WSSSceneDocumentV1)?
     var rainDrag: (WSSLayerID, WSSRainParameter, WSSSceneDocumentV1)?
@@ -251,6 +252,9 @@ import SwiftUI
         self.project = project
         undoManager.hasPendingInteraction = { [weak self] in
             guard let self else { return false }
+            if let (_, original) = self.starfieldColorDrag, original != self.state.workingModel {
+                return true
+            }
             if let (_, original) = self.stormColorDrag, original != self.state.workingModel {
                 return true
             }
@@ -264,6 +268,7 @@ import SwiftUI
             self?.endCanvasTransform()
             self?.endTrailInteraction()
             self?.endStormColorInteraction()
+            self?.endStarfieldColorInteraction()
         }
         undoManager.permitsEditing = { [weak self] in
             self.map { !$0.closed && !$0.interactionLocked && !$0.hasActivePaintInteraction }
@@ -391,6 +396,12 @@ import SwiftUI
     }
 
     func finishEditing() -> Bool {
+        guard finishParameterInteractions() else { return false }
+        return finishInput?() ?? true
+    }
+    // A parameter commit can originate in textShouldEndEditing. Finish gestures
+    // and coalesced Undo first, without asking that same field editor to resign.
+    func finishParameterInteractions() -> Bool {
         guard !hasActivePaintInteraction else { return false }
         finishCanvasInteraction?()
         endCanvasTransform()
@@ -399,7 +410,8 @@ import SwiftUI
         endRainSlider()
         endTrailInteraction()
         endStormColorInteraction()
-        return finishInput?() ?? true
+        endStarfieldColorInteraction()
+        return true
     }
     func setParameter(
         _ parameter: WSSEditorParameter, at address: WSSEffectAddress, value: Float,
@@ -742,6 +754,7 @@ import SwiftUI
                     name = EditorText.imageFilename.format(
                         URL(fileURLWithPath: image.asset.value).lastPathComponent)
                 }
+            case .starfield(let layer): name = layer.name ?? WSSStarfieldText.title
             case .storm(let layer): name = layer.name ?? WSSStormText.title
             case .rain: name = EditorText.effectRain.text
             case .trail: name = EditorText.effectTrail.text
@@ -796,6 +809,7 @@ import SwiftUI
                 sections += effectSections
             }
             if image.effects.isEmpty { section(.effects, "Effects", [.init(.count, "0")]) }
+        case .starfield: break
         case .storm: break  // Dedicated editable storm inspector.
         case .rain(let layer):
             let r = layer.rain

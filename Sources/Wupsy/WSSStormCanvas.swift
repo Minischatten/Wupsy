@@ -62,6 +62,7 @@ extension WSSSceneDocumentV1.Layer {
     var canvasTransform: WSSSceneDocumentV1.Transform? {
         switch content {
         case .image(let image): return image.transform
+        case .starfield(let layer): return layer.starfield.canvasTransform
         case .storm(let layer): return WSSStormCanvas.transform(layer.storm)
         default: return nil
         }
@@ -72,6 +73,7 @@ extension WSSSceneLayer {
         guard visible else { return nil }
         switch self {
         case .image(let image): return image.transform
+        case .starfield(let layer): return try? layer.starfield.canvasTransform.native()
         case .storm(let layer): return try? WSSStormCanvas.transform(layer.storm).native()
         default: return nil
         }

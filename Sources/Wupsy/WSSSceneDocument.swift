@@ -411,6 +411,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             case image(Image)
             case rain(RainLayer)
             case storm(WSSStormLayer)
+            case starfield(WSSStarfieldLayer)
             case trail(WSSTrailConfiguration, visible: Bool)
         }
         var content: Content
@@ -432,12 +433,20 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm
+                trail, mask, storm, starfield
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
-            if type == "storm" {
+            if type == "starfield" {
+                try decoder.fields(["type", "name", "visible", "starfield"])
+                let layer = WSSStarfieldLayer(
+                    name: try c.decodeIfPresent(String.self, forKey: .name),
+                    visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
+                    starfield: try c.decode(WSSStarfieldConfiguration.self, forKey: .starfield))
+                try layer.validate()
+                content = .starfield(layer)
+            } else if type == "storm" {
                 try decoder.fields(["type", "name", "visible", "storm"])
                 let layer = WSSStormLayer(
                     name: try c.decodeIfPresent(String.self, forKey: .name),
@@ -518,6 +527,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         rain: layer.rain.effect, visible: layer.visible,
                         composition: layer.composition == "additive" ? .additive : .sourceOver,
                         mask: layer.mask.map { WSSImageMask(asset: WSSAssetID(value: $0.asset)) }))
+            case .starfield(let layer): return .starfield(layer)
             case .storm(let layer): return .storm(layer)
             case .trail(let configuration, let visible):
                 return .trail(WSSTrailLayer(configuration: configuration, visible: visible))

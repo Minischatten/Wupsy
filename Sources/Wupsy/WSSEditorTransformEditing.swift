@@ -17,6 +17,7 @@ extension WSSEditorDocument {
     }
     func transformHelp(for target: WSSEditorSelection) -> String? {
         guard case .layer(let id) = target, canTransform(id) else { return nil }
+        if starfieldLayer(id) != nil { return WSSStarfieldText.text("help") }
         return stormLayer(id) == nil ? EditorText.transformHint.text : WSSStormText.transformHelp
     }
     @discardableResult
@@ -61,7 +62,8 @@ extension WSSEditorDocument {
     func beginCanvasTransform(_ layer: WSSLayerID, kind: WSSCanvasGesture.Kind) -> Bool {
         guard finishEditing(), !closed, !interactionLocked,
             let index = identity.layers.firstIndex(where: { $0.id == layer }),
-            state.workingModel.layers[index].canvasTransform != nil
+            state.workingModel.layers[index].canvasTransform != nil,
+            !(starfieldLayer(layer) != nil && kind == .rotate)
         else { return false }
         canvasTransform = WSSCanvasTransformTransaction(
             layer: layer, kind: kind, model: state.workingModel, identity: identity,
@@ -78,6 +80,23 @@ extension WSSEditorDocument {
         case .image(var image):
             image.transform = transform
             model.layers[index].content = .image(image)
+        case .starfield(var layer):
+            guard
+                let originalIndex = transaction.identity.layers.firstIndex(where: {
+                    $0.id == transaction.layer
+                }),
+                case .starfield(let original) = transaction.model.layers[originalIndex].content
+            else { return }
+            if case .move = transaction.kind {
+                let baseline = original.starfield.canvasTransform
+                layer.starfield = original.starfield
+                layer.starfield.x += Double(transform.center[0] - baseline.center[0])
+                layer.starfield.y += Double(transform.center[1] - baseline.center[1])
+                try layer.validate()
+            } else {
+                layer.starfield = try original.starfield.applying(transform)
+            }
+            model.layers[index].content = .starfield(layer)
         case .storm(var layer):
             guard
                 let originalIndex = transaction.identity.layers.firstIndex(where: {
@@ -108,8 +127,10 @@ extension WSSEditorDocument {
             case .rotate: name = EditorText.rotateImage.text
             }
             let undoName =
-                stormLayer(transaction.layer) == nil
-                ? name : WSSStormText.transformUndo(transaction.kind)
+                starfieldLayer(transaction.layer) != nil
+                ? WSSStarfieldText.title
+                : stormLayer(transaction.layer) == nil
+                    ? name : WSSStormText.transformUndo(transaction.kind)
             registerModelUndo(
                 transaction.model, name: undoName, ids: transaction.identity,
                 selected: transaction.selection)

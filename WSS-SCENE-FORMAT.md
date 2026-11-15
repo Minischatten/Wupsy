@@ -52,7 +52,7 @@ Canvas dimensions are positive integers, at most 8192 per axis and 32 Mi pixels
 in total. `title` is required, nonblank and at most 1024 UTF-8 bytes. Optional
 `background` is an RGB array in 0…1, default `[0,0,0]`.
 
-There are 1…128 ordered image, Rain, CursorTrail or Storm layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
+There are 1…128 ordered image, Rain, CursorTrail, Storm or Starfield layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
 
 - `name`: optional user-facing image-layer name (same single-line, non-empty,
   at-most-256-character rules as wallpaper titles). Display metadata only; it is
@@ -219,3 +219,9 @@ Mask generations use the same catalog, exclusive asset publication and manifest-
 Save as image generations, and are physically copied by Save As. Canvas Brush state,
 selected-only overlays and cursor geometry are editor-local and add no format fields.
 Supported mask creation/painting and Flow field/region editing use independent immutable generations and the same save safeguards; see [the editor guide](docs/EDITOR.md).
+
+## Starfield
+
+Native `type: "starfield"` layers generate bounded seeded stars directly in painter
+order. See the [Starfield contract](docs/effects/STARFIELD.md) for required fields,
+validation, animation, resource limits and compatibility. No additional assets.

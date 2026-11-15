@@ -14,6 +14,10 @@ See [Clouds arithmetic](docs/effects/CLOUDS.md#coverage-and-tone-arithmetic).
 
 Procedural rain streaks in a scene region: [Rain contract](docs/effects/RAIN.md), [random generation](docs/RAIN-RANDOM.md).
 
+## Starfield
+
+Seeded stars, optional twinkling and drift: [Starfield contract](docs/effects/STARFIELD.md).
+
 ## Storm
 
 Seeded procedural lightning layer: [Storm contract](docs/effects/STORM.md).

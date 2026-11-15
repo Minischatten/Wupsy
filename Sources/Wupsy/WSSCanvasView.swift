@@ -617,6 +617,9 @@ struct WSSCanvasView: NSViewRepresentable {
             ? {
                 return scene.layers[document.selectedLayer].canvasTransform
             }() : nil
+        outline.allowsRotation =
+            !scene.layers.indices.contains(document.selectedLayer)
+            || !scene.layers[document.selectedLayer].isStarfield
         outline.needsDisplay = true
         let candidate = document.canvasModel
         guard model != candidate, !stopped else { return }
@@ -794,6 +797,7 @@ struct WSSCanvasView: NSViewRepresentable {
     }
 }
 @MainActor private final class WSSCanvasOutline: NSView {
+    var allowsRotation = true
     var sceneSize = CGSize.zero
     var imageOrigin = CGPoint.zero
     var zoom: CGFloat = 1
@@ -817,12 +821,16 @@ struct WSSCanvasView: NSViewRepresentable {
         path.lineWidth = 1.5
         path.stroke()
         let handles = WSSCanvasInteractionGeometry.handles(
-            transform: transform, origin: imageOrigin, zoom: zoom, height: sceneSize.height)
-        let stem = NSBezierPath()
-        stem.move(
-            to: CGPoint(x: (handles[2].x + handles[3].x) / 2, y: (handles[2].y + handles[3].y) / 2))
-        stem.line(to: handles[4])
-        stem.stroke()
+            transform: transform, origin: imageOrigin, zoom: zoom, height: sceneSize.height,
+            allowsRotation: allowsRotation)
+        if allowsRotation {
+            let stem = NSBezierPath()
+            stem.move(
+                to: CGPoint(
+                    x: (handles[2].x + handles[3].x) / 2, y: (handles[2].y + handles[3].y) / 2))
+            stem.line(to: handles[4])
+            stem.stroke()
+        }
         for (index, point) in handles.enumerated() {
             let rect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
             let handle = index == 4 ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)

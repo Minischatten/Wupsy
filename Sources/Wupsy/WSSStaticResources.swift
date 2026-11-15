@@ -17,6 +17,7 @@ final class WSSStaticResources: @unchecked Sendable {
     }
     let images: [WSSAssetID: Image]
     let trail: WSSTrailRenderer?
+    let starfield: WSSStarfieldRenderer?
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
     let rain: WSSRainResources?
@@ -133,6 +134,11 @@ final class WSSStaticResources: @unchecked Sendable {
                 return false
             }
             ? WSSTrailRenderer(device: device) : nil
+        starfield =
+            try scene.layers.contains {
+                if case .starfield = $0 { return true }
+                return false
+            } ? WSSStarfieldRenderer(scene: scene, device: device) : nil
         storm =
             try scene.layers.contains {
                 if case .storm = $0 { return true }
@@ -240,6 +246,7 @@ final class WSSStaticResources: @unchecked Sendable {
         queue = original.queue
         images = original.images
         trail = original.trail
+        starfield = original.starfield
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
@@ -317,6 +324,17 @@ final class WSSStaticResources: @unchecked Sendable {
         var normalized = candidate
         var updated = scene
         for index in previous.layers.indices {
+            if case .starfield(let old) = previous.layers[index].content,
+                case .starfield(let new) = normalized.layers[index].content
+            {
+                guard old.starfield.count == new.starfield.count,
+                    old.starfield.seed == new.starfield.seed
+                else { return nil }
+                try new.validate()
+                updated.layers[index] = .starfield(new)
+                normalized.layers[index].content = previous.layers[index].content
+                continue
+            }
             if case .storm = previous.layers[index].content,
                 case .storm(let new) = normalized.layers[index].content
             {
@@ -591,6 +609,21 @@ final class WSSStaticResources: @unchecked Sendable {
         encoder.setCullMode(.none)
         let storms = stormContext ?? WSSStormRenderContext()
         for (index, node) in scene.layers.enumerated() where node.visible {
+            if case .starfield(let layer) = node {
+                do {
+                    guard let starfield else {
+                        throw WSSSceneError.invalid("missing starfield renderer")
+                    }
+                    try starfield.encode(
+                        index: index, layer: layer, encoder: encoder,
+                        canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
+                        drawableSize: size, time: time)
+                } catch {
+                    encoder.endEncoding()
+                    throw error
+                }
+                continue
+            }
             if case .storm(let layer) = node {
                 do {
                     guard let storm else { throw WSSSceneError.invalid("missing storm renderer") }
