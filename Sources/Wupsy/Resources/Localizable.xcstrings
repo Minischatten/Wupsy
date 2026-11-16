@@ -1,6 +1,159 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "about.emailLabel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-Mail:"
+          }
+        }
+      }
+    },
+    "about.websiteLabel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webseite:"
+          }
+        }
+      }
+    },
+    "about.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About Wupsy"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über Wupsy"
+          }
+        }
+      }
+    },
+    "about.version": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ (%@)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ (%@)"
+          }
+        }
+      }
+    },
+    "about.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native wallpapers for macOS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native Hintergrundbilder für macOS"
+          }
+        }
+      }
+    },
+    "about.sourceLicense": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source code: MIT License"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quellcode: MIT-Lizenz"
+          }
+        }
+      }
+    },
+    "about.branding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Branding licensed separately."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Branding separat lizenziert."
+          }
+        }
+      }
+    },
+    "about.logo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WirdSchonSoftware logo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WirdSchonSoftware-Logo"
+          }
+        }
+      }
+    },
+    "about.documentFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The license text could not be opened."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Lizenztext konnte nicht geöffnet werden."
+          }
+        }
+      }
+    },
     "editor.desktopTopologyChanged": {
       "extractionState": "manual",
       "localizations": {

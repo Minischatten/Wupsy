@@ -33,7 +33,7 @@ def verify(app, version, build):
     executable = app / 'Contents/MacOS/Wupsy'
     if not executable.is_file() or not os.access(executable, os.X_OK):
         raise ValueError('Wupsy executable is missing')
-    for name in ['Wupsy.icns', 'LICENSE', 'THIRD-PARTY-NOTICES.md',
+    for name in ['Wupsy.icns', 'WSS_Logo.png', 'LICENSE', 'THIRD-PARTY-NOTICES.md',
                  'BRANDING.md', 'BRANDING.en.md', 'Brand/LICENSE']:
         if not (app / 'Contents/Resources' / name).exists():
             raise ValueError(f'Missing resource: {name}')

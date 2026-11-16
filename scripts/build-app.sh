@@ -60,6 +60,7 @@ iconutil -c icns "$ICON_WORK/Wupsy.iconset" -o "$BUNDLE_PATH/Contents/Resources/
 cp LICENSE THIRD-PARTY-NOTICES.md BRANDING.md BRANDING.en.md "$BUNDLE_PATH/Contents/Resources/"
 mkdir -p "$BUNDLE_PATH/Contents/Resources/Brand"
 cp Brand/LICENSE "$BUNDLE_PATH/Contents/Resources/Brand/LICENSE"
+cp Brand/WSS_Logo.png "$BUNDLE_PATH/Contents/Resources/"
 cp Brand/Wupsy-MenuBar-Icon-v1.png "$BUNDLE_PATH/Contents/Resources/"
 cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

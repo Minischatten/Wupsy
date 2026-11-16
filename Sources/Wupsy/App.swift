@@ -110,6 +110,9 @@ struct WupsyApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1200, height: 830)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button(AboutText.title.text()) { AboutPresentation.shared.show() }
+            }
             CommandGroup(replacing: .newItem) {
                 Button(ProductText.newWallpaper.text) { Task { await editors.newWallpaper() } }
                     .keyboardShortcut("n").disabled(!editors.canCreateWallpaper)
@@ -250,6 +253,8 @@ struct WupsyMenu: View {
         .disabled(maintenance.state != .normal)
         Button(UpdateText.checkNow.text()) { updates.checkNow() }
             .disabled(maintenance.state != .normal)
+        Divider()
+        Button(AboutText.title.text()) { AboutPresentation.shared.show() }
         Divider()
         Button(ProductText.quit.text) {
             NSApp.terminate(nil)
