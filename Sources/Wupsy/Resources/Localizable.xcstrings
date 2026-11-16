@@ -245,13 +245,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installed version: %@. No newer stable release was found."
+            "value": "Installed version: %@\n\nNo newer regular release was found."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installierte Version: %@. Es wurde kein neuerer regulärer Release gefunden."
+            "value": "Installierte Version: %@\n\nEs wurde keine neuere reguläre Version gefunden."
           }
         }
       }
@@ -10416,18 +10416,66 @@
         }
       }
     },
-    "restore.completedDetail": {
+    "restore.restart": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The wallpaper library was restored successfully.\n\nWupsy must now quit. Open it again afterward to use the restored library."
+            "value": "Restart Wupsy"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Hintergrundbild-Mediathek wurde erfolgreich wiederhergestellt.\n\nWupsy muss jetzt beendet werden. Öffne es anschließend erneut, um die wiederhergestellte Mediathek zu verwenden."
+            "value": "Wupsy neu starten"
+          }
+        }
+      }
+    },
+    "restore.restartFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wupsy could not restart."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wupsy konnte nicht neu gestartet werden."
+          }
+        }
+      }
+    },
+    "restore.restartFailedDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The restored library remains protected. Try again or quit Wupsy and reopen this app manually."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die wiederhergestellte Mediathek bleibt geschützt. Versuche es erneut oder beende Wupsy und öffne diese App manuell."
+          }
+        }
+      }
+    },
+    "restore.completedDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The wallpaper library was restored successfully.\n\nWupsy must restart to use the restored wallpaper library."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Hintergrundbild-Mediathek wurde erfolgreich wiederhergestellt.\n\nWupsy muss neu gestartet werden, um die wiederhergestellte Mediathek zu verwenden."
           }
         }
       }

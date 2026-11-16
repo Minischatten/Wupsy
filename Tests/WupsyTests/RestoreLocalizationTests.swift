@@ -107,7 +107,7 @@ import XCTest
         }
     }
 
-    func testTerminalDialogsKeepOutcomesAndQuitOnlyAction() {
+    func testTerminalDialogsKeepOutcomesAndCommittedRestartAction() {
         _ = NSApplication.shared
         for outcome: LibraryRestoreCoordinator.Outcome in [.committed, .restoredA, .unresolved] {
             let original = outcome
@@ -120,15 +120,19 @@ import XCTest
                 if outcome == .committed {
                     let expected =
                         language == "de"
-                        ? "Die Hintergrundbild-Mediathek wurde erfolgreich wiederhergestellt.\n\nWupsy muss jetzt beendet werden. Öffne es anschließend erneut, um die wiederhergestellte Mediathek zu verwenden."
-                        : "The wallpaper library was restored successfully.\n\nWupsy must now quit. Open it again afterward to use the restored library."
+                        ? "Die Hintergrundbild-Mediathek wurde erfolgreich wiederhergestellt.\n\nWupsy muss neu gestartet werden, um die wiederhergestellte Mediathek zu verwenden."
+                        : "The wallpaper library was restored successfully.\n\nWupsy must restart to use the restored wallpaper library."
                     XCTAssertEqual(alert.informativeText, expected)
                     XCTAssertEqual(
-                        alert.buttons[0].title, language == "de" ? "Wupsy beenden" : "Quit Wupsy")
+                        alert.buttons[0].title,
+                        language == "de" ? "Wupsy neu starten" : "Restart Wupsy")
                 }
                 XCTAssertEqual(alert.buttons.count, 1)
                 XCTAssertEqual(
-                    alert.buttons[0].title, ProductText.quit.localized(language: language))
+                    alert.buttons[0].title,
+                    outcome == .committed
+                        ? RestoreText.restart.localized(language: language)
+                        : ProductText.quit.localized(language: language))
                 XCTAssertEqual(outcome, original)
                 if outcome == .restoredA { XCTAssertEqual(alert.alertStyle, .warning) }
                 if outcome == .unresolved { XCTAssertEqual(alert.alertStyle, .critical) }

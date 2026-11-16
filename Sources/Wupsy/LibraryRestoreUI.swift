@@ -71,9 +71,21 @@ import UniformTypeIdentifiers
                         alert.runModal()
                     },
                     completion: { outcome in
-                        let alert = Self.completionAlert(outcome)
-                        alert.runModal()
-                        NSApp.terminate(nil)
+                        while true {
+                            let alert = Self.completionAlert(outcome)
+                            alert.runModal()
+                            guard outcome == .committed else {
+                                NSApp.terminate(nil)
+                                return
+                            }
+                            do {
+                                try LibraryRestoreRestart.initiate(
+                                    outcome: self.coordinator.outcome)
+                                return
+                            } catch {
+                                LibraryRestoreRestart.showFailure(error)
+                            }
+                        }
                     }))
         } catch {
             let alert = Self.unavailableAlert(error)
@@ -94,7 +106,7 @@ import UniformTypeIdentifiers
         return open
     }
     static func confirmationAlert(_ plan: LibraryRestorePlan, language: String? = nil) -> NSAlert {
-        let alert = NSAlert()
+        let alert = RestoreCompletionAlert()
         alert.alertStyle = .warning
         alert.messageText = RestoreText.confirmTitle.localized(language: language)
         alert.informativeText = LibraryRestoreSummary.text(plan, language: language)
@@ -117,7 +129,7 @@ import UniformTypeIdentifiers
     static func completionAlert(
         _ outcome: LibraryRestoreCoordinator.Outcome, language: String? = nil
     ) -> NSAlert {
-        let alert = NSAlert()
+        let alert: NSAlert = outcome == .committed ? RestoreCompletionAlert() : NSAlert()
         let presentation = RestoreTerminalPresentation(outcome, language: language)
         alert.messageText = presentation.title
         alert.informativeText = presentation.detail
@@ -126,7 +138,10 @@ import UniformTypeIdentifiers
         case .restoredA: alert.alertStyle = .warning
         case .unresolved: alert.alertStyle = .critical
         }
-        alert.addButton(withTitle: ProductText.quit.localized(language: language))
+        alert.addButton(
+            withTitle: (outcome == .committed
+                ? RestoreText.restart.localized(language: language)
+                : ProductText.quit.localized(language: language)))
         return alert
     }
     static func unavailableAlert(_ error: Error, language: String? = nil) -> NSAlert {

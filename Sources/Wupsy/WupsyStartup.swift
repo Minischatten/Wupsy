@@ -99,6 +99,10 @@ enum WupsyStartup {
 
 @main enum WupsyEntry {
     @MainActor static func main() {
+        if CommandLine.arguments.dropFirst().first == LibraryRestoreRestart.argument {
+            LibraryRestoreRestart.runHelper(arguments: CommandLine.arguments)
+            return
+        }
         if CommandLine.arguments.dropFirst().first == "--verify-localization" {
             do {
                 let expected = CommandLine.arguments.dropFirst(2).first

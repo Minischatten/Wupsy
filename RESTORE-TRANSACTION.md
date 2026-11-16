@@ -1,7 +1,7 @@
 # Library replace transaction
 
 This is a local transaction protocol, not part of `.wssbackup`. Backup v1 and its
-writer retain their v1 contract. Tests use injected temporary roots and explicit preference domains. Startup recovery runs before normal runtime construction; confirmed restore resolves editors and drains runtime before publication. There is no merge, live reload or automatic relaunch.
+writer retain their v1 contract. Tests use injected temporary roots and explicit preference domains. Startup recovery runs before normal runtime construction; confirmed restore resolves editors and drains runtime before publication. There is no merge or live reload. After confirmed commit, the completion dialog offers a controlled application restart.
 
 ## Caller boundary
 
@@ -249,3 +249,46 @@ logged out while switching accounts, and do not point the test account at its da
 
 GUI clicks and real desktop behavior require native manual acceptance;
 automated orchestration/transaction tests do not replace that validation.
+
+## Completion restart
+
+Only a classified committed outcome offers Restart Wupsy. Other terminal outcomes
+retain Quit Wupsy. Maintenance and filesystem leases remain held until process exit,
+including when restart initiation fails. No old runtime is resumed or saved.
+
+The current bundle executable starts its own minimal `--restore-relaunch-helper`
+mode before launch-context recovery or runtime construction. A bounded pipe
+handshake confirms helper readiness; failure leaves the original process open and
+reports an error, then permits retry. The helper observes the original PID exit
+using a native process dispatch source. Only after exit does it open its own exact
+bundle URL with NSWorkspace, disabling running-app substitution and requesting a
+fresh instance. No shell, terminal, external executable or installed-path lookup
+is used. This also targets a GUI testbuild or an app on an external volume.
+A 60-second parent-exit timeout prevents a permanently waiting helper. Launch
+errors after parent exit produce a minimal localized AppKit error dialog. Normal
+startup then performs existing recovery before reading restored metadata.
+
+### Manual GUI acceptance (0.6.0 dialog polish)
+
+Use a disposable macOS user with a synthetic library and synthetic `.wssbackup`;
+the separate build uses the regular Wupsy preference domain and library paths.
+Do not restore a productive library for acceptance. Do not run an installed copy
+at the same time. Launch `dist/gui-restore-restart/Wupsy.app` directly.
+
+- In German and English, restore synthetic B over distinguishable synthetic A.
+  Check the unchanged success message, requested restart notice, centered app icon,
+  left-aligned text and compact window. Check the localized restart button.
+- Click restart once. Confirm old PID exits, helper exits, and exactly one normal
+  Wupsy process opens from this same testbuild path. Repeat from an external volume
+  (including a path containing spaces). No Terminal window should appear.
+- Confirm B's items, favorites and playlists are loaded; A must stay absent.
+  Quit and reopen once more and confirm B remains intact.
+- Initiation failures are covered by injected tests (no termination, frozen writers).
+  For a disposable copied build, make its executable unavailable after the success
+  dialog appears: restart must report failure and retain the completion dialog.
+  Restore the executable before retry. Never modify the installed app for this test.
+- For a late launch failure, use only a disposable copy: after helper readiness,
+  make the bundle unavailable before Launch Services can open it. Expect a visible
+  restart error with manual reopening instructions. Timing-dependent process and
+  Launch Services behavior is reserved for GUI acceptance, not a claim of automated
+  end-to-end restart coverage.

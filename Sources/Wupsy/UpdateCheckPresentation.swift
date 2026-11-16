@@ -22,7 +22,9 @@ struct UpdateCheckMessage {
     let title: String
     let detail: String
     let offersUpdate: Bool
+    let isCurrent: Bool
     init(_ result: UpdateCheckResult, language: String? = nil) {
+        if case .current = result { isCurrent = true } else { isCurrent = false }
         offersUpdate = {
             if case .available = result { return true }
             return false
@@ -73,19 +75,28 @@ struct UpdateCheckMessage {
         guard canPresent else { return }
         self.completion = completion
         let message = UpdateCheckMessage(result)
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 260),
-            styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        panel.title = "Wupsy"
-        panel.isReleasedWhenClosed = false
+        let panel = Self.makePanel(message: message) { [weak self] in self?.finish($0) }
         panel.delegate = self
-        panel.contentView = NSHostingView(
-            rootView: UpdateCheckDialog(message: message) { [weak self] in self?.finish($0) })
         self.panel = panel
         panel.center()
         if manual { NSApp.activate(ignoringOtherApps: true) }
         panel.makeKeyAndOrderFront(nil)
     }
+    static func makePanel(
+        message: UpdateCheckMessage, language: String? = nil,
+        action: @escaping (UpdateCheckAction) -> Void
+    ) -> NSPanel {
+        let panel = NSPanel(
+            contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        panel.title = "Wupsy"
+        panel.isReleasedWhenClosed = false
+        let content = NSHostingView(
+            rootView: UpdateCheckDialog(message: message, language: language, action: action))
+        panel.contentView = content
+        panel.setContentSize(content.fittingSize)
+        return panel
+    }
+
     private func finish(_ action: UpdateCheckAction) {
         let callback = completion
         completion = nil
@@ -107,22 +118,40 @@ struct UpdateCheckMessage {
 
 private struct UpdateCheckDialog: View {
     let message: UpdateCheckMessage
+    let language: String?
     let action: (UpdateCheckAction) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(message.title).font(.headline)
+            if message.isCurrent {
+                VStack(spacing: 10) {
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable().scaledToFit().frame(width: 64, height: 64)
+                        .accessibilityHidden(true)
+                    Text(message.title).font(.headline)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }.frame(maxWidth: .infinity)
+            } else {
+                Text(message.title).font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(message.detail).fixedSize(horizontal: false, vertical: true).textSelection(
                 .enabled)
-            Spacer(minLength: 4)
             HStack {
-                Button(UpdateText.close.text()) { action(.close) }.keyboardShortcut(.cancelAction)
-                Spacer()
                 if message.offersUpdate {
-                    Button(UpdateText.skip.text()) { action(.skip) }
-                    Button(UpdateText.download.text()) { action(.open) }.keyboardShortcut(
-                        .defaultAction)
+                    Button(UpdateText.close.text(language: language)) { action(.close) }
+                        .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button(UpdateText.skip.text(language: language)) { action(.skip) }
+                    Button(UpdateText.download.text(language: language)) { action(.open) }
+                        .keyboardShortcut(
+                            .defaultAction)
+                } else {
+                    Spacer()
+                    Button(UpdateText.close.text(language: language)) { action(.close) }
+                        .keyboardShortcut(.cancelAction)
                 }
-            }
-        }.padding(22).frame(width: 540, height: 260)
+            }.padding(.top, 4)
+        }.padding(22).frame(width: 480).fixedSize(horizontal: false, vertical: true)
     }
 }

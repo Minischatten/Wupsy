@@ -356,6 +356,82 @@ private actor UpdateFakeClient: ReleaseChecking {
         await settle()
         XCTAssertEqual(presenter.messages.count, 1)
     }
+    func testCurrentPresentationUsesDynamicVersionAndLocalizedParagraphs() throws {
+        for (language, title, detail) in [
+            (
+                "de", "Wupsy ist aktuell",
+                "Installierte Version: 2.7.13\n\nEs wurde keine neuere reguläre Version gefunden."
+            ),
+            (
+                "en", "Wupsy is up to date",
+                "Installed version: 2.7.13\n\nNo newer regular release was found."
+            ),
+        ] {
+            let message = UpdateCheckMessage(
+                .current(try ReleaseVersion("2.7.13")), language: language)
+            XCTAssertEqual(message.title, title)
+            XCTAssertEqual(message.detail, detail)
+            XCTAssertTrue(message.isCurrent)
+            XCTAssertFalse(message.offersUpdate)
+        }
+    }
+
+    func testResultPanelsFitContentInBothLanguagesAndAppearances() throws {
+        _ = NSApplication.shared
+        let current = UpdateCheckResult.current(try ReleaseVersion("0.5.0"))
+        let results: [UpdateCheckResult] = [
+            current,
+            .available(
+                installed: try ReleaseVersion("0.5.0"), release: try release(), skipped: false),
+            .available(
+                installed: try ReleaseVersion("0.5.0"), release: try release(), skipped: true),
+            .noStableRelease,
+            .failed(.unavailable), .failed(.invalidResponse), .failed(.invalidVersion),
+            .failed(.network), .failed(.cancelled), .failed(.server(503)),
+            .failed(.rateLimited(until: clock.now)),
+        ]
+        for language in ["de", "en"] {
+            for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+                for result in results {
+                    let message = UpdateCheckMessage(result, language: language)
+                    XCTAssertFalse(message.title.isEmpty)
+                    XCTAssertFalse(message.detail.isEmpty)
+                    let panel = UpdateCheckPresentation.makePanel(
+                        message: message, language: language
+                    ) { _ in
+                        XCTFail("Layout must not trigger actions")
+                    }
+                    defer { panel.close() }
+                    panel.appearance = NSAppearance(named: appearance)
+                    let content = try XCTUnwrap(panel.contentView)
+                    content.layoutSubtreeIfNeeded()
+                    XCTAssertEqual(content.frame.width, 480, accuracy: 1)
+                    XCTAssertEqual(content.frame.height, content.fittingSize.height, accuracy: 1)
+                    XCTAssertGreaterThan(content.frame.height, 70)
+                    XCTAssertLessThan(content.frame.height, 260)
+                    XCTAssertEqual(panel.styleMask, [.titled, .closable])
+                }
+                let short = UpdateCheckPresentation.makePanel(
+                    message: UpdateCheckMessage(current, language: language), language: language
+                ) { _ in }
+                let long = UpdateCheckPresentation.makePanel(
+                    message: UpdateCheckMessage(
+                        .current(
+                            try ReleaseVersion(
+                                "18446744073709551615.18446744073709551615.18446744073709551615")),
+                        language: language),
+                    language: language
+                ) { _ in }
+                defer {
+                    short.close()
+                    long.close()
+                }
+                XCTAssertGreaterThan(
+                    long.contentView!.fittingSize.height, short.contentView!.fittingSize.height)
+            }
+        }
+    }
+
     func testLocalizationAndSafeReleaseURLs() throws {
         for resource in UpdateText.allCases {
             for language in ["en", "de", "zz"] {
