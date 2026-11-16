@@ -20,10 +20,11 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
     var twinkleSpeed: Double = 0.3
     var driftX: Double = 0
     var driftY: Double = 0
+    var shootingStars = WSSStarfieldShootingStars()
     init() {}
     enum CodingKeys: String, CodingKey, CaseIterable {
         case x, y, width, height, count, size, brightness, red, green, blue, colorVariation, seed
-        case twinkleEnabled, twinkleIntensity, twinkleSpeed, driftX, driftY
+        case twinkleEnabled, twinkleIntensity, twinkleSpeed, driftX, driftY, shootingStars
     }
     init(from decoder: Decoder) throws {
         try decoder.fields(CodingKeys.allCases.map(\.rawValue))
@@ -45,9 +46,30 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
         twinkleSpeed = try c.decode(Double.self, forKey: .twinkleSpeed)
         driftX = try c.decode(Double.self, forKey: .driftX)
         driftY = try c.decode(Double.self, forKey: .driftY)
+        shootingStars =
+            try c.decodeIfPresent(WSSStarfieldShootingStars.self, forKey: .shootingStars) ?? .init()
         try validate()
     }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        for parameter in WSSStarfieldParameter.allCases {
+            let key = CodingKeys(rawValue: parameter.rawValue)!
+            switch parameter {
+            case .count: try c.encode(count, forKey: key)
+            case .seed: try c.encode(seed, forKey: key)
+            default: try c.encode(parameter.value(self), forKey: key)
+            }
+        }
+        try c.encode(red, forKey: .red)
+        try c.encode(green, forKey: .green)
+        try c.encode(blue, forKey: .blue)
+        try c.encode(twinkleEnabled, forKey: .twinkleEnabled)
+        if shootingStars != WSSStarfieldShootingStars() {
+            try c.encode(shootingStars, forKey: .shootingStars)
+        }
+    }
     func validate() throws {
+        try shootingStars.validate()
         guard
             WSSStarfieldParameter.allCases.allSatisfy({
                 let v = $0.value(self)
@@ -60,9 +82,10 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
     }
     var isEffective: Bool { count > 0 && brightness > 0 && max(red, max(green, blue)) > 0 }
     var isAnimated: Bool {
-        isEffective
+        (isEffective
             && ((twinkleEnabled && twinkleIntensity > 0 && twinkleSpeed > 0) || driftX != 0
-                || driftY != 0)
+                || driftY != 0))
+            || (shootingStars.isEffective && max(red, max(green, blue)) > 0)
     }
     var canvasTransform: WSSSceneDocumentV1.Transform {
         .init(

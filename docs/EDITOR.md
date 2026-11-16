@@ -88,3 +88,12 @@ variation, optional twinkling and X/Y drift. Select the layer to move/resize its
 frame (Shift: independent axes); rotation is unavailable. Actual stars appear in
 Live Preview, while the editing canvas remains image-only. See the
 [Starfield contract](effects/STARFIELD.md).
+
+The Starfield inspector also offers optional Shooting stars, disabled by default.
+Frequency is shown as shooting stars per 10 minutes (0…120, fractions allowed);
+stored rates remain per minute for compatibility. For example, 1 means one event
+per ten minutes and 10 means one per minute. Speed and tail length use scene units.
+Eight arrow buttons select compass directions; the numeric degree field and center
+arrow show precise intermediate angles. Direction is 0° right, 90° up and 270° down,
+with symmetric direction variation.
+Meteors use the base color and are independent of the slow star drift.

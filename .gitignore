@@ -16,8 +16,6 @@ __pycache__/
 .env.*
 *.log
 
-# Local Wallpaper Engine references are not redistributable project resources.
-/Referenz-Wallpaper/
 
 *.pfx
 *.crash

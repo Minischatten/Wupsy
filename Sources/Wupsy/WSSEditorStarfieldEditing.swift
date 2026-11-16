@@ -63,3 +63,36 @@ extension WSSEditorDocument {
         }
     }
 }
+
+extension WSSEditorDocument {
+    func setShootingStars(_ parameter: WSSShootingStarParameter, value: Double, layer: WSSLayerID)
+        throws
+    {
+        try changeStarfield(layer, name: parameter.title) {
+            try parameter.apply(value, to: &$0.starfield.shootingStars)
+        }
+    }
+    func setShootingStarsEnabled(_ enabled: Bool, layer: WSSLayerID) throws {
+        try changeStarfield(layer, name: WSSStarfieldText.text("shootingStars.enabled")) {
+            $0.starfield.shootingStars.enabled = enabled
+        }
+    }
+}
+
+extension WSSEditorDocument {
+    func setShootingStarsDisplayValue(
+        _ parameter: WSSShootingStarParameter, value: Double, layer: WSSLayerID
+    ) throws {
+        try changeStarfield(layer, name: parameter.title) {
+            try parameter.applyDisplayValue(value, to: &$0.starfield.shootingStars)
+        }
+    }
+    func selectShootingStarDirection(_ direction: WSSShootingStarDirection, layer: WSSLayerID)
+        throws
+    {
+        // This is an explicit button action, unlike a numeric field's commit.
+        // Validate/resign any draft first so it cannot overwrite the chosen arrow later.
+        guard permitsStructureEditing, finishEditing() else { return }
+        try setShootingStars(.direction, value: direction.rawValue, layer: layer)
+    }
+}

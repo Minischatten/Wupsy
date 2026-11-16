@@ -224,4 +224,6 @@ Supported mask creation/painting and Flow field/region editing use independent i
 
 Native `type: "starfield"` layers generate bounded seeded stars directly in painter
 order. See the [Starfield contract](docs/effects/STARFIELD.md) for required fields,
-validation, animation, resource limits and compatibility. No additional assets.
+validation, animation, resource limits and compatibility. Optional
+`starfield.shootingStars` adds seeded meteors (disabled when absent). No additional
+assets or format-version change.

@@ -9,11 +9,12 @@ final class WSSStarfieldRenderer {
         let seed: UInt32
         let buffer: MTLBuffer?
     }
+    let meteorPipeline: MTLRenderPipelineState
     let pipeline: MTLRenderPipelineState
     let layers: [Int: Prepared]
     var bufferBytes: Int { layers.values.reduce(0) { $0 + ($1.buffer?.length ?? 0) } }
     init(scene: WSSScene, device: MTLDevice) throws {
-        let library = try device.makeLibrary(source: Self.shader, options: nil)
+        let library = try device.makeLibrary(source: Self.shader + Self.meteorShader, options: nil)
         let p = MTLRenderPipelineDescriptor()
         p.vertexFunction = library.makeFunction(name: "starVertex")
         p.fragmentFunction = library.makeFunction(name: "starFragment")
@@ -24,6 +25,9 @@ final class WSSStarfieldRenderer {
         a.destinationRGBBlendFactor = .one
         a.writeMask = [.red, .green, .blue]
         pipeline = try device.makeRenderPipelineState(descriptor: p)
+        p.vertexFunction = library.makeFunction(name: "meteorVertex")
+        p.fragmentFunction = library.makeFunction(name: "meteorFragment")
+        meteorPipeline = try device.makeRenderPipelineState(descriptor: p)
         var prepared: [Int: Prepared] = [:]
         for (index, node) in scene.layers.enumerated() {
             guard case .starfield(let layer) = node else { continue }
@@ -50,42 +54,46 @@ final class WSSStarfieldRenderer {
         canvas: SIMD2<Float>, crop: SIMD2<Float>, drawableSize: CGSize, time: Double
     ) throws {
         let c = layer.starfield
-        guard c.isEffective else { return }
-        guard let prepared = layers[index], prepared.count == c.count, prepared.seed == c.seed,
-            let buffer = prepared.buffer
-        else { throw WSSSceneError.invalid("missing starfield population") }
-        let drift = c.driftX != 0 || c.driftY != 0
-        let phases = (0..<8).map { group in
-            WSSStarfieldConfiguration.phase(
-                time: time,
-                speed: c.twinkleSpeed * (0.65 + 0.1 * Double(group)) * 2 * .pi, period: 2 * .pi)
+        if c.isEffective {
+            guard let prepared = layers[index], prepared.count == c.count, prepared.seed == c.seed,
+                let buffer = prepared.buffer
+            else { throw WSSSceneError.invalid("missing starfield population") }
+            let drift = c.driftX != 0 || c.driftY != 0
+            let phases = (0..<8).map { group in
+                WSSStarfieldConfiguration.phase(
+                    time: time,
+                    speed: c.twinkleSpeed * (0.65 + 0.1 * Double(group)) * 2 * .pi, period: 2 * .pi)
+            }
+            let uniforms: [SIMD4<Float>] = [
+                SIMD4(canvas.x, canvas.y, canvas.x * crop.x, canvas.y * crop.y),
+                SIMD4(Float(c.x), Float(c.y), Float(c.width), Float(c.height)),
+                SIMD4(
+                    WSSStarfieldConfiguration.phase(time: time, speed: c.driftX, period: c.width),
+                    WSSStarfieldConfiguration.phase(time: time, speed: c.driftY, period: c.height),
+                    drift ? 1 : 0, 0),
+                SIMD4(Float(c.red), Float(c.green), Float(c.blue), Float(c.colorVariation)),
+                SIMD4(
+                    Float(c.size), Float(c.brightness),
+                    c.twinkleEnabled ? Float(c.twinkleIntensity) : 0,
+                    min(
+                        Float(drawableSize.width) / (canvas.x * crop.x),
+                        Float(drawableSize.height) / (canvas.y * crop.y))),
+                SIMD4(phases[0], phases[1], phases[2], phases[3]),
+                SIMD4(phases[4], phases[5], phases[6], phases[7]),
+            ]
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setVertexBuffer(buffer, offset: 0, index: 1)
+            uniforms.withUnsafeBytes {
+                encoder.setVertexBytes($0.baseAddress!, length: $0.count, index: 0)
+                encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0)
+            }
+            encoder.drawPrimitives(
+                type: .triangleStrip, vertexStart: 0, vertexCount: 4,
+                instanceCount: prepared.count * (drift ? 9 : 1))
         }
-        let uniforms: [SIMD4<Float>] = [
-            SIMD4(canvas.x, canvas.y, canvas.x * crop.x, canvas.y * crop.y),
-            SIMD4(Float(c.x), Float(c.y), Float(c.width), Float(c.height)),
-            SIMD4(
-                WSSStarfieldConfiguration.phase(time: time, speed: c.driftX, period: c.width),
-                WSSStarfieldConfiguration.phase(time: time, speed: c.driftY, period: c.height),
-                drift ? 1 : 0, 0),
-            SIMD4(Float(c.red), Float(c.green), Float(c.blue), Float(c.colorVariation)),
-            SIMD4(
-                Float(c.size), Float(c.brightness),
-                c.twinkleEnabled ? Float(c.twinkleIntensity) : 0,
-                min(
-                    Float(drawableSize.width) / (canvas.x * crop.x),
-                    Float(drawableSize.height) / (canvas.y * crop.y))),
-            SIMD4(phases[0], phases[1], phases[2], phases[3]),
-            SIMD4(phases[4], phases[5], phases[6], phases[7]),
-        ]
-        encoder.setRenderPipelineState(pipeline)
-        encoder.setVertexBuffer(buffer, offset: 0, index: 1)
-        uniforms.withUnsafeBytes {
-            encoder.setVertexBytes($0.baseAddress!, length: $0.count, index: 0)
-            encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0)
-        }
-        encoder.drawPrimitives(
-            type: .triangleStrip, vertexStart: 0, vertexCount: 4,
-            instanceCount: prepared.count * (drift ? 9 : 1))
+        encodeMeteors(
+            layer: layer, encoder: encoder, canvas: canvas, crop: crop, drawableSize: drawableSize,
+            time: time)
     }
     static let shader = """
         #include <metal_stdlib>

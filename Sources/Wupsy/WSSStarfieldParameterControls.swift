@@ -77,6 +77,59 @@ struct WSSStarfieldParameterControls: View {
                     }
                 }
                 Text(WSSStarfieldText.text("help")).font(.caption).foregroundStyle(.secondary)
+                Divider()
+                Text(WSSStarfieldText.text("shootingStars.title")).font(.headline)
+                Toggle(
+                    WSSStarfieldText.text("shootingStars.enabled"),
+                    isOn: Binding(
+                        get: { value.starfield.shootingStars.enabled },
+                        set: { enabled in
+                            perform { try document.setShootingStarsEnabled(enabled, layer: layer) }
+                        }))
+                Text(WSSStarfieldText.text("shootingStars.color.help")).font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(WSSShootingStarParameter.allCases, id: \.self) { parameter in
+                    if parameter == .direction {
+                        WSSShootingStarDirectionPicker(
+                            angle: value.starfield.shootingStars.direction
+                        ) { direction in
+                            perform {
+                                try document.selectShootingStarDirection(direction, layer: layer)
+                            }
+                        }
+                    }
+                    HStack {
+                        Text(parameter.title).font(.caption)
+                        Spacer()
+                        WSSParameterTextField(
+                            value: Float(parameter.displayValue(value.starfield.shootingStars)),
+                            range: Float(
+                                parameter.displayRange.lowerBound)...Float(
+                                    parameter.displayRange.upperBound),
+                            title: parameter.title, maximumFractionDigits: 3,
+                            exactValue: parameter.displayValue(value.starfield.shootingStars),
+                            exactRange: parameter.displayRange,
+                            commitExact: {
+                                try document.setShootingStarsDisplayValue(
+                                    parameter, value: $0, layer: layer)
+                            },
+                            commit: {
+                                try document.setShootingStarsDisplayValue(
+                                    parameter, value: Double($0), layer: layer)
+                            }
+                        ).frame(width: 110)
+                    }
+                    if parameter == .frequency {
+                        Text(WSSStarfieldText.text("shootingStars.frequency.help")).font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if parameter == .direction {
+                        Text(WSSStarfieldText.text("shootingStars.direction.help")).font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(WSSStarfieldText.text("shootingStars.drift.help")).font(.caption)
+                    .foregroundStyle(.secondary)
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
         }

@@ -12810,13 +12810,370 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag the frame to move; use corners to resize (Shift: independent axes). Stars appear in Live Preview. Zero drift and disabled twinkling keep the layer static."
+            "value": "Drag the frame to move; use corners to resize (Shift: independent axes). Stars appear in Live Preview."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rahmen verschieben; Ecken skalieren (Umschalt: unabhängige Achsen). Sterne erscheinen in der Live Preview. Ohne Drift und Funkeln bleibt die Ebene statisch."
+            "value": "Rahmen verschieben; Ecken skalieren (Umschalt: unabhängige Achsen). Sterne erscheinen in der Live Preview."
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shooting stars"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternschnuppen"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shooting stars"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternschnuppen"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.frequency": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shooting stars per 10 minutes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternschnuppen pro 10 Minuten"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.speed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed (units/s)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geschwindigkeit (Einheiten/s)"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.tailLength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tail length"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schweiflänge"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.brightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helligkeit"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direction (°)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richtung (°)"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.directionVariation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direction variation (±°)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richtungsvariation (±°)"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.frequency.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Average frequency: 1 ≈ every 10 min, 2 ≈ every 5 min, 5 ≈ every 2 min. Intervals vary; 0 means none."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mittlere Häufigkeit: 1 ≈ alle 10 Min., 2 ≈ alle 5 Min., 5 ≈ alle 2 Min. Die Abstände variieren; 0 bedeutet keine."
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an arrow or enter a precise angle. 0° right, 90° up, 180° left, 270° down."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfeil wählen oder einen präzisen Winkel eingeben. 0° rechts, 90° oben, 180° links, 270° unten."
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.color.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses the Starfield base color."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwendet die Starfield-Grundfarbe."
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.drift.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shooting stars move independently of the slow star drift."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sternschnuppen bewegen sich unabhängig von der langsamen Sternendrift."
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current direction"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuelle Richtung"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechts"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.upRight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up right"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oben rechts"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oben"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.upLeft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up left"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oben links"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.downLeft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Down left"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unten links"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.down": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Down"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unten"
+          }
+        }
+      }
+    },
+    "editor.starfield.shootingStars.direction.downRight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Down right"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unten rechts"
           }
         }
       }
