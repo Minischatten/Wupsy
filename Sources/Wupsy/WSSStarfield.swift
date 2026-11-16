@@ -21,10 +21,11 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
     var driftX: Double = 0
     var driftY: Double = 0
     var shootingStars = WSSStarfieldShootingStars()
+    var milkyWay = WSSMilkyWay()
     init() {}
     enum CodingKeys: String, CodingKey, CaseIterable {
         case x, y, width, height, count, size, brightness, red, green, blue, colorVariation, seed
-        case twinkleEnabled, twinkleIntensity, twinkleSpeed, driftX, driftY, shootingStars
+        case twinkleEnabled, twinkleIntensity, twinkleSpeed, driftX, driftY, shootingStars, milkyWay
     }
     init(from decoder: Decoder) throws {
         try decoder.fields(CodingKeys.allCases.map(\.rawValue))
@@ -48,6 +49,7 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
         driftY = try c.decode(Double.self, forKey: .driftY)
         shootingStars =
             try c.decodeIfPresent(WSSStarfieldShootingStars.self, forKey: .shootingStars) ?? .init()
+        milkyWay = try c.decodeIfPresent(WSSMilkyWay.self, forKey: .milkyWay) ?? .init()
         try validate()
     }
     func encode(to encoder: Encoder) throws {
@@ -64,12 +66,14 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
         try c.encode(green, forKey: .green)
         try c.encode(blue, forKey: .blue)
         try c.encode(twinkleEnabled, forKey: .twinkleEnabled)
+        if milkyWay != WSSMilkyWay() { try c.encode(milkyWay, forKey: .milkyWay) }
         if shootingStars != WSSStarfieldShootingStars() {
             try c.encode(shootingStars, forKey: .shootingStars)
         }
     }
     func validate() throws {
         try shootingStars.validate()
+        try milkyWay.validate()
         guard
             WSSStarfieldParameter.allCases.allSatisfy({
                 let v = $0.value(self)
@@ -86,6 +90,7 @@ struct WSSStarfieldConfiguration: Codable, Equatable {
             && ((twinkleEnabled && twinkleIntensity > 0 && twinkleSpeed > 0) || driftX != 0
                 || driftY != 0))
             || (shootingStars.isEffective && max(red, max(green, blue)) > 0)
+            || (milkyWay.isEffective && (driftX != 0 || driftY != 0))
     }
     var canvasTransform: WSSSceneDocumentV1.Transform {
         .init(

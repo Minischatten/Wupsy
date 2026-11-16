@@ -140,3 +140,9 @@ Library JSON publication remains authoritative. The editor retains the committed
 Pending preparations are retargeted to the committed record while retaining the same external Apply request. Old preparation generations cannot finish into newer state. Paused requests remain pending until Resume. A stale image argument resolves to the current scene entry before a new Apply; preparation also rechecks the current record before starting renderers. A newer manual/playlist action, Stop, shutdown or topology change prevents an older handoff. Normal scene Save uses the same refresh path, including recovery after a prior image-to-scene handoff failure.
 
 Library publication is not rolled back for desktop/thumbnail errors. Synchronous refresh failures retain all old affected renderers and return a committed warning. A changed display topology abandons candidates and warns; the next activation or normal display rebuild uses current metadata. Pending applies which had not yet displayed the image follow normal Apply failure semantics (the earlier desktop may already have been retired by the original Apply). Resource preparation/startup does not guarantee a first visible GPU frame or rollback after later runtime failure. Existing display/quality/pause/health policies remain authoritative.
+
+Optional Starfield Milky Way rendering is a lazy immutable pipeline shared within
+prepared resource families. It draws a bounded procedural region quad before
+stars/meteors, with no texture target or simulation state. Parameter edits share
+star populations and meteor pipelines; independent color transactions use the same
+editor finish/Undo contracts. See [Milky Way](effects/STARFIELD.md#optional-procedural-milky-way-stage-3).

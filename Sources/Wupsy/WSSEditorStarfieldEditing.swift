@@ -44,22 +44,37 @@ extension WSSEditorDocument {
             try parameter.apply(value, to: &$0.starfield)
         }
     }
-    func beginStarfieldColorInteraction(_ layer: WSSLayerID) {
+    func beginStarfieldColorInteraction(_ layer: WSSLayerID, role: WSSStarfieldColorRole = .stars) {
         guard finishEditing() else { return }
         starfieldColorDrag = (layer, state.workingModel)
+        starfieldColorRole = role
     }
     func endStarfieldColorInteraction() {
         guard let (_, before) = starfieldColorDrag else { return }
+        let key = starfieldColorRole == .stars ? "color" : "milkyWay.color"
+        starfieldColorRole = .stars
         starfieldColorDrag = nil
         if before != state.workingModel {
-            registerModelUndo(before, name: WSSStarfieldText.text("color"))
+            registerModelUndo(before, name: WSSStarfieldText.text(key))
         }
     }
-    func setStarfieldColor(_ color: WSSTrailColor, layer: WSSLayerID, undo: Bool = true) throws {
-        try changeStarfield(layer, name: WSSStarfieldText.text("color"), undo: undo) {
-            $0.starfield.red = Double(color.r)
-            $0.starfield.green = Double(color.g)
-            $0.starfield.blue = Double(color.b)
+    func setStarfieldColor(
+        _ color: WSSTrailColor, layer: WSSLayerID, role: WSSStarfieldColorRole = .stars,
+        undo: Bool = true
+    ) throws {
+        try changeStarfield(
+            layer, name: WSSStarfieldText.text(role == .stars ? "color" : "milkyWay.color"),
+            undo: undo
+        ) {
+            if role == .stars {
+                $0.starfield.red = Double(color.r)
+                $0.starfield.green = Double(color.g)
+                $0.starfield.blue = Double(color.b)
+            } else {
+                $0.starfield.milkyWay.red = Double(color.r)
+                $0.starfield.milkyWay.green = Double(color.g)
+                $0.starfield.milkyWay.blue = Double(color.b)
+            }
         }
     }
 }

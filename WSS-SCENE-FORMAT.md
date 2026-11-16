@@ -226,4 +226,6 @@ Native `type: "starfield"` layers generate bounded seeded stars directly in pain
 order. See the [Starfield contract](docs/effects/STARFIELD.md) for required fields,
 validation, animation, resource limits and compatibility. Optional
 `starfield.shootingStars` adds seeded meteors (disabled when absent). No additional
-assets or format-version change.
+assets or format-version change. Optional `starfield.milkyWay` adds a bounded
+procedural galactic band, disabled when absent; its parameter and resource contract
+is also defined in the Starfield contract.

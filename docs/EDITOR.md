@@ -97,3 +97,11 @@ Eight arrow buttons select compass directions; the numeric degree field and cent
 arrow show precise intermediate angles. Direction is 0° right, 90° up and 270° down,
 with symmetric direction variation.
 Meteors use the base color and are independent of the slow star drift.
+
+Starfield also has an optional Milky Way section, off by default, with its own
+native color picker and seed. Position X/Y are fractions of the region, band width
+is a fraction of its shorter side, and angle is counterclockwise (0° horizontal,
+90° vertical). Intensity, structure and dust lanes affect only the Milky Way.
+Existing star and meteor distributions stay unchanged. The band follows star drift
+periodically; with no other animation it remains static. Use Live Preview for the
+rendered field; the existing Canvas rectangle controls the complete Starfield.

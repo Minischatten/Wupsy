@@ -225,6 +225,7 @@ import SwiftUI
     private var previewTask: Task<Void, Never>?
     private var desiredPreview: UInt64?
     var stormColorRole: WSSStormColorRole?
+    var starfieldColorRole: WSSStarfieldColorRole = .stars
     var starfieldColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var stormColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var trailDrag: (WSSLayerID, String, WSSSceneDocumentV1)?

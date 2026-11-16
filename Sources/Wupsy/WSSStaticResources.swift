@@ -17,6 +17,7 @@ final class WSSStaticResources: @unchecked Sendable {
     }
     let images: [WSSAssetID: Image]
     let trail: WSSTrailRenderer?
+    let milkyWay: WSSMilkyWayRenderer?
     let starfield: WSSStarfieldRenderer?
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
@@ -134,6 +135,7 @@ final class WSSStaticResources: @unchecked Sendable {
                 return false
             }
             ? WSSTrailRenderer(device: device) : nil
+        milkyWay = scene.hasEffectiveMilkyWay ? try WSSMilkyWayRenderer(device: device) : nil
         starfield =
             try scene.layers.contains {
                 if case .starfield = $0 { return true }
@@ -238,7 +240,8 @@ final class WSSStaticResources: @unchecked Sendable {
     private init(
         scene: WSSScene, sharing original: WSSStaticResources,
         flowOverride: WSSFlowResources? = nil,
-        lightingOverride: WSSStormLightingRenderer? = nil
+        lightingOverride: WSSStormLightingRenderer? = nil,
+        milkyWayOverride: WSSMilkyWayRenderer? = nil
     ) {
         self.scene = scene
         family = original.family
@@ -246,6 +249,7 @@ final class WSSStaticResources: @unchecked Sendable {
         queue = original.queue
         images = original.images
         trail = original.trail
+        milkyWay = milkyWayOverride ?? original.milkyWay
         starfield = original.starfield
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
@@ -365,7 +369,11 @@ final class WSSStaticResources: @unchecked Sendable {
         let lighting =
             updated.hasEffectiveStormIllumination && stormLighting == nil
             ? try? WSSStormLightingRenderer(device: device) : stormLighting
-        return WSSStaticResources(scene: updated, sharing: self, lightingOverride: lighting)
+        let galaxy =
+            updated.hasEffectiveMilkyWay && milkyWay == nil
+            ? try WSSMilkyWayRenderer(device: device) : milkyWay
+        return WSSStaticResources(
+            scene: updated, sharing: self, lightingOverride: lighting, milkyWayOverride: galaxy)
     }
     private static func upload(_ asset: WSSImageAsset, device: MTLDevice, queue: MTLCommandQueue)
         throws -> MTLTexture
@@ -617,7 +625,7 @@ final class WSSStaticResources: @unchecked Sendable {
                     try starfield.encode(
                         index: index, layer: layer, encoder: encoder,
                         canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
-                        drawableSize: size, time: time)
+                        drawableSize: size, time: time, milkyWay: milkyWay)
                 } catch {
                     encoder.endEncoding()
                     throw error

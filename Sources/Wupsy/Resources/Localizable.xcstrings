@@ -13177,6 +13177,210 @@
           }
         }
       }
+    },
+    "editor.starfield.milkyWay.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky Way"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milchstraße"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky Way"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milchstraße"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky Way color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milchstraßenfarbe"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.positionX": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position X (0–1)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position X (0–1)"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.positionY": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position Y (0–1)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position Y (0–1)"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.angle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Band angle (°)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandwinkel (°)"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.width": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Band width (0.03–1)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandbreite (0,03–1)"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.intensity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intensity"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intensität"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Structure"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strukturstärke"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.dust": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dust lanes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Staubbänder"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.seed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky Way seed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milchstraßen-Seed"
+          }
+        }
+      }
+    },
+    "editor.starfield.milkyWay.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position is relative to the Starfield rectangle. Width is a fraction of its shorter side. 0° horizontal, 90° vertical. Uses the same slow drift; no independent animation."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position relativ zum Starfield-Rechteck. Breite als Anteil der kürzeren Seite. 0° waagerecht, 90° senkrecht. Folgt derselben langsamen Drift; keine eigene Animation."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

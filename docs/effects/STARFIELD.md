@@ -140,3 +140,98 @@ Synthetic shooting-star scene:
 [WSS-Starfield-Shooting-Stars-v1](../../Test-Wallpaper/WSS-Starfield-Shooting-Stars-v1/README.md).
 
 Synthetic acceptance scene: [WSS-Starfield-v1](../../Test-Wallpaper/WSS-Starfield-v1/README.md).
+
+## Optional procedural Milky Way (stage 3)
+
+`starfield.milkyWay` is an optional additive WSS-v1 object. When absent, all defaults
+below apply; the object is omitted by canonical encoding only at complete defaults.
+All listed fields are required inside an explicit object. Unknown/null/non-finite
+or out-of-range values fail even on hidden/disabled layers. No version bump or
+migration. Older strict readers reject the newly configured field explicitly.
+
+| Field | Default | Bounds / meaning |
+|---|---|---|
+| enabled | false | boolean |
+| positionX, positionY | 0.5, 0.5 | 0…1, normalized center within the Starfield rectangle |
+| angle | 30 | 0…360°, counterclockwise; 0 horizontal, 90 vertical |
+| width | 0.22 | 0.03…1, band width as a fraction of the shorter region side |
+| intensity | 0.45 | 0…2 emission multiplier |
+| structure | 0.75 | 0…1 cloud/grain contrast and density modulation |
+| dust | 0.7 | 0…1 suppression of the band's own light in dark lanes |
+| red, green, blue | 0.8, 0.86, 1 | 0…1, own freely editable native linear RGB |
+| seed | 1 | UInt32; independent of Starfield and meteor seeds |
+
+Original bounded Swift/Metal implementation, with no external shader, texture or
+runtime dependency. This is a stylized galactic field, not an astronomical model.
+A separate optional immutable pipeline is prepared lazily on effective activation,
+then shared by compatible snapshots; it can remain held until the resource family
+is released. Off/zero-intensity/black/hidden draws nothing. Old projects do not
+compile this pipeline. Other native pipelines and color processing are unchanged.
+
+One four-vertex region quad renders BEFORE stars and meteors at the Starfield
+layer's painter-order position. Additive RGB leaves destination alpha unchanged;
+later source-over foregrounds occlude the whole field. The existing Storm final
+illumination pass includes it naturally. The region quad bounds soft edges too.
+No new image, render target, simulation buffer, cached structure texture or GPU
+geometry buffer. Inline uniforms use 96 bytes plus a four-byte seed per draw.
+GPU commands keep immutable resources alive through existing completion ownership.
+
+The fragment shader combines a metric rotated variable-width Gaussian envelope
+with four bounded periodic images and bilinear partition weights. Six fixed seeded
+periodic noise evaluations drive broad occupation, local stellar clouds, fine/micro
+detail and two independent dust domains. Nonlinear occupation and sparse bright
+condensations replace the previous nearly constant diffuse floor. Diffuse light is
+weak; two independently hashed finite-cell star fields follow local cloud density,
+without extending the ordinary Starfield instance population. Cell-edge coverage
+falls smoothly to zero to avoid discontinuities during subpixel drift.
+
+Dust is variable-width and patchy, with domain-warped displacement instead of a
+sinusoidal hairline. Weighted exponential transmittance attenuates BOTH diffuse
+light and fine stellar emission. No black overlay is drawn; ordinary Starfield
+stars remain unaffected. The own base tint varies by at most ±5% per channel.
+Structure/color/intensity/dust changes remain uniforms, not CPU generation.
+The optical revision changes appearance at unchanged parameters but does not
+change JSON fields/defaults, seeds, geometry, event scheduling or other renderers.
+The band stays stylistic, not an astrophysical simulation or sky survey.
+
+The same X/Y drift phases as stars translate the complete periodic field. Double
+phase reduction precedes Float uniforms. No independent timer, evolution or
+flickering. Four periodic images and periodic noise eliminate seam jumps/empty
+wrap strips at every angle. Periodic continuation can show band fragments at
+opposite edges, including when stationary; normalized centers 0 and 1 coincide.
+A complete travel cycle repeats. Rotations use scene distances to preserve aspect.
+
+An effective Milky Way alone is static. With drift it animates even at ordinary
+star count/brightness zero or black Starfield color. Own black RGB disables it;
+shooting-star motion and their event stream remain independent. At most the existing
+eight Starfield layers draw one extra quad each; no new unbounded resource pool.
+Pixel shading cost scales with covered output pixels and active layer count. In an
+otherwise animated scene the bounded shader is evaluated each frame rather than
+keeping a 4K texture. With no animation the existing on-demand player draws only
+when needed. Quality/output resolution scales the fragment workload normally.
+
+The inspector uses numeric position/angle/width/intensity/structure/dust/seed fields
+and a native independent ColorPicker. Both color roles share the existing coalesced
+Undo boundary while keeping distinct RGB fields; switching roles ends the previous
+transaction. Numeric commits retain the crash-safe interaction-only completion.
+No additional Canvas handles. The static canvas remains images plus region frame.
+
+Synthetic black/sky/transparent-foreground acceptance project:
+[WSS-Starfield-Milky-Way-v1](../../Test-Wallpaper/WSS-Starfield-Milky-Way-v1/README.md).
+
+### Reproducible visual comparison
+
+`WSSMilkyWayPreviousReference` freezes the original Wupsy shader in the test target
+only. The app contains no legacy-mode switch. `WSSMilkyWayVisualComparisonTests`
+renders the same synthetic foreground/stars, Milky Way seed 1, star seed 42 and
+all other identical parameters at intensities 0.45 and 0.12, output 960×540. Set
+`WUPSY_MILKY_COMPARISON` to an existing output directory to export before/after PNGs
+without subsequent image processing. PNGs and review HTML belong in ignored dist
+or temporary storage, not project assets. A patch-contrast regression checks
+stronger local variation and reduced diffuse mean along the visible main band.
+
+The comparison warms equal 3840×2160 targets and reports the median of three
+alternating full-frame GPU samples for each variant. The old reference is drawn
+in a separate encoder before the unchanged ordinary composition, whereas the new
+field uses its normal in-composition encoder; this is a local practical comparison,
+not an isolated universal shader benchmark. No timing assertion is enforced.

@@ -51,9 +51,16 @@ final class WSSStarfieldRenderer {
     }
     func encode(
         index: Int, layer: WSSStarfieldLayer, encoder: MTLRenderCommandEncoder,
-        canvas: SIMD2<Float>, crop: SIMD2<Float>, drawableSize: CGSize, time: Double
+        canvas: SIMD2<Float>, crop: SIMD2<Float>, drawableSize: CGSize, time: Double,
+        milkyWay: WSSMilkyWayRenderer? = nil
     ) throws {
         let c = layer.starfield
+        if c.milkyWay.isEffective {
+            guard let milkyWay else { throw WSSSceneError.invalid("missing milky way renderer") }
+            milkyWay.encode(
+                c, encoder: encoder, canvas: canvas, crop: crop, drawableSize: drawableSize,
+                time: time)
+        }
         if c.isEffective {
             guard let prepared = layers[index], prepared.count == c.count, prepared.seed == c.seed,
                 let buffer = prepared.buffer

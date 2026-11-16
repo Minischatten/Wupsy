@@ -30,7 +30,9 @@ struct WSSStarfieldParameterControls: View {
                             guard let rgb = WSSTrailColorAdapter.linear(NSColor(color)) else {
                                 return
                             }
-                            if document.starfieldColorDrag?.0 != layer {
+                            if document.starfieldColorDrag?.0 != layer
+                                || document.starfieldColorRole != .stars
+                            {
                                 document.beginStarfieldColorInteraction(layer)
                             }
                             perform {
@@ -77,6 +79,7 @@ struct WSSStarfieldParameterControls: View {
                     }
                 }
                 Text(WSSStarfieldText.text("help")).font(.caption).foregroundStyle(.secondary)
+                WSSMilkyWayParameterControls(document: document, layer: layer)
                 Divider()
                 Text(WSSStarfieldText.text("shootingStars.title")).font(.headline)
                 Toggle(
