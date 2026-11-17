@@ -37,11 +37,16 @@ final class WSSStormRenderTests: XCTestCase {
                 asset: WSSAssetID(value: "black"),
                 transform: .init(center: SIMD2(32, 32), size: SIMD2(64, 64))))
         let covered = try WSSRippleChainTests().render(resources([node, foreground]), time: time).0
-        XCTAssertTrue(
-            stride(from: 0, to: covered.count, by: 4).allSatisfy {
-                covered[$0] == 0 && covered[$0 + 1] == 0 && covered[$0 + 2] == 0
-                    && covered[$0 + 3] == 255
-            })
+        let coveredPixelOffsets: StrideTo<Int> = stride(from: 0, to: covered.count, by: 4)
+        let coveredPixelsAreOpaqueBlack: Bool = coveredPixelOffsets.allSatisfy {
+            (offset: Int) -> Bool in
+            let red: UInt8 = covered[offset]
+            let green: UInt8 = covered[offset + 1]
+            let blue: UInt8 = covered[offset + 2]
+            let alpha: UInt8 = covered[offset + 3]
+            return red == 0 && green == 0 && blue == 0 && alpha == 255
+        }
+        XCTAssertTrue(coveredPixelsAreOpaqueBlack)
         let above = try WSSRippleChainTests().render(resources([foreground, node]), time: time).0
         XCTAssertNotEqual(covered, above)
         let hidden = try WSSRippleChainTests().render(

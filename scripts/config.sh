@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(cat "$ROOT/VERSION")"
 # Keep in sync with Package.swift platforms; this is not the build SDK version.
 MACOS_DEPLOYMENT_TARGET="14.0"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+BUILD_NUMBER="${BUILD_NUMBER:-2}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 APP_PATH="$DIST_DIR/Wupsy.app"
 DMG_PATH="$DIST_DIR/Wupsy-${VERSION}.dmg"

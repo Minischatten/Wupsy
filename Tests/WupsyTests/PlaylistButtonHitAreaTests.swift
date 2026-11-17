@@ -128,17 +128,48 @@ import XCTest
         XCTAssertEqual(checks, 1)
         XCTAssertTrue(try bool(remove, "accessibilityPerformPress"))
         XCTAssertEqual(removes, 1)
-
+    }
+    func testHostedPlaylistButtonReceivesFocusWhenKeyboardNavigationIsEnabled() async throws {
+        _ = NSApplication.shared
+        // This API reports System Settings > Keyboard > Keyboard navigation, not
+        // the separate Full Keyboard Access option under Accessibility > Keyboard.
+        try XCTSkipUnless(
+            NSApp.isFullKeyboardAccessEnabled,
+            "Requires keyboard navigation in System Settings > Keyboard.")
+        let ready = expectation(description: "Focusable playlist button appeared")
+        let host = NSHostingView(
+            rootView: Button {
+            } label: {
+                PlaylistEntryButtonLabel(systemName: "plus")
+            }.buttonStyle(.borderless).accessibilityIdentifier("focusPlaylistButton")
+                .accessibilityLabel(ProductText.playlistAddTitle.format("Example"))
+                .environment(\.accessibilityEnabled, true).onAppear { ready.fulfill() })
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 80), styleMask: [.titled],
+            backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = host
+        window.makeKeyAndOrderFront(nil)
+        await fulfillment(of: [ready], timeout: 3)
+        host.layoutSubtreeIfNeeded()
+        host.displayIfNeeded()
+        let add = try XCTUnwrap(
+            nodes(host).first {
+                value($0, "accessibilityIdentifier") as? String == "focusPlaylistButton"
+            })
         let selector = NSSelectorFromString("setAccessibilityFocused:")
         let implementation = try XCTUnwrap(
             add.responds(to: selector) ? add.method(for: selector) : nil)
+        let allowedSelector = NSSelectorFromString("isAccessibilitySelectorAllowed:")
+        let allowedImplementation = try XCTUnwrap(
+            add.responds(to: allowedSelector) ? add.method(for: allowedSelector) : nil)
+        typealias Allowed = @convention(c) (AnyObject, Selector, Selector) -> Bool
+        XCTAssertTrue(
+            unsafeBitCast(allowedImplementation, to: Allowed.self)(add, allowedSelector, selector))
         typealias Focus = @convention(c) (AnyObject, Selector, Bool) -> Void
         unsafeBitCast(implementation, to: Focus.self)(add, selector, true)
         XCTAssertTrue(try bool(add, "isAccessibilityFocused"))
-        // Focus is checked through the standard accessible Button. Physical
-        // Tab/Space navigation depends on macOS Keyboard Navigation settings and
-        // remains part of GUI acceptance rather than changing those user settings.
-
     }
     func testDisabledButtonRetainsTargetAndCannotPerformAction() async throws {
         _ = NSApplication.shared
