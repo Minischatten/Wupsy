@@ -72,6 +72,8 @@ final class ScenePlaybackTests: XCTestCase {
         XCTAssertNil(first.view.delegate)
         XCTAssertFalse(renderer.hasLiveResources)
         try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(first.elapsed, savedTime)
+        let resumeRequestedAt = ProcessInfo.processInfo.systemUptime
         renderer.setPaused(false)
         for _ in 0..<100 {
             if renderer.scene != nil || !errors.isEmpty { break }
@@ -81,8 +83,12 @@ final class ScenePlaybackTests: XCTestCase {
         let resumed = try XCTUnwrap(renderer.scene)
         XCTAssertFalse(first === resumed)
         XCTAssertEqual((resumed as? WSSStaticPlayer)?.resolution, .hiDPI)
-        XCTAssertGreaterThanOrEqual(resumed.elapsed, savedTime - 0.02)
-        XCTAssertLessThan(resumed.elapsed, savedTime + 0.1)
+        let resumedTime = resumed.elapsed
+        // Playback cannot advance before the resume request. Include scheduling
+        // delays in the upper bound without counting time spent paused.
+        let maximumAdvance = ProcessInfo.processInfo.systemUptime - resumeRequestedAt
+        XCTAssertGreaterThanOrEqual(resumedTime, savedTime)
+        XCTAssertLessThanOrEqual(resumedTime, savedTime + maximumAdvance)
         renderer.stop()
         renderer.setPaused(false)
         XCTAssertNil(renderer.scene)
