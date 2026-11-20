@@ -121,11 +121,12 @@ private struct UpdateCheckDialog: View {
     let language: String?
     let action: (UpdateCheckAction) -> Void
     var body: some View {
+        let iconSize: CGFloat = message.offersUpdate ? 48 : 64
         VStack(alignment: .leading, spacing: 14) {
-            if message.isCurrent {
+            if message.isCurrent || message.offersUpdate {
                 VStack(spacing: 10) {
                     Image(nsImage: NSApplication.shared.applicationIconImage)
-                        .resizable().scaledToFit().frame(width: 64, height: 64)
+                        .resizable().scaledToFit().frame(width: iconSize, height: iconSize)
                         .accessibilityHidden(true)
                     Text(message.title).font(.headline)
                         .multilineTextAlignment(.center)
