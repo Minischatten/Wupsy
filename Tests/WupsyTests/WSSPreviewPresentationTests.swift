@@ -73,6 +73,52 @@ import XCTest
         XCTAssertFalse(doc.previewExpanded)
         XCTAssertEqual(window.childWindows?.count ?? 0, 0)
     }
+    func testAnimatedStarfieldRestartsDrawingAcrossPreviewWindows() async throws {
+        let loaded = try await fixtures.project("WSS-Starfield-Shooting-Stars-v1")
+        let doc = WSSEditorDocument(project: loaded)
+        let (host, window) = hosted(doc)
+        defer {
+            doc.close()
+            window.close()
+        }
+        let surface = host.surface
+        let initial = try XCTUnwrap(surface.player)
+        XCTAssertTrue(initial.resources.scene.isAnimated)
+        func requireFrames(_ player: WSSStaticPlayer) async throws {
+            let target = player.metrics.snapshot().frames + 3
+            for _ in 0..<200 where player.metrics.snapshot().frames < target {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, target)
+        }
+        try await requireFrames(initial)
+        surface.transferPresentation {}
+        XCTAssertTrue(surface.player === initial)
+
+        var previous = initial
+        for expanded in [true, false] {
+            let time = previous.elapsed
+            let start = ProcessInfo.processInfo.systemUptime
+            if expanded { host.expand() } else { host.restore() }
+            let player = try XCTUnwrap(surface.player)
+            let elapsed = player.elapsed
+            XCTAssertTrue(host.surface === surface)
+            XCTAssertTrue(surface.window === (expanded ? host.expandedWindow : window))
+            XCTAssertTrue(player.view.window === surface.window)
+            XCTAssertFalse(player === previous)
+            XCTAssertNil(previous.view.delegate)
+            XCTAssertNil(previous.view.superview)
+            XCTAssertTrue(player.resources === initial.resources)
+            XCTAssertGreaterThanOrEqual(elapsed, time)
+            XCTAssertLessThanOrEqual(elapsed, time + (ProcessInfo.processInfo.systemUptime - start))
+            XCTAssertTrue(doc.playing)
+            XCTAssertFalse(player.view.isPaused)
+            try await requireFrames(player)
+            host.update(doc)
+            XCTAssertTrue(surface.player === player)
+            previous = player
+        }
+    }
     func testPausedExpansionAndNativeClosePreserveFrozenTime() async throws {
         let doc = WSSEditorDocument(
             project: try await fixtures.project("WSS-Ripple-v1"))

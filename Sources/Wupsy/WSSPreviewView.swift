@@ -103,8 +103,11 @@ struct WSSPreviewRenderPolicy: Equatable {
             }
         }
     }
+    var renewStarfieldPlayerOnAnimationStart = false
+    private var pausedAfterAnimatedPlayback = false
     private var resourcesID: ObjectIdentifier?
     private func install(_ resources: WSSStaticResources, offset: Double) {
+        pausedAfterAnimatedPlayback = false
         resourcesID = ObjectIdentifier(resources)
         let player = WSSStaticPlayer(
             resources: resources, size: .zero, scale: 1,
@@ -180,18 +183,35 @@ struct WSSPreviewRenderPolicy: Equatable {
     func update(resources: WSSStaticResources, playing: Bool) {
         wantsPlayback = playing
         if resourcesID != ObjectIdentifier(resources) {
-            if player?.updateTransforms(resources) == true {
+            // A previously paused MetalKit view can fail to restart its timer
+            // even with both mode flags set correctly. Begin this transition
+            // with a new view, keeping the prepared resources and playhead.
+            let renewPlayer =
+                player?.resources.scene.isAnimated == false && renewsStarfieldPlayer(for: resources)
+            if !renewPlayer, player?.updateTransforms(resources) == true {
                 resourcesID = ObjectIdentifier(resources)
                 updatePlayback()
                 return
             }
-            let offset = player?.elapsed ?? 0
-            player?.stop()
-            player?.view.removeFromSuperview()
-            pointer = nil
-            install(resources, offset: offset)
+            replacePlayer(with: resources)
         }
         updatePlayback()
+    }
+    private func renewsStarfieldPlayer(for resources: WSSStaticResources) -> Bool {
+        renewStarfieldPlayerOnAnimationStart && resources.scene.isAnimated
+            && resources.scene.layers.contains {
+                if case .starfield(let layer) = $0 {
+                    return layer.visible && layer.starfield.isAnimated
+                }
+                return false
+            }
+    }
+    private func replacePlayer(with resources: WSSStaticResources) {
+        let offset = player?.elapsed ?? 0
+        player?.stop()
+        player?.view.removeFromSuperview()
+        pointer = nil
+        install(resources, offset: offset)
     }
     func setPlaying(_ value: Bool) {
         wantsPlayback = value
@@ -212,11 +232,21 @@ struct WSSPreviewRenderPolicy: Equatable {
     }
     private var movingPresentation = false
     func transferPresentation(_ move: () -> Void) {
+        let sourceWindow = window
+        let wasDrawingContinuously = running && player?.view.isPaused == false
         resetPointer()
         movingPresentation = true
         defer {
             movingPresentation = false
-            updatePlayback()
+            if wasDrawingContinuously, let sourceWindow, let destinationWindow = window,
+                sourceWindow !== destinationWindow, let resources = player?.resources,
+                renewsStarfieldPlayer(for: resources)
+            {
+                // A running MTKView can stop receiving draw callbacks after reparenting.
+                replacePlayer(with: resources)
+            } else {
+                updatePlayback()
+            }
         }
         move()
     }
@@ -229,11 +259,20 @@ struct WSSPreviewRenderPolicy: Equatable {
         let visible = window.map { $0.isVisible && !$0.isMiniaturized } ?? false
         let shouldRun = wantsPlayback && visible && playbackBlocks.isEmpty
         guard shouldRun != running else { return }
+        if shouldRun, pausedAfterAnimatedPlayback, let resources = player?.resources,
+            renewsStarfieldPlayer(for: resources)
+        {
+            // Starting a new view avoids resuming a stalled MetalKit draw timer.
+            replacePlayer(with: resources)
+            return
+        }
         running = shouldRun
         if shouldRun {
+            pausedAfterAnimatedPlayback = false
             player?.play()
         } else {
             if resetsTrailWithPointer { resetPointer() }
+            pausedAfterAnimatedPlayback = player?.view.isPaused == false
             player?.pause()
         }
     }

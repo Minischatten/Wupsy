@@ -53,3 +53,13 @@ Do not infer cleanup ownership from plausible names or paths.
 
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
+
+## Known limitations
+
+- **Intermittent Starfield color picker delivery.** The macOS color panel can
+  show a new selection while the editor preview retains the previous color.
+  In the Nov 20 GUI trace (`wupsy-color-panel-trace(1).log`, 15:13:57–15:14:06),
+  the panel continued to emit color-change notifications without invoking
+  either Starfield color binding setter. The preview continued rendering
+  other scene revisions. Window and focus changes and shooting-star toggles
+  are possible triggers. None has been confirmed, and the exact cause is unknown.

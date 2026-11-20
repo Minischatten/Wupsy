@@ -73,10 +73,21 @@ import MetalKit
         resources = candidate
         if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
-            view.enableSetNeedsDisplay = !resources.scene.isAnimated
-            view.isPaused = !resources.scene.isAnimated
+            let onDemand = !resources.scene.isAnimated
+            if view.enableSetNeedsDisplay != onDemand { view.enableSetNeedsDisplay = onDemand }
+            if view.isPaused != onDemand { view.isPaused = onDemand }
         }
         view.needsDisplay = true
+        if view.isPaused {
+            // AppKit invalidation alone can stop delivering MTKView draw callbacks.
+            // Leave the current SwiftUI update before asking for a frame explicitly.
+            Task { @MainActor [weak self, weak candidate] in
+                guard let self, let candidate, !stopped, resources === candidate,
+                    view.isPaused, view.window?.isVisible == true, !view.bounds.isEmpty
+                else { return }
+                view.draw()
+            }
+        }
         return true
     }
     func play() {

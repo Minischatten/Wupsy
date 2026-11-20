@@ -6,6 +6,7 @@ extension WSSPreviewSurface {
             resources: document.editorPreviewResources, playing: document.playing,
             offset: document.initialPreviewTime,
             onError: { [weak document] in document?.previewFailed($0) })
+        renewStarfieldPlayerOnAnimationStart = true
         document.stopPreview = { [weak self] in self?.shutdown() }
     }
 }
