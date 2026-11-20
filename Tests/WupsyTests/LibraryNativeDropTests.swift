@@ -27,7 +27,7 @@ import XCTest
 
     // Drive the public AppKit destination protocol installed by SwiftUI, including
     // its pasteboard-to-Transferable bridge. Physical mouse acceptance is separate.
-    func testHostedCardRegistersAcceptsAndPersistsNativeDrop() async throws {
+    func testHostedCardRoutesFileDropToImportAndPersistsReorder() async throws {
         let fixture = LibraryBackupTests()
         try fixture.setUpWithError()
         defer { try? fixture.tearDownWithError() }
@@ -40,6 +40,8 @@ import XCTest
             maintenance: MaintenanceCoordinator(), storage: fixture.storage,
             defaults: fixture.defaults, restoreOnLaunch: false)
         let controller = LibraryReorderController()
+        var importCalls: [[NSItemProvider]] = []
+        var importTargetChanges: [Bool] = []
         let ready = expectation(description: "Card hosted")
         let host = NSHostingView(
             rootView:
@@ -52,7 +54,12 @@ import XCTest
                         .modifier(
                             LibraryCardDropModifier(
                                 controller: controller, targetID: items[1].id,
-                                library: library, visibleIDs: { items.map(\.id) })
+                                library: library, visibleIDs: { items.map(\.id) },
+                                importFiles: {
+                                    importCalls.append($0)
+                                    return true
+                                },
+                                importTargetChanged: { importTargetChanges.append($0) })
                         )
                         .contextMenu { Button("Synthetic action") {} }
                     }
@@ -77,6 +84,36 @@ import XCTest
                     NSPasteboard.PasteboardType(UTType.data.identifier))
             }, "SwiftUI must register native drop types; an unrooted custom UTType registers none")
         let point = destination.convert(NSPoint(x: 1, y: destination.bounds.midY), to: nil)
+        let files = NSPasteboard.withUniqueName()
+        defer { files.releaseGlobally() }
+        XCTAssertTrue(
+            files.writeObjects(
+                ["first", "second"].map { URL(fileURLWithPath: "/synthetic/\($0).png") as NSURL }))
+        let fileInfo = NativeLibraryDragInfo(window: window, pasteboard: files, point: point)
+        XCTAssertEqual(destination.draggingEntered(fileInfo), .copy)
+        XCTAssertEqual(destination.draggingUpdated(fileInfo), .copy)
+        XCTAssertEqual(importTargetChanges.last, true)
+        destination.draggingExited(fileInfo)
+        XCTAssertEqual(importTargetChanges.last, false)
+        XCTAssertTrue(importCalls.isEmpty)
+
+        XCTAssertEqual(destination.draggingEntered(fileInfo), .copy)
+        XCTAssertEqual(destination.draggingUpdated(fileInfo), .copy)
+        XCTAssertEqual(importTargetChanges.last, true)
+        XCTAssertTrue(destination.prepareForDragOperation(fileInfo))
+        XCTAssertTrue(destination.performDragOperation(fileInfo))
+        XCTAssertEqual(importTargetChanges.last, false)
+        destination.concludeDragOperation(fileInfo)
+        XCTAssertEqual(importCalls.count, 1)
+        let fileProviders = try XCTUnwrap(importCalls.first)
+        XCTAssertEqual(fileProviders.count, 2)
+        XCTAssertTrue(
+            fileProviders.allSatisfy {
+                $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+            })
+        XCTAssertNil(controller.insertion)
+        XCTAssertEqual(library.items, items)
+
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         let payload = LibraryReorderItem(contextID: controller.contextID, wallpaperID: items[0].id)
@@ -86,6 +123,7 @@ import XCTest
             try JSONEncoder().encode(payload),
             forType: NSPasteboard.PasteboardType(UTType.wupsyLibraryEntry.identifier))
         let info = NativeLibraryDragInfo(window: window, pasteboard: pasteboard, point: point)
+        let fileTargetChanges = importTargetChanges
         XCTAssertNotEqual(destination.draggingEntered(info), [])
         let operation = destination.draggingUpdated(info)
         XCTAssertEqual(operation, .copy)
@@ -102,6 +140,8 @@ import XCTest
         XCTAssertEqual(destination.prepareForDragOperation(info), true)
         XCTAssertEqual(destination.performDragOperation(info), true)
         await fulfillment(of: [changed], timeout: 3)
+        XCTAssertEqual(importTargetChanges, fileTargetChanges)
+        XCTAssertEqual(importCalls.count, 1)
         XCTAssertEqual(library.items.map(\.id), [items[1], items[0], items[2]].map(\.id))
         XCTAssertEqual(
             try JSONDecoder().decode([Wallpaper].self, from: Data(contentsOf: fixture.storage)),

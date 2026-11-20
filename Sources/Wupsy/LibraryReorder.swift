@@ -62,12 +62,20 @@ struct LibraryInsertion: Equatable {
 }
 
 struct LibraryCardDrop: DropDelegate {
+    static let types: [UTType] = [.wupsyLibraryEntry, .fileURL]
+
     let controller: LibraryReorderController
     let targetID: UUID
     let width: CGFloat
     var end = false
     let library: Library
     let visibleIDs: () -> [UUID]
+    let importFiles: ([NSItemProvider]) -> Bool
+    let importTargetChanged: (Bool) -> Void
+
+    private func isReorder(_ info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.wupsyLibraryEntry])
+    }
 
     private func target(_ info: DropInfo) -> LibraryInsertion {
         end
@@ -75,24 +83,42 @@ struct LibraryCardDrop: DropDelegate {
             : .card(targetID, x: info.location.x, width: width)
     }
     func validateDrop(info: DropInfo) -> Bool {
-        !controller.isMoving && library.maintenance.allowsNewOperations
-            && info.hasItemsConforming(to: [.wupsyLibraryEntry])
+        guard library.maintenance.allowsNewOperations else { return false }
+        if isReorder(info) { return !controller.isMoving }
+        return info.hasItemsConforming(to: [.fileURL])
     }
     func dropEntered(info: DropInfo) {
-        if validateDrop(info: info) { controller.indicate(target(info)) }
+        guard validateDrop(info: info) else { return }
+        if isReorder(info) {
+            controller.indicate(target(info))
+        } else {
+            importTargetChanged(true)
+        }
     }
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard validateDrop(info: info) else { return DropProposal(operation: .forbidden) }
-        controller.indicate(target(info))
-        // SwiftUI's Transferable source offers copy on macOS. Only the ephemeral
-        // UUID payload is transferred; Library.move performs the actual reorder.
+        let allowed = validateDrop(info: info)
+        let reorder = isReorder(info)
+        if !reorder { importTargetChanged(allowed) }
+        guard allowed else { return DropProposal(operation: .forbidden) }
+        if reorder {
+            // SwiftUI's Transferable source offers copy on macOS. Only the ephemeral
+            // UUID payload is transferred; Library.move performs the actual reorder.
+            controller.indicate(target(info))
+        }
         return DropProposal(operation: .copy)
     }
     func dropExited(info: DropInfo) {
-        if controller.insertion?.targetID == targetID { controller.insertion = nil }
+        if !isReorder(info) { importTargetChanged(false) }
+        if isReorder(info) && controller.insertion?.targetID == targetID {
+            controller.insertion = nil
+        }
     }
     func performDrop(info: DropInfo) -> Bool {
+        if !isReorder(info) { importTargetChanged(false) }
         guard validateDrop(info: info) else { return false }
+        if !isReorder(info) {
+            return importFiles(info.itemProviders(for: [.fileURL]))
+        }
         let providers = info.itemProviders(for: [.wupsyLibraryEntry])
         guard providers.count == 1 else { return false }
         let destination = target(info)
@@ -213,6 +239,8 @@ struct LibraryCardDropModifier: ViewModifier {
     let targetID: UUID
     let library: Library
     let visibleIDs: () -> [UUID]
+    let importFiles: ([NSItemProvider]) -> Bool
+    let importTargetChanged: (Bool) -> Void
     @State private var width: CGFloat = 178
     func body(content: Content) -> some View {
         content
@@ -229,10 +257,13 @@ struct LibraryCardDropModifier: ViewModifier {
                 }
             }
             .onDrop(
-                of: [.wupsyLibraryEntry],
+                of: LibraryCardDrop.types,
                 delegate:
                     LibraryCardDrop(
                         controller: controller, targetID: targetID, width: width,
-                        library: library, visibleIDs: visibleIDs))
+                        library: library, visibleIDs: visibleIDs, importFiles: importFiles,
+                        importTargetChanged: importTargetChanged)
+            )
+            .onDisappear { importTargetChanged(false) }
     }
 }

@@ -3,6 +3,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryView: View {
+    private enum ImportDropTarget: Equatable {
+        case card(UUID)
+        case gridEnd
+    }
+
     @ObservedObject private var maintenance = MaintenanceCoordinator.shared
     @EnvironmentObject var library: Library
     @EnvironmentObject var editors: WSSEditorCoordinator
@@ -19,7 +24,8 @@ struct LibraryView: View {
     @StateObject private var reorder = LibraryReorderController()
     @State private var showCompatibility = false
     @State private var showQualityHelp = false
-    @State private var isDropTarget = false
+    @State private var isBackgroundDropTarget = false
+    @State private var importDropTarget: ImportDropTarget?
     @StateObject private var collectionFocus = LibraryCollectionFocus()
     private var filtered: [Wallpaper] {
         let list = library.items.filter { item in
@@ -176,9 +182,10 @@ struct LibraryView: View {
                                         }
                                     }
                                     .onDrop(
-                                        of: [.wupsyLibraryEntry],
-                                        delegate:
-                                            cardDrop(last.id, width: 1, end: true))
+                                        of: LibraryCardDrop.types,
+                                        delegate: gridEndDrop(last.id)
+                                    )
+                                    .onDisappear { setImportDropTarget(.gridEnd, active: false) }
                             }
                         }
                     }
@@ -189,18 +196,30 @@ struct LibraryView: View {
                         .allowsHitTesting(false))
                     footer
                 }.padding(26).background(WupsyTheme.background)
-                    .overlay { if isDropTarget { dropOverlay } }
                     .onDrop(
-                        of: [UTType.fileURL.identifier], isTargeted: $isDropTarget,
-                        perform: receiveDrop)
+                        of: [UTType.fileURL.identifier], isTargeted: $isBackgroundDropTarget,
+                        perform: receiveDrop
+                    )
+                    .overlay {
+                        if isBackgroundDropTarget || importDropTarget != nil { dropOverlay }
+                    }
             }
         }
     }
 
-    private func cardDrop(_ id: UUID, width: CGFloat, end: Bool = false) -> LibraryCardDrop {
+    private func gridEndDrop(_ id: UUID) -> LibraryCardDrop {
         LibraryCardDrop(
-            controller: reorder, targetID: id, width: width, end: end,
-            library: library, visibleIDs: { filtered.map(\.id) })
+            controller: reorder, targetID: id, width: 1, end: true,
+            library: library, visibleIDs: { filtered.map(\.id) }, importFiles: receiveDrop,
+            importTargetChanged: { setImportDropTarget(.gridEnd, active: $0) })
+    }
+
+    private func setImportDropTarget(_ target: ImportDropTarget, active: Bool) {
+        if active {
+            if importDropTarget != target { importDropTarget = target }
+        } else if importDropTarget == target {
+            importDropTarget = nil
+        }
     }
 
     private func wallpaperCard(_ item: Wallpaper) -> some View {
@@ -222,7 +241,8 @@ struct LibraryView: View {
         .modifier(
             LibraryCardDropModifier(
                 controller: reorder, targetID: item.id, library: library,
-                visibleIDs: { filtered.map(\.id) })
+                visibleIDs: { filtered.map(\.id) }, importFiles: receiveDrop,
+                importTargetChanged: { setImportDropTarget(.card(item.id), active: $0) })
         )
         .contextMenu {
             if item.canOpenInEditor {
