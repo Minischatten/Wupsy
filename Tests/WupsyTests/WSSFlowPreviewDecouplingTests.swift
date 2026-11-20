@@ -288,20 +288,14 @@ import XCTest
         _ = try await stroke()
         await control.waitUntilEntered(1)
         let reference = try XCTUnwrap(control.resources[0].values.first)
-        let started = XCTestExpectation(description: "preview join attached")
         let old = doc
-        let join = Task { @MainActor in
-            started.fulfill()
-            await old.waitForPreview()
-        }
-        await fulfillment(of: [started], timeout: 5)
         control.ignoreCancellation = true
         old.close()
         XCTAssertNotNil(reference.value)
         let other = fixture.helper.makeDocument()
         let model = other.state.workingModel
         control.release(1)
-        await join.value
+        await old.waitForDraftCleanup()
         XCTAssertTrue(control.readAfterResume.contains(1))
         XCTAssertNil(reference.value)
         XCTAssertEqual(old.previewRevision, 0)
