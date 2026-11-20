@@ -191,7 +191,8 @@ struct LibraryView: View {
                     }
                     .background(
                         LibraryCollectionResponder(
-                            focus: collectionFocus, remove: removeSelectedWallpaper
+                            focus: collectionFocus, remove: removeSelectedWallpaper,
+                            rename: renameSelectedWallpaper
                         )
                         .allowsHitTesting(false))
                     footer
@@ -297,6 +298,13 @@ struct LibraryView: View {
                 item.ownership == .managed
                     ? ProductText.managedRemoveHint.text : ProductText.externalRemoveHint.text)
         }
+    }
+
+    private func renameSelectedWallpaper() {
+        guard library.maintenance.allowsNewOperations, renameTarget == nil,
+            let item = filtered.first(where: { $0.id == library.selected })
+        else { return }
+        renameTarget = item
     }
 
     private func removeSelectedWallpaper() {

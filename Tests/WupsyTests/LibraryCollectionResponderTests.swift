@@ -24,11 +24,20 @@ import XCTest
                 isARepeat: false, keyCode: forward ? 117 : 51))
         window.sendEvent(event)
     }
-    func testHostedCollectionInstallsNativeFirstResponderAndDispatchesBackspace() async throws {
+    private func pressReturn(in window: NSWindow, modifiers: NSEvent.ModifierFlags = []) throws {
+        let event = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: "\r",
+                charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
+        window.sendEvent(event)
+    }
+    func testHostedCollectionDispatchesBackspaceAndReturn() async throws {
         let window = window()
         defer { window.close() }
         let focus = LibraryCollectionFocus()
         var removes = 0
+        var renames = 0
         let ready = expectation(description: "Hosted collection appeared")
         let host = NSHostingView(
             rootView:
@@ -38,8 +47,10 @@ import XCTest
                             .frame(width: 240, height: 80).buttonStyle(.plain)
                     }
                 }.background(
-                    LibraryCollectionResponder(focus: focus, remove: { removes += 1 })
-                        .allowsHitTesting(false)
+                    LibraryCollectionResponder(
+                        focus: focus, remove: { removes += 1 }, rename: { renames += 1 }
+                    )
+                    .allowsHitTesting(false)
                 )
                 .onAppear { ready.fulfill() })
         window.contentView = host
@@ -54,6 +65,10 @@ import XCTest
         XCTAssertEqual(target.focusRingType, .none)
         try delete(in: window)
         XCTAssertEqual(removes, 1)
+        try pressReturn(in: window)
+        XCTAssertEqual(renames, 1)
+        try pressReturn(in: window, modifiers: .command)
+        XCTAssertEqual(renames, 1)
     }
     func testWindowDispatchesDeleteOnlyToExplicitlyFocusedLocalTargetAndCanReopen() throws {
         let focus = LibraryCollectionFocus()
@@ -77,13 +92,15 @@ import XCTest
             window.close()
         }
     }
-    func testTextFieldEditorReceivesBackspaceInsteadOfCollection() throws {
+    func testTextFieldEditorReceivesBackspaceAndReturnInsteadOfCollection() throws {
         let window = window()
         defer { window.close() }
         let target = LibraryCollectionKeyView(frame: .zero)
         window.contentView!.addSubview(target)
         var removes = 0
+        var renames = 0
         target.remove = { removes += 1 }
+        target.rename = { renames += 1 }
         XCTAssertTrue(window.makeFirstResponder(target))
         let field = NSTextField(frame: NSRect(x: 10, y: 10, width: 200, height: 24))
         field.stringValue = "Search"
@@ -93,8 +110,25 @@ import XCTest
         editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
         try delete(in: window)
         XCTAssertEqual(editor.string, "Searc")
+        try pressReturn(in: window)
         target.deleteBackward(nil)
         XCTAssertEqual(removes, 0)
+        XCTAssertEqual(renames, 0)
+    }
+    func testFocusedButtonKeepsReturnAwayFromCollection() throws {
+        let window = window()
+        defer { window.close() }
+        let target = LibraryCollectionKeyView(frame: .zero)
+        let button = NSButton(title: "Apply", target: nil, action: nil)
+        window.contentView!.addSubview(target)
+        window.contentView!.addSubview(button)
+        var renames = 0
+        target.rename = { renames += 1 }
+        XCTAssertTrue(window.makeFirstResponder(target))
+        XCTAssertTrue(window.makeFirstResponder(button))
+        XCTAssertTrue(window.firstResponder === button)
+        try pressReturn(in: window)
+        XCTAssertEqual(renames, 0)
     }
     func testAnotherWindowsTextDeletionNeverReachesLibraryTarget() throws {
         let libraryWindow = window()

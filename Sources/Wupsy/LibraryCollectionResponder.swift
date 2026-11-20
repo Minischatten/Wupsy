@@ -15,6 +15,7 @@ import SwiftUI
 struct LibraryCollectionResponder: NSViewRepresentable {
     let focus: LibraryCollectionFocus
     let remove: () -> Void
+    let rename: () -> Void
     func makeNSView(context: Context) -> LibraryCollectionKeyView {
         let view = LibraryCollectionKeyView()
         view.focusRingType = .none
@@ -24,25 +25,39 @@ struct LibraryCollectionResponder: NSViewRepresentable {
     }
     func updateNSView(_ view: LibraryCollectionKeyView, context: Context) {
         view.remove = remove
+        view.rename = rename
         focus.responder = view
     }
 }
 
 @MainActor final class LibraryCollectionKeyView: NSView {
     var remove: () -> Void = {}
+    var rename: () -> Void = {}
     override var acceptsFirstResponder: Bool { true }
     // Programmatic card focus only; do not add a new stop to Tab navigation.
     override var canBecomeKeyView: Bool { false }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    override func keyDown(with event: NSEvent) { interpretKeyEvents([event]) }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36,
+            event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+        {
+            if canHandleCollectionCommand && !event.isARepeat { rename() }
+            return
+        }
+        interpretKeyEvents([event])
+    }
     override func deleteBackward(_ sender: Any?) { removeIfFocused() }
     override func deleteForward(_ sender: Any?) { removeIfFocused() }
     override func insertTab(_ sender: Any?) { window?.selectNextKeyView(sender) }
     override func insertBacktab(_ sender: Any?) { window?.selectPreviousKeyView(sender) }
-    private func removeIfFocused() {
+    private var canHandleCollectionCommand: Bool {
         guard let window, window.firstResponder === self,
             window.attachedSheet == nil, NSApp.modalWindow == nil
-        else { return }
+        else { return false }
+        return true
+    }
+    private func removeIfFocused() {
+        guard canHandleCollectionCommand else { return }
         remove()
     }
 }

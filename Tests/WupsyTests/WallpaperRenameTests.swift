@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 
 @testable import Wupsy
@@ -39,6 +40,42 @@ import XCTest
         library = nil
         defaults.removePersistentDomain(forName: suite)
         try FileManager.default.removeItem(at: root)
+    }
+
+    func testRenameSheetReturnSavesAndEscapeDiscardsEditedTitle() async throws {
+        let item = entries[0]
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 220),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+
+        for (key, code, expected) in [("\u{1b}", 53, item.title), ("\r", 36, "Changed")] {
+            let dismissed = expectation(description: "Rename sheet dismissed")
+            window.contentView = NSHostingView(
+                rootView: RenameSheetHost(item: item, onDismiss: { dismissed.fulfill() })
+                    .environmentObject(library))
+            window.makeKeyAndOrderFront(nil)
+            for _ in 0..<100 {
+                if window.attachedSheet?.firstResponder is NSTextView { break }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            let sheet = try XCTUnwrap(window.attachedSheet)
+            let editor = try XCTUnwrap(sheet.firstResponder as? NSTextView)
+            XCTAssertEqual(editor.string, item.title)
+            XCTAssertEqual(
+                editor.selectedRange(), NSRange(location: 0, length: item.title.utf16.count))
+            editor.insertText("Changed", replacementRange: editor.selectedRange())
+            let event = try XCTUnwrap(
+                NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                    windowNumber: sheet.windowNumber, context: nil, characters: key,
+                    charactersIgnoringModifiers: key, isARepeat: false, keyCode: UInt16(code)))
+            sheet.sendEvent(event)
+            await fulfillment(of: [dismissed], timeout: 3)
+            XCTAssertEqual(library.items[0].title, expected)
+            XCTAssertEqual(try ManagedWallpaperStore(storage: storage).load()[0].title, expected)
+        }
     }
 
     func testRenamePreservesIdentitySelectionFavoritesAndSourceAndReloads() async throws {
@@ -205,4 +242,18 @@ import XCTest
         XCTAssertEqual(calls, 1)
     }
 
+}
+
+private struct RenameSheetHost: View {
+    let item: Wallpaper
+    let onDismiss: () -> Void
+    @State private var showing = false
+
+    var body: some View {
+        Color.clear
+            .onAppear { showing = true }
+            .sheet(isPresented: $showing, onDismiss: onDismiss) {
+                WallpaperRenameView(wallpaperID: item.id, currentTitle: item.title)
+            }
+    }
 }
