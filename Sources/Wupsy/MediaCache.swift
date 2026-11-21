@@ -3,78 +3,219 @@ import AppKit
 import CryptoKit
 import ImageIO
 
-// Serial actor bounds still-image decoding and thumbnail work. Never retain full-size originals.
+// Cache access stays available while a single generation job decodes or renders.
 actor ImageLoader {
     static let shared = ImageLoader()
-    private let thumbnails = NSCache<NSString, NSImage>()
-    private var sceneKeys: [UUID: Set<String>] = [:]
+    struct CacheUsage: Sendable {
+        let gridBytes: Int
+        let detailBytes: Int
+    }
+
+    private struct Key: Hashable {
+        let source: String
+        let maxPixel: Int
+        var sceneID: UUID?
+    }
+
+    private struct Cache {
+        struct Entry {
+            let image: NSImage
+            let bytes: Int
+            var access: UInt64
+        }
+
+        let budget: Int
+        let limit: Int
+        var entries: [Key: Entry] = [:]
+        var bytes = 0
+        private var clock: UInt64 = 0
+
+        init(budget: Int, limit: Int) {
+            self.budget = budget
+            self.limit = limit
+        }
+
+        mutating func get(_ key: Key) -> NSImage? {
+            guard let image = entries[key]?.image else { return nil }
+            clock += 1
+            entries[key]?.access = clock
+            return image
+        }
+
+        mutating func insert(_ image: NSImage, for key: Key) {
+            let pixels = image.representations.map { $0.pixelsWide * $0.pixelsHigh }.max() ?? 0
+            let cost = max(pixels, Int(image.size.width * image.size.height)) * 4
+            guard cost > 0, cost <= budget else { return }
+            remove(key)
+            while bytes + cost > budget || entries.count >= limit {
+                guard let oldest = entries.min(by: { $0.value.access < $1.value.access }) else {
+                    break
+                }
+                remove(oldest.key)
+            }
+            clock += 1
+            entries[key] = Entry(image: image, bytes: cost, access: clock)
+            bytes += cost
+        }
+
+        mutating func remove(_ key: Key) {
+            if let entry = entries.removeValue(forKey: key) { bytes -= entry.bytes }
+        }
+
+        mutating func invalidate(_ id: UUID) {
+            for key in entries.keys.filter({ $0.sceneID == id }) { remove(key) }
+        }
+
+        mutating func clear() {
+            entries.removeAll()
+            bytes = 0
+        }
+    }
+
+    private var grid: Cache
+    private var detail: Cache
+    private var cacheGeneration = UUID()
     private var busy = false
-    private var waiting: [CheckedContinuation<Void, Never>] = []
-    private func acquire() async {
+    private var waiting: [(id: UUID, continuation: CheckedContinuation<Bool, Never>)] = []
+    private let beforeThumbnailWork: @Sendable (Wallpaper) async -> Void
+
+    init(
+        gridBudget: Int = 24 * 1024 * 1024, detailBudget: Int = 8 * 1024 * 1024,
+        beforeThumbnailWork: @escaping @Sendable (Wallpaper) async -> Void = { _ in }
+    ) {
+        grid = Cache(budget: gridBudget, limit: 64)
+        detail = Cache(budget: detailBudget, limit: 8)
+        self.beforeThumbnailWork = beforeThumbnailWork
+    }
+
+    func cacheUsage() -> CacheUsage { CacheUsage(gridBytes: grid.bytes, detailBytes: detail.bytes) }
+
+    private func acquire() async -> Bool {
+        guard !Task.isCancelled else { return false }
         if !busy {
             busy = true
-            return
+            return true
         }
-        await withCheckedContinuation { waiting.append($0) }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { waiting.append((id, $0)) }
+        } onCancel: {
+            Task { await self.cancelWaiter(id) }
+        }
     }
+
+    private func cancelWaiter(_ id: UUID) {
+        guard let index = waiting.firstIndex(where: { $0.id == id }) else { return }
+        waiting.remove(at: index).continuation.resume(returning: false)
+    }
+
     private func release() {
-        if waiting.isEmpty { busy = false } else { waiting.removeFirst().resume() }
+        if waiting.isEmpty {
+            busy = false
+        } else {
+            waiting.removeFirst().continuation.resume(returning: true)
+        }
     }
-    init() {
-        thumbnails.totalCostLimit = 16 * 1024 * 1024
-        thumbnails.countLimit = 48
-    }
+
     func clear() {
-        thumbnails.removeAllObjects()
-        sceneKeys.removeAll()
+        cacheGeneration = UUID()
+        grid.clear()
+        detail.clear()
     }
-    private func sceneKey(_ item: Wallpaper, manifest: WSSContentFingerprint, maxPixel: Int)
-        -> String
+
+    private func cached(_ key: Key) -> NSImage? {
+        if key.maxPixel <= 480 { return grid.get(key) }
+        return detail.get(key)
+    }
+
+    private func store(_ image: NSImage, key: Key, generation: UUID) {
+        guard generation == cacheGeneration else { return }
+        if key.maxPixel <= 480 {
+            grid.insert(image, for: key)
+        } else {
+            detail.insert(image, for: key)
+        }
+    }
+
+    private func sceneKey(_ item: Wallpaper, manifest: WSSContentFingerprint, maxPixel: Int) -> Key
     {
-        "wss|\(item.id)|\(item.path)|\(maxPixel)|"
-            + manifest.sha256.map { String(format: "%02x", $0) }.joined()
+        Key(
+            source: item.path + "|" + manifest.sha256.map { String(format: "%02x", $0) }.joined(),
+            maxPixel: maxPixel, sceneID: item.id)
     }
-    private func cacheScene(_ image: NSImage, key: String, id: UUID) {
-        sceneKeys[id, default: []].insert(key)
-        thumbnails.setObject(
-            image, forKey: key as NSString, cost: Int(image.size.width * image.size.height * 4))
+
+    private func source(_ item: Wallpaper, maxPixel: Int) throws -> (Key, URL) {
+        if item.kind == .scene, item.managed != nil {
+            do {
+                let handle = try WSSExistingProjectResolver.resolve(item)
+                let bytes = try WSSNativeAssets(root: handle.root).read(
+                    "scene.wss.json", limit: WSSSceneDocumentV1.byteLimit)
+                return (
+                    sceneKey(item, manifest: WSSContentFingerprint(bytes), maxPixel: maxPixel),
+                    item.url
+                )
+            } catch WSSEditorOpenError.missingProject {
+                // A missing native project can still use its original preview.
+            }
+        }
+        let url =
+            item.kind == .scene || (item.kind == .web && !item.isGIF)
+            ? URL(fileURLWithPath: item.root).appendingPathComponent("preview.jpg") : item.url
+        let values = try? url.resourceValues(
+            forKeys: [.contentModificationDateKey, .attributeModificationDateKey, .fileSizeKey])
+        let date = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+        let attributes = values?.attributeModificationDate?.timeIntervalSince1970 ?? 0
+        let key = Key(
+            source: "\(item.kind)|\(url.path)|\(date)|\(attributes)|\(values?.fileSize ?? -1)",
+            maxPixel: maxPixel
+        )
+        return (key, url)
     }
+
     @discardableResult
     func committedWSS(_ item: Wallpaper, basis: WSSProjectDiskBasis, resources: WSSStaticResources)
         async -> Bool
     {
-        await acquire()
+        guard await acquire() else { return false }
         defer { release() }
-        for key in sceneKeys.removeValue(forKey: item.id) ?? [] {
-            thumbnails.removeObject(forKey: key as NSString)
-        }
+        grid.invalidate(item.id)
+        detail.invalidate(item.id)
+        let generation = cacheGeneration
         var success = true
         // Only the exact successfully committed candidate is used, never editor Working N+1.
         for size in [480, 1280] {
-            if let image = try? WSSLibraryThumbnail.render(resources, maxPixel: size) {
-                cacheScene(
-                    image, key: sceneKey(item, manifest: basis.manifest, maxPixel: size),
-                    id: item.id)
+            guard !Task.isCancelled else { return false }
+            let key = sceneKey(item, manifest: basis.manifest, maxPixel: size)
+            if let image = try? await Self.render(resources, maxPixel: size) {
+                if (try? source(item, maxPixel: size).0) == key {
+                    store(image, key: key, generation: generation)
+                }
             } else {
                 success = false
             }
         }
         return success
     }
-    private func nativeThumbnail(_ item: Wallpaper, maxPixel: Int) async throws -> NSImage? {
-        let handle = try WSSExistingProjectResolver.resolve(item)
-        let bytes = try WSSNativeAssets(root: handle.root).read(
-            "scene.wss.json", limit: WSSSceneDocumentV1.byteLimit)
-        let key = sceneKey(item, manifest: WSSContentFingerprint(bytes), maxPixel: maxPixel)
-        if let cached = thumbnails.object(forKey: key as NSString) { return cached }
-        let project = try await WSSEditorProjectLoader().load(item)
-        let image = try WSSLibraryThumbnail.render(project.resources, maxPixel: maxPixel)
-        cacheScene(
-            image, key: sceneKey(item, manifest: project.diskBasis.manifest, maxPixel: maxPixel),
-            id: item.id)
-        return image
+
+    private nonisolated static func render(_ resources: WSSStaticResources, maxPixel: Int)
+        async throws -> NSImage
+    {
+        let task = Task.detached(priority: .utility) {
+            try Task.checkCancellation()
+            return try WSSLibraryThumbnail.render(resources, maxPixel: maxPixel)
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
+
     func image(_ url: URL, maxPixel: Int) -> NSImage? {
+        Self.decodeImage(url, maxPixel: maxPixel)
+    }
+
+    private nonisolated static func decodeImage(_ url: URL, maxPixel: Int) -> NSImage? {
         guard
             let source = CGImageSourceCreateWithURL(
                 url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
@@ -90,28 +231,37 @@ actor ImageLoader {
         return NSImage(cgImage: cg, size: .zero)
     }
     func thumbnail(_ item: Wallpaper, maxPixel: Int = 480) async -> NSImage? {
-        await acquire()
+        guard !Task.isCancelled, let (initial, _) = try? source(item, maxPixel: maxPixel) else {
+            return nil
+        }
+        if let image = cached(initial) {
+            return image
+        }
+        guard await acquire() else { return nil }
         defer { release() }
+        // The source or cache can have changed while this request was waiting.
+        guard !Task.isCancelled, let (key, url) = try? source(item, maxPixel: maxPixel) else {
+            return nil
+        }
+        if let image = cached(key) {
+            return image
+        }
+
+        let generation = cacheGeneration
+        await beforeThumbnailWork(item)
         guard !Task.isCancelled else { return nil }
-        if item.kind == .scene, item.managed != nil {
-            do {
-                return try await nativeThumbnail(item, maxPixel: maxPixel)
-            } catch WSSEditorOpenError.missingProject {
-                // Original preview until an explicit WSS project exists.
-            } catch {
-                // Existing invalid WSS stays authoritative; do not show its old source picture.
+        let result: NSImage?
+        var finishedKey = key
+        if key.sceneID != nil {
+            // Existing invalid native WSS remains authoritative.
+            guard let project = try? await WSSEditorProjectLoader().load(item), !Task.isCancelled
+            else {
                 return nil
             }
-        }
-        let key =
-            (item.path + "-\(maxPixel)-"
-            + String(
-                (try? item.url.resourceValues(forKeys: [.contentModificationDateKey])
-                    .contentModificationDate?.timeIntervalSince1970) ?? 0)) as NSString
-        if let cached = thumbnails.object(forKey: key) { return cached }
-        let result: NSImage?
-        if item.kind == .video {
-            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: item.url))
+            finishedKey = sceneKey(item, manifest: project.diskBasis.manifest, maxPixel: maxPixel)
+            result = try? await Self.render(project.resources, maxPixel: maxPixel)
+        } else if item.kind == .video {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: maxPixel, height: maxPixel)
             if let frame = try? await generator.image(at: .zero) {
@@ -119,19 +269,21 @@ actor ImageLoader {
             } else {
                 result = nil
             }
-        } else if item.kind == .scene
-            || item.kind == .web && item.url.pathExtension.lowercased() != "gif"
-        {
-            let preview = URL(fileURLWithPath: item.root).appendingPathComponent("preview.jpg")
-            result = image(preview, maxPixel: maxPixel)
         } else {
-            result = image(item.url, maxPixel: maxPixel)
+            let task = Task.detached(priority: .utility) {
+                Task.isCancelled ? nil : Self.decodeImage(url, maxPixel: maxPixel)
+            }
+            result = await withTaskCancellationHandler {
+                await task.value
+            } onCancel: {
+                task.cancel()
+            }
         }
-        if let result {
-            thumbnails.setObject(
-                result, forKey: key, cost: Int(result.size.width * result.size.height * 4))
+        guard let result, (try? source(item, maxPixel: maxPixel).0) == finishedKey else {
+            return nil
         }
-        return result
+        store(result, key: finishedKey, generation: generation)
+        return Task.isCancelled ? nil : result
     }
 }
 
