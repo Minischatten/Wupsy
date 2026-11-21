@@ -23,6 +23,13 @@ final class VideoView: NSView {
         CATransaction.commit()
     }
 }
+enum RendererReadiness: Equatable {
+    case ready
+    case failed(RuntimeDiagnostic)
+    case cancelled
+    case unsupported
+}
+
 @MainActor final class Renderer: NSObject, WKNavigationDelegate {
     let screen: NSScreen
     let wallpaper: Wallpaper
@@ -44,6 +51,10 @@ final class VideoView: NSView {
     private(set) var paused = true
     private(set) var stopped = false
     private var presentationDeferred = false
+    private var transitionPrepared = false
+    private var transitionStill: NSImage?
+    private weak var transitionStillView: NSImageView?
+    var hasTransitionStill: Bool { transitionStill != nil }
     private var resumeTime = CMTime.zero
     private let runtimeTasks = RuntimeTaskDrain()
     private var imageTask: Task<Void, Never>? {
@@ -55,6 +66,7 @@ final class VideoView: NSView {
     private var health = VideoHealth()
     private var onEvent: ((RuntimeDiagnostic) -> Void)?
     private var onDiagnostic: ((RuntimeDiagnostic) -> Void)?
+    private var onReadiness: ((RendererReadiness) -> Void)?
     var hasLiveResources: Bool {
         player != nil || web != nil || gif != nil || scene != nil || preparedScene != nil
             || window.contentView != nil
@@ -66,7 +78,8 @@ final class VideoView: NSView {
         scenePlayback: PreparedScenePlayback? = nil, sceneFPS: Int = 30,
         sceneRenderResolution: SceneRenderResolution = .hiDPI,
         onEvent: ((RuntimeDiagnostic) -> Void)? = nil,
-        onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil, onError: @escaping (String) -> Void
+        onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
+        onReadiness: ((RendererReadiness) -> Void)? = nil, onError: @escaping (String) -> Void
     ) {
         self.maintenance = maintenance ?? .shared
         self.preparedScene = scenePlayback
@@ -80,6 +93,7 @@ final class VideoView: NSView {
         self.onError = onError
         self.onEvent = onEvent
         self.onDiagnostic = onDiagnostic
+        self.onReadiness = onReadiness
         imagePixelLimit = min(
             profile.maxDimension,
             Int(max(screen.frame.width, screen.frame.height) * screen.backingScaleFactor))
@@ -97,14 +111,32 @@ final class VideoView: NSView {
         if !initiallyPaused { setPaused(false) }
     }
     private func report(_ diagnostic: RuntimeDiagnostic) {
+        if let transitionStill {
+            scene?.stop()
+            scene = nil
+            stopWatchingTransitionWindow()
+            window.contentView = imageView(transitionStill, scaling: .scaleAxesIndependently)
+        }
+        finishReadiness(.failed(diagnostic))
         if let onDiagnostic {
             onDiagnostic(diagnostic)
         } else {
             onError?(diagnostic.technicalDescription)
         }
     }
+    // One result for this renderer's first start. An occluded scene may stay pending
+    // until it presents or its owner pauses or stops it. No task waits for a drawable.
+    private func finishReadiness(_ result: RendererReadiness) {
+        let callback = onReadiness
+        onReadiness = nil
+        callback?(result)
+    }
+
     private func load() {
-        guard !stopped, maintenance.allowsMutation else { return }
+        guard !stopped, maintenance.allowsMutation else {
+            finishReadiness(.cancelled)
+            return
+        }
         switch wallpaper.kind {
         case .video:
             let view = VideoView(frame: NSRect(origin: .zero, size: window.frame.size))
@@ -140,9 +172,15 @@ final class VideoView: NSView {
             imageTask = Task { [weak self, weak view] in
                 guard let self else { return }
                 let image = await ImageLoader.shared.image(wallpaper.url, maxPixel: imagePixelLimit)
-                guard !Task.isCancelled, !paused else { return }
-                view?.image = image
-                if image == nil { report(.imageDecode) }
+                guard !Task.isCancelled, !paused, let view, window.contentView === view else {
+                    return
+                }
+                guard let image else {
+                    report(.imageDecode)
+                    return
+                }
+                view.image = image
+                finishReadiness(.ready)
             }
         case .scene:
             // Both pre-prepared and resumed scenes use the same WSS-only boundary.
@@ -159,7 +197,10 @@ final class VideoView: NSView {
                 }
                 installScene(resources)
             } else {
-                guard let admission = try? maintenance.beginMutation(kind: .runtime) else { return }
+                guard let admission = try? maintenance.beginMutation(kind: .runtime) else {
+                    finishReadiness(.cancelled)
+                    return
+                }
                 imageTask = Task { [weak self] in
                     defer { admission.finish() }
                     await MaintenanceOperation.$id.withValue(admission.id) {
@@ -190,7 +231,8 @@ final class VideoView: NSView {
                 loadWeb()
             }
         }
-        if !presentationDeferred { window.orderBack(nil) }
+        if !stopped && !paused && !presentationDeferred { window.orderBack(nil) }
+        if wallpaper.kind != .image && wallpaper.kind != .scene { finishReadiness(.unsupported) }
     }
     // Refresh candidates load through the normal player path while the old window
     // remains visible. Showing the candidate is a separate, synchronous handoff.
@@ -199,21 +241,113 @@ final class VideoView: NSView {
         presentationDeferred = false
         if !paused && !stopped { window.orderBack(nil) }
     }
+
+    private func imageView(_ image: NSImage, scaling: NSImageScaling) -> NSImageView {
+        let view = NSImageView(frame: NSRect(origin: .zero, size: window.frame.size))
+        view.autoresizingMask = [.width, .height]
+        view.imageScaling = scaling
+        view.image = image
+        return view
+    }
+
+    var transitionRasterSize: CGSize {
+        let bounds = window.frame.size
+        return sceneRenderResolution.drawableSize(
+            bounds: bounds,
+            backing: CGSize(
+                width: bounds.width * displayScale, height: bounds.height * displayScale),
+            maxDimension: profile.maxDimension)
+    }
+
+    func prepareTransition() async throws {
+        if let preparedScene {
+            let size = transitionRasterSize
+            let still = try await WSSStaticPreparation.shared.renderDesktopFrame(
+                preparedScene.resources, size: size)
+            try Task.checkCancellation()
+            transitionStill = still
+            window.contentView = imageView(still, scaling: .scaleAxesIndependently)
+        } else {
+            let image = await ImageLoader.shared.image(wallpaper.url, maxPixel: imagePixelLimit)
+            try Task.checkCancellation()
+            guard let image else { throw RuntimeDiagnostic.imageDecode }
+            window.contentView = imageView(image, scaling: .scaleProportionallyUpOrDown)
+        }
+        transitionPrepared = true
+    }
+
+    func presentTransition(above previous: Renderer?) {
+        transitionPrepared = false
+        paused = false
+        if let previous {
+            window.order(.above, relativeTo: previous.window.windowNumber)
+        } else {
+            window.orderBack(nil)
+        }
+        if let preparedScene {
+            self.preparedScene = nil
+            installScene(preparedScene)
+        } else {
+            finishReadiness(.ready)
+        }
+    }
+
+    @objc private func transitionWindowVisibilityChanged() {
+        if window.occlusionState.contains(.visible) { drawTransitionFrame() }
+    }
+
+    private func drawTransitionFrame() {
+        guard transitionStillView != nil, let scene, scene.view.isPaused
+        else { return }
+        scene.view.draw()
+    }
+
+    private func stopWatchingTransitionWindow() {
+        NotificationCenter.default.removeObserver(
+            self, name: NSWindow.didChangeOcclusionStateNotification, object: window)
+    }
     func setSceneRenderResolution(_ resolution: SceneRenderResolution) {
         sceneRenderResolution = resolution
         scene?.setRenderResolution(resolution)
     }
     private func installScene(_ prepared: PreparedScenePlayback) {
         let fps = profile == .original ? sceneFPS : min(sceneFPS, Int(profile.fps))
+        let onFirstFramePresented: (@MainActor () -> Void)?
+        if onReadiness != nil || transitionStill != nil {
+            onFirstFramePresented = { [weak self] in
+                guard let self else { return }
+                self.transitionStillView?.removeFromSuperview()
+                self.stopWatchingTransitionWindow()
+                self.finishReadiness(.ready)
+            }
+        } else {
+            onFirstFramePresented = nil
+        }
         let player = prepared.makePlayer(
             size: window.frame.size, scale: displayScale,
             maxDimension: profile.maxDimension, fps: fps, resolution: sceneRenderResolution,
             offset: sceneTime,
             onDiagnostic: { [weak self] diagnostic in self?.report(diagnostic) },
+            onFirstFramePresented: onFirstFramePresented,
             onError: { [weak self] error in self?.report(.failure(error)) })
         scene = player
-        window.contentView = player.view
-        player.play()
+        if let transitionStill, let player = player as? WSSStaticPlayer {
+            let container = NSView(frame: NSRect(origin: .zero, size: window.frame.size))
+            let stillView = imageView(transitionStill, scaling: .scaleAxesIndependently)
+            transitionStillView = stillView
+            container.addSubview(stillView)
+            player.view.autoresizingMask = [.width, .height]
+            container.addSubview(player.view)
+            window.contentView = container
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(transitionWindowVisibilityChanged),
+                name: NSWindow.didChangeOcclusionStateNotification, object: window)
+            player.playFromStill()
+            Task { @MainActor [weak self] in self?.drawTransitionFrame() }
+        } else {
+            window.contentView = player.view
+            player.play()
+        }
     }
     private func loadWeb() {
         let configuration = WKWebViewConfiguration()
@@ -250,6 +384,10 @@ final class VideoView: NSView {
         }
     }
     private func releaseResources() {
+        stopWatchingTransitionWindow()
+        transitionStill = nil
+        transitionStillView = nil
+        transitionPrepared = false
         healthTimer?.invalidate()
         healthTimer = nil
         if let time = player?.currentTime(), time.isNumeric { resumeTime = time }
@@ -279,13 +417,19 @@ final class VideoView: NSView {
     }
     func setPaused(_ value: Bool) {
         guard !stopped else { return }
+        if transitionPrepared && !value { return }
         if paused == value {
             if value { preparedScene = nil }
             return
         }
         paused = value
         health = VideoHealth()
-        if value { releaseResources() } else { load() }
+        if value {
+            releaseResources()
+            finishReadiness(.cancelled)
+        } else {
+            load()
+        }
     }
     func stopAndDrainForMaintenance() async {
         stop()
@@ -299,6 +443,7 @@ final class VideoView: NSView {
         onEvent = nil
         onDiagnostic = nil
         window.close()
+        finishReadiness(.cancelled)
     }
     func webView(
         _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

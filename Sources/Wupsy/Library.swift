@@ -153,6 +153,8 @@ import SwiftUI
     private var preparation: Task<Void, Never>?
     private var generation = UUID()
     private var pendingApply: WallpaperApplyRequest?
+    private var transitionRequest: WallpaperApplyRequest?
+    private var transitionTask: Task<Void, Never>?
     private var replacementPreparationID: UUID?
     private var startingRenderers = false
     private var startupError: String?
@@ -289,8 +291,13 @@ import SwiftUI
     }
     deinit {
         let request = pendingApply
-        Task { @MainActor in request?.finish(.superseded) }
+        let transition = transitionRequest
+        Task { @MainActor in
+            request?.finish(.superseded)
+            transition?.finish(.superseded)
+        }
         preparation?.cancel()
+        transitionTask?.cancel()
         pressureSource?.cancel()
         memoryRecovery?.cancel()
         if let powerSource { CFRunLoopSourceInvalidate(powerSource) }
@@ -616,6 +623,7 @@ import SwiftUI
         }
 
         if source == .manual { onPlaybackCommand?(.manualApply) }
+        cancelTransition()
         if pendingApply != nil { stopPlayback(preserveSelection: true) }
         let request = WallpaperApplyRequest()
         if removingWallpaper == item.id {
@@ -625,6 +633,13 @@ import SwiftUI
         guard item.kind == .scene || FileManager.default.fileExists(atPath: item.path) else {
             reject(
                 request, ProductText.wallpaperMissing.text)
+            return request
+        }
+        if pauseReason == nil, !renderers.isEmpty,
+            item.kind == .image || item.kind == .scene,
+            renderers.allSatisfy({ $0.wallpaper.kind == .image || $0.wallpaper.kind == .scene })
+        {
+            prepareTransition(to: item, request: request)
             return request
         }
         stopPlayback(preserveSelection: true)
@@ -637,6 +652,116 @@ import SwiftUI
         updatePolicy()
         return request
 
+    }
+
+    private func cancelTransition() {
+        guard let request = transitionRequest else { return }
+        transitionRequest = nil
+        transitionTask?.cancel()
+        transitionTask = nil
+        preparing = false
+        request.finish(.superseded)
+    }
+
+    private func prepareTransition(to item: Wallpaper, request: WallpaperApplyRequest) {
+        guard let admission = try? maintenance.beginMutation(kind: .runtime) else {
+            request.finish(.superseded)
+            return
+        }
+        let ticket = UUID()
+        let previous = renderers
+        let available = targetScreens()
+        let topology = WSSDesktopRefreshTargets.topology(available)
+        let screens = allDisplays ? available : Array(available.prefix(1))
+        let quality = profile
+        let resolution = sceneRenderResolution
+        transitionRequest = request
+        preparing = true
+        playbackStatus = .preparing(quality)
+        request.cancel = { [weak self, weak request] in
+            guard let self, let request, self.transitionRequest === request else { return }
+            self.cancelTransition()
+            self.updatePolicy()
+        }
+        let task = Task { [self] in
+            defer { admission.finish() }
+            await MaintenanceOperation.$id.withValue(admission.id) {
+                var candidates: [Renderer] = []
+                defer { for renderer in candidates { retire(renderer) } }
+                do {
+                    guard !screens.isEmpty else {
+                        throw ImportFailure.message(ProductText.noDisplay.text)
+                    }
+                    let scene = item.kind == .scene ? try await scenePreparation(item) : nil
+                    try Task.checkCancellation()
+                    var stillBytes = 0
+                    for (index, screen) in screens.enumerated() {
+                        let renderer = makeRenderer(
+                            item, screen: screen, mediaURL: item.url, quality: quality,
+                            playback: scene, ticket: ticket,
+                            onError: { [weak self] diagnostic, renderer in
+                                self?.rendererFailed(diagnostic, ticket: ticket, renderer: renderer)
+                            })
+                        candidates.append(renderer)
+                        if scene != nil {
+                            let size = renderer.transitionRasterSize
+                            stillBytes += Int(size.width) * Int(size.height) * 4
+                            guard stillBytes <= 128 * 1024 * 1024 else {
+                                throw ImportFailure.message(ProductText.playbackError.text)
+                            }
+                        }
+                        try await renderer.prepareTransition()
+                        try Task.checkCancellation()
+                        try rendererStart(renderer, index)
+                    }
+                    guard transitionRequest === request, maintenance.allowsMutation else {
+                        throw CancellationError()
+                    }
+                    guard topology == WSSDesktopRefreshTargets.topology(targetScreens()),
+                        resolution == sceneRenderResolution
+                    else { throw ImportFailure.message(EditorText.desktopTopologyChanged.text) }
+                    guard currentPlaybackRecord(item) == item, previous.count == renderers.count,
+                        zip(previous, renderers).allSatisfy({ $0 === $1 })
+                    else { throw CancellationError() }
+
+                    generation = ticket
+                    renderers = candidates
+                    active = item
+                    usingOptimizedVideo = false
+                    for renderer in candidates {
+                        let display = WSSDesktopRefreshTargets.number(renderer.screen)
+                        let old = previous.first {
+                            $0.screen === renderer.screen
+                                || (display != nil
+                                    && WSSDesktopRefreshTargets.number($0.screen) == display)
+                        }
+                        renderer.presentTransition(above: old)
+                    }
+                    candidates.removeAll()
+                    for renderer in previous { retire(renderer) }
+                    transitionRequest = nil
+                    transitionTask = nil
+                    preparing = false
+                    defaults.set(item.id.uuidString, forKey: "activeWallpaper")
+                    request.finish(.accepted)
+                    updatePolicy()
+                } catch {
+                    guard transitionRequest === request else { return }
+                    transitionRequest = nil
+                    transitionTask = nil
+                    preparing = false
+                    if error is CancellationError {
+                        request.finish(.superseded)
+                    } else {
+                        showProductError(error.localizedDescription, presentation: .playbackError)
+                        request.finish(.failed(error))
+                    }
+                    updatePolicy()
+                }
+            }
+        }
+        transitionTask = task
+        runtimeTasks.track(task)
     }
     private func currentPlaybackRecord(_ requested: Wallpaper) -> Wallpaper {
         if requested.kind == .image,
@@ -675,7 +800,7 @@ import SwiftUI
                 self.showProductError(text, presentation: .playbackError)
                 self.messagePresentation = diagnostic.localized()
                 self.recordPlayback(.diagnostic(diagnostic))
-                self.manuallyPaused = true
+                if !renderer.hasTransitionStill { self.manuallyPaused = true }
             }
         }
     }
@@ -810,7 +935,7 @@ import SwiftUI
         var startupFailure: String?
         func verifyCurrent() throws {
             guard !maintenanceStopped, maintenance.allowsMutation,
-                active == previous, generation == ticket
+                active == previous, generation == ticket, transitionRequest == nil
             else { throw CancellationError() }
             guard topology == WSSDesktopRefreshTargets.topology(targetScreens()) else {
                 throw ImportFailure.message(EditorText.desktopTopologyChanged.text)
@@ -871,6 +996,11 @@ import SwiftUI
     /// Rebuild the current target without creating or completing a new external request.
     private func reapply() {
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
+        if transitionRequest != nil {
+            cancelTransition()
+            if let active { prepareTransition(to: active, request: WallpaperApplyRequest()) }
+            return
+        }
 
         guard let item = active else { return }
         let request = pendingApply
@@ -947,6 +1077,7 @@ import SwiftUI
 
     }
     private func stopPlayback(preserveSelection: Bool = false) {
+        cancelTransition()
         replacementPreparationID = nil
         pendingApply?.finish(.superseded)
         pendingApply = nil
@@ -1027,6 +1158,7 @@ import SwiftUI
         }
         let reason = conditions.reason(conserve: conserve, pauseOnBattery: pauseOnBattery)
         if pauseReason != reason { pauseReason = reason }
+        if reason != nil { cancelTransition() }
         if reason != nil, preparing {
             generation = UUID()
             preparation?.cancel()

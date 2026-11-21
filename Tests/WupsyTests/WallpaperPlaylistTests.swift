@@ -183,6 +183,25 @@ import XCTest
         XCTFail("Timed out waiting for real playback")
     }
 
+    func testRealRotationCommitsAfterThePreparedImageReplacesTheOldWindow() async throws {
+        guard NSScreen.main != nil else { throw XCTSkip("Desktop display required") }
+        playlist.shutdown()
+        playlist = controller(realApply: true)
+        let id = try create(order: [0, 1])
+        playlist.activatePlaylist(id: id)
+        try await waitUntil { clock.count == 1 }
+        let old = try XCTUnwrap(library.renderers.first)
+        clock.advance(5)
+        XCTAssertTrue(library.renderers.first === old)
+        XCTAssertEqual(playlist.state.playback?.currentWallpaperID, entries[0].id)
+        XCTAssertEqual(clock.count, 0)
+        try await waitUntil { clock.count == 1 }
+        XCTAssertEqual(playlist.state.playback?.currentWallpaperID, entries[1].id)
+        XCTAssertEqual(library.active?.id, entries[1].id)
+        XCTAssertNotNil((library.renderers.first?.window.contentView as? NSImageView)?.image)
+        XCTAssertFalse(old.hasLiveResources)
+    }
+
     func testCreateIndependentDefinitionsNamesAndIntervalsPersist() throws {
         let a = try create("Same", order: [0, 1], interval: 5)
         let b = try create("Same", order: [2, 0], interval: 10)

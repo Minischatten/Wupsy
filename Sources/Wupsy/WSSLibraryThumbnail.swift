@@ -9,6 +9,13 @@ enum WSSLibraryThumbnail {
             1, Double(max(1, min(1280, maxPixel))) / Double(max(scene.width, scene.height)))
         let width = max(1, Int(Double(scene.width) * factor))
         let height = max(1, Int(Double(scene.height) * factor))
+        return try renderFrame(resources, width: width, height: height, projection: .fullCanvas)
+    }
+
+    static func renderFrame(
+        _ resources: WSSStaticResources, width: Int, height: Int, projection: WSSRenderProjection
+    ) throws -> NSImage {
+        let scene = resources.scene
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
         descriptor.usage = [.renderTarget, .shaderRead]
@@ -26,7 +33,7 @@ enum WSSLibraryThumbnail {
         let trail = WSSTrailRenderContext()
         try resources.encode(
             command: command, descriptor: pass, size: CGSize(width: width, height: height), time: 0,
-            rippleContext: ripple, trailContext: trail, pointer: nil, projection: .fullCanvas,
+            rippleContext: ripple, trailContext: trail, pointer: nil, projection: projection,
             advanceTrail: false)
         command.commit()
         command.waitUntilCompleted()

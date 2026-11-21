@@ -19,6 +19,9 @@ import MetalKit
     private let inFlight = DispatchSemaphore(value: 2)
     private let onError: (String) -> Void
     private let onDiagnostic: ((RuntimeDiagnostic) -> Void)?
+    private var onFirstFramePresented: (@MainActor () -> Void)?
+    private var startingWithStill = false
+    private var transitionDrawRetries = 2
     var elapsed: Double { clock.time(now: ProcessInfo.processInfo.systemUptime) }
     var diagnostics: ScenePlaybackDiagnostics {
         ScenePlaybackDiagnostics(
@@ -41,7 +44,8 @@ import MetalKit
         resolution: SceneRenderResolution, offset: Double,
         projection: WSSRenderProjection = .cover,
         pointerProvider: (() -> SIMD2<Float>?)? = nil,
-        onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil, onError: @escaping (String) -> Void
+        onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
+        onFirstFramePresented: (@MainActor () -> Void)? = nil, onError: @escaping (String) -> Void
     ) {
         self.resources = resources
         self.projection = projection
@@ -54,6 +58,7 @@ import MetalKit
         self.clock = WSSPlaybackClock(offset: offset)
         self.onError = onError
         self.onDiagnostic = onDiagnostic
+        self.onFirstFramePresented = onFirstFramePresented
         view = SceneMetalView(frame: NSRect(origin: .zero, size: size), device: resources.device)
         super.init()
         view.colorPixelFormat = .bgra8Unorm
@@ -94,10 +99,15 @@ import MetalKit
         guard !stopped else { return }
         paused = false
         trailContext.reset()
-        clock.play(now: ProcessInfo.processInfo.systemUptime)
-        view.enableSetNeedsDisplay = !resources.scene.isAnimated
-        view.isPaused = !resources.scene.isAnimated
+        if !startingWithStill { clock.play(now: ProcessInfo.processInfo.systemUptime) }
+        let onDemand = startingWithStill || !resources.scene.isAnimated
+        view.enableSetNeedsDisplay = onDemand
+        view.isPaused = onDemand
         view.needsDisplay = true
+    }
+    func playFromStill() {
+        startingWithStill = true
+        play()
     }
     func pause() {
         guard !stopped, !paused else { return }
@@ -121,6 +131,7 @@ import MetalKit
         lightingContext.discardResources()
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         stopped = true
+        onFirstFramePresented = nil
         view.isPaused = true
         view.delegate = nil
         (view as? SceneMetalView)?.geometryChanged = nil
@@ -176,8 +187,10 @@ import MetalKit
             try frameResources.encode(
                 command: command, descriptor: pass, size: view.drawableSize, time: elapsed,
                 rippleContext: rippleContext, trailContext: trailContext,
-                pointer: resources.trail == nil || paused ? nil : currentPointer(),
-                projection: projection, advanceTrail: !paused, stormContext: stormContext,
+                pointer: resources.trail == nil || paused || startingWithStill
+                    ? nil : currentPointer(),
+                projection: projection, advanceTrail: !paused && !startingWithStill,
+                stormContext: stormContext,
                 lightingContext: lightingContext)
         } catch {
             inFlight.signal()
@@ -187,6 +200,8 @@ import MetalKit
         }
         let semaphore = inFlight
         let metrics = metrics
+        let retryTransitionFrame = startingWithStill && transitionDrawRetries > 0
+        if retryTransitionFrame { transitionDrawRetries -= 1 }
         command.addCompletedHandler { [weak self, frameResources] buffer in
             _ = frameResources  // Retain the immutable scene/resources through GPU completion.
             metrics.completed(buffer)
@@ -200,6 +215,31 @@ import MetalKit
                         self.onError(RuntimeDiagnostic.wssGPU.technicalDescription)
                     }
                 }
+            } else if retryTransitionFrame {
+                Task { @MainActor in
+                    guard let self, !self.stopped, self.startingWithStill else { return }
+                    self.view.draw()
+                }
+            }
+        }
+        if onFirstFramePresented != nil {
+            drawable.addPresentedHandler { [weak self] drawable in
+                // Zero also covers dropped frames. GPU completion alone is insufficient.
+                guard drawable.presentedTime > 0 else { return }
+                Task { @MainActor in
+                    guard let self, !self.stopped else { return }
+                    let callback = self.onFirstFramePresented
+                    self.onFirstFramePresented = nil
+                    if self.startingWithStill {
+                        self.startingWithStill = false
+                        if !self.paused && self.resources.scene.isAnimated {
+                            self.clock.play(now: ProcessInfo.processInfo.systemUptime)
+                            self.view.enableSetNeedsDisplay = false
+                            self.view.isPaused = false
+                        }
+                    }
+                    callback?()
+                }
             }
         }
         command.present(drawable)
@@ -210,6 +250,12 @@ import MetalKit
 // Preparation has its own resource path and no compatibility cache or external provider.
 actor WSSStaticPreparation {
     static let shared = WSSStaticPreparation()
+    func renderDesktopFrame(_ resources: WSSStaticResources, size: CGSize) throws -> NSImage {
+        try Task.checkCancellation()
+        return try WSSLibraryThumbnail.renderFrame(
+            resources, width: Int(size.width), height: Int(size.height), projection: .cover)
+    }
+
     func prepare(_ wallpaper: Wallpaper) async throws -> WSSStaticResources {
         if wallpaper.sceneSource == .nativeWSS {
             let root = URL(fileURLWithPath: wallpaper.root)
