@@ -119,6 +119,39 @@ import XCTest
             previous = player
         }
     }
+    func testStormVisibilityRestartsPreviewWithPreparedRenderer() async throws {
+        let doc = WSSEditorDocument(project: try await fixtures.project("WSS-Storm-v1"))
+        let (host, window) = hosted(doc)
+        defer {
+            doc.close()
+            window.close()
+        }
+        let id = try XCTUnwrap(doc.identity.layers.first?.id)
+        let initial = try XCTUnwrap(host.surface.player)
+        let storm = try XCTUnwrap(initial.resources.storm)
+        try doc.toggleVisibility(id)
+        await doc.waitForPreview()
+        host.update(doc)
+        XCTAssertTrue(host.surface.player === initial)
+        XCTAssertTrue(initial.view.isPaused)
+        let time = initial.elapsed
+
+        try doc.toggleVisibility(id)
+        await doc.waitForPreview()
+        host.update(doc)
+        let visible = try XCTUnwrap(host.surface.player)
+        XCTAssertFalse(visible === initial)
+        XCTAssertNil(initial.view.delegate)
+        XCTAssertTrue(visible.resources.storm === storm)
+        XCTAssertGreaterThanOrEqual(visible.elapsed, time)
+        XCTAssertFalse(visible.view.isPaused)
+        let target = visible.metrics.snapshot().frames + 3
+        for _ in 0..<150 where visible.metrics.snapshot().frames < target {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertGreaterThanOrEqual(visible.metrics.snapshot().frames, target)
+    }
+
     func testPausedExpansionAndNativeClosePreserveFrozenTime() async throws {
         let doc = WSSEditorDocument(
             project: try await fixtures.project("WSS-Ripple-v1"))

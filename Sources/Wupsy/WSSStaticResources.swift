@@ -19,6 +19,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let trail: WSSTrailRenderer?
     let milkyWay: WSSMilkyWayRenderer?
     let starfield: WSSStarfieldRenderer?
+    let fog: WSSFogRenderer?
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
     let rain: WSSRainResources?
@@ -42,7 +43,7 @@ final class WSSStaticResources: @unchecked Sendable {
         images.values.reduce(
             (clouds?.textureBytes ?? 0) + (ripple?.textureBytes ?? 0)
                 + (vectorFields?.textureBytes ?? 0) + (flow?.regionTextureBytes ?? 0)
-                + (rain?.textureBytes ?? 0) + directionPreviewBytes
+                + (rain?.textureBytes ?? 0) + (fog?.textureBytes ?? 0) + directionPreviewBytes
         ) {
             $0 + $1.texture.allocatedSize
         }
@@ -141,6 +142,11 @@ final class WSSStaticResources: @unchecked Sendable {
                 if case .starfield = $0 { return true }
                 return false
             } ? WSSStarfieldRenderer(scene: scene, device: device) : nil
+        fog =
+            try scene.layers.contains {
+                if case .fog = $0 { return true }
+                return false
+            } ? WSSFogRenderer(device: device) : nil
         storm =
             try scene.layers.contains {
                 if case .storm = $0 { return true }
@@ -251,6 +257,7 @@ final class WSSStaticResources: @unchecked Sendable {
         trail = original.trail
         milkyWay = milkyWayOverride ?? original.milkyWay
         starfield = original.starfield
+        fog = original.fog
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
@@ -318,6 +325,15 @@ final class WSSStaticResources: @unchecked Sendable {
     func sharesPreparedResources(with other: WSSStaticResources) -> Bool {
         family === other.family
     }
+    func updatingFogDrift(_ layer: WSSFogLayer, at index: Int) -> WSSStaticResources? {
+        guard fog != nil, scene.layers.indices.contains(index),
+            case .fog = scene.layers[index]
+        else { return nil }
+        var updated = scene
+        updated.layers[index] = .fog(layer)
+        return WSSStaticResources(scene: updated, sharing: self)
+    }
+
     func updatingTransforms(
         from previous: WSSSceneDocumentV1, to candidate: WSSSceneDocumentV1,
         staticCanvas: Bool = false
@@ -328,6 +344,13 @@ final class WSSStaticResources: @unchecked Sendable {
         var normalized = candidate
         var updated = scene
         for index in previous.layers.indices {
+            if case .fog = previous.layers[index].content,
+                case .fog(let new) = normalized.layers[index].content
+            {
+                updated.layers[index] = .fog(new)
+                normalized.layers[index].content = previous.layers[index].content
+                continue
+            }
             if case .starfield(let old) = previous.layers[index].content,
                 case .starfield(let new) = normalized.layers[index].content
             {
@@ -617,6 +640,18 @@ final class WSSStaticResources: @unchecked Sendable {
         encoder.setCullMode(.none)
         let storms = stormContext ?? WSSStormRenderContext()
         for (index, node) in scene.layers.enumerated() where node.visible {
+            if case .fog(let layer) = node {
+                do {
+                    guard let fog else { throw WSSSceneError.invalid("missing fog renderer") }
+                    try fog.encode(
+                        layer.fog, canvas: SIMD2(Float(scene.width), Float(scene.height)),
+                        crop: crop, time: time, encoder: encoder)
+                } catch {
+                    encoder.endEncoding()
+                    throw error
+                }
+                continue
+            }
             if case .starfield(let layer) = node {
                 do {
                     guard let starfield else {

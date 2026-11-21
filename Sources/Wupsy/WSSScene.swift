@@ -36,6 +36,7 @@ enum WSSSceneLayer {
     case trail(WSSTrailLayer)
     case storm(WSSStormLayer)
     case starfield(WSSStarfieldLayer)
+    case fog(WSSFogLayer)
     var visible: Bool {
         switch self {
         case .image(let l): return l.visible
@@ -43,6 +44,7 @@ enum WSSSceneLayer {
         case .trail(let l): return l.visible
         case .storm(let l): return l.visible
         case .starfield(let l): return l.visible
+        case .fog(let l): return l.visible
         }
     }
 }
@@ -84,10 +86,8 @@ struct WSSScene {
                     }
             case .trail(let l): return l.visible
             case .starfield(let l): return l.visible && l.starfield.isAnimated
-            case .storm(let l):
-                return l.visible
-                    && ((l.storm.boltEnabled && l.storm.brightness > 0)
-                        || l.storm.illumination.isEffective)
+            case .fog(let l): return l.visible && l.fog.isAnimated
+            case .storm(let l): return l.isAnimated
             case .rain(let l):
                 return l.visible && l.rain.speed > 0 && l.rain.density > 0 && l.rain.opacity.max > 0
             }
@@ -134,6 +134,10 @@ struct WSSScene {
         var trailBudget = 0.0
         var rainCount = 0
         for node in layers {
+            if case .fog(let layer) = node {
+                try layer.fog.validate()
+                continue
+            }
             if case .trail(let trail) = node {
                 try trail.configuration.validate()
                 trailBudget += trail.configuration.lifetime * trail.configuration.emissionRate

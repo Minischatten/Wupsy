@@ -81,6 +81,18 @@ struct WSSEditorView: View {
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
+                    Menu(WSSFogText.text("title")) {
+                        ForEach(WSSFogPreset.allCases, id: \.self) { preset in
+                            Button(WSSFogText.text(preset.rawValue)) {
+                                do {
+                                    try document.addFog(preset)
+                                    effectCreationError = nil
+                                } catch {
+                                    effectCreationError = EditorErrorPresentation.message(error)
+                                }
+                            }
+                        }
+                    }.disabled(!document.permitsStructureEditing)
                     Button(WSSStormText.title) {
                         do {
                             try document.addStorm()
@@ -320,6 +332,11 @@ struct WSSEditorView: View {
                             }
                         }
                     }
+                }
+                if document.effectAddress == nil, let id = document.selection?.layer,
+                    document.fogLayer(id) != nil
+                {
+                    WSSFogParameterControls(document: document, layer: id).id(id)
                 }
                 if document.effectAddress == nil, let id = document.selection?.layer,
                     document.starfieldLayer(id) != nil

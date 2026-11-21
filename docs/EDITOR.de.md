@@ -18,6 +18,17 @@ Füge der ausgewählten Bildebene Ripple, Clouds oder Flow hinzu und wähle ansc
 
 Wähle einen Effekt aus, um seine Maske zu prüfen oder zu bearbeiten, soweit dies unterstützt wird. Das Malen skalarer Masken schreibt unabhängige Dateigenerationen, niemals die Originaldatei. Die ausgewählte Überlagerung gehört zum Editorzustand; sie ist keine dauerhaft gespeicherte sichtbare Ebene.
 
+## Nebel
+
+Wähle im Menü zum Hinzufügen von Ebenen Bodennebel oder atmosphärischen Nebel.
+Die Ebenenreihenfolge bestimmt, welche Vordergrundelemente den Nebel verdecken.
+Im Inspektor stellst du Dichte, Weichheit, Strukturgröße und Höhe ein. Die Farbe
+wählst du über die native macOS-Farbauswahl. Acht Richtungstasten, der
+Geschwindigkeitsregler und die numerischen X/Y-Felder steuern die Drift. Die
+Geschwindigkeitsanzeige folgt dem Regler beim Ziehen. Die Live-Vorschau kann
+Zwischenwerte überspringen. Beim Loslassen wird die endgültige Drift als ein
+Undo-Schritt übernommen. [Nebel-Vertrag](effects/FOG.md)
+
 ## Rain und CursorTrail
 
 [Rain](effects/RAIN.md) ist eine separate rechteckige Szenenebene. Passe ihre Region und Regenparameter an und platziere sie zwischen Bildern, damit Vordergrundbilder den Regen verdecken. Die technische Rain-Beschreibung definiert Profilaktionen, Standardwerte beim Hinzufügen und die Bedeutung von Dichte beziehungsweise Tropfenanzahl.

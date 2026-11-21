@@ -24,6 +24,16 @@ Select an effect to inspect/edit its mask where supported. Scalar mask painting 
 independent generations, never the original file. The selected overlay is editor state;
 it is not a persisted visual layer.
 
+## Fog
+
+Choose Ground Fog or Atmospheric Fog from the layer add menu. Reorder the fog layer
+to control foreground occlusion. Set density, softness, structure scale and height
+in the inspector. Use the native macOS color picker to choose the fog color.
+Set drift with the eight direction buttons, the speed slider or the numeric X/Y
+fields. The speed readout follows the slider as you drag. Live Preview may skip
+intermediate positions. Releasing the slider applies the final drift as one Undo
+step. See the [Fog contract](effects/FOG.md).
+
 ## Rain and CursorTrail
 
 [Rain](effects/RAIN.md) is a separate rectangular scene layer. Adjust its region

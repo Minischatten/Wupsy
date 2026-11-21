@@ -65,8 +65,22 @@ enum WSSShootingStarDirection: Double, CaseIterable {
 struct WSSShootingStarDirectionPicker: View {
     let angle: Double
     let select: (WSSShootingStarDirection) -> Void
+    var body: some View {
+        WSSDirectionGrid(
+            angle: angle, currentTitle: WSSStarfieldText.text("shootingStars.direction.current"),
+            identifierPrefix: "wss.starfield.direction.", select: select)
+    }
+}
+
+struct WSSDirectionGrid: View {
+    let angle: Double?
+    let currentTitle: String
+    let identifierPrefix: String
+    let select: (WSSShootingStarDirection) -> Void
+
     private var angleText: String {
-        angle.formatted(.number.grouping(.never).precision(.fractionLength(0...3))) + "°"
+        guard let angle else { return "—" }
+        return angle.formatted(.number.grouping(.never).precision(.fractionLength(0...3))) + "°"
     }
     var body: some View {
         Grid(horizontalSpacing: 4, verticalSpacing: 4) {
@@ -76,13 +90,11 @@ struct WSSShootingStarDirectionPicker: View {
                         if let direction = WSSShootingStarDirection.rows[row][column] {
                             directionButton(direction)
                         } else {
-                            Image(systemName: "arrow.right")
-                                .rotationEffect(.degrees(-angle))
+                            Image(systemName: angle == nil ? "minus" : "arrow.right")
+                                .rotationEffect(.degrees(-(angle ?? 0)))
                                 .frame(width: 24, height: 24)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel(
-                                    WSSStarfieldText.text("shootingStars.direction.current")
-                                )
+                                .accessibilityLabel(currentTitle)
                                 .accessibilityValue(angleText)
                                 .help(angleText)
                         }
@@ -93,7 +105,7 @@ struct WSSShootingStarDirectionPicker: View {
         .frame(maxWidth: .infinity)
     }
     private func directionButton(_ direction: WSSShootingStarDirection) -> some View {
-        let selected = WSSShootingStarDirection.selection(for: angle) == direction
+        let selected = angle.flatMap(WSSShootingStarDirection.selection(for:)) == direction
         let degrees = String(Int(direction.rawValue)) + "°"
         let hint = direction.title + " (" + degrees + ")"
         return Button(action: { select(direction) }) {
@@ -104,7 +116,7 @@ struct WSSShootingStarDirectionPicker: View {
         .accessibilityLabel(direction.title)
         .accessibilityValue(degrees)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("wss.starfield.direction." + direction.key)
+        .accessibilityIdentifier(identifierPrefix + direction.key)
         .help(hint)
     }
 

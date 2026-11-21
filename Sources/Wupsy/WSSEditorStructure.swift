@@ -12,13 +12,15 @@ struct WSSEditorStructureRow: Identifiable {
 extension WSSEditorDocument {
     var structureRows: [WSSEditorStructureRow] {
         var rows: [WSSEditorStructureRow] = []
+        let names = layerNames
+        let scene = workingScene
         for (index, layer) in state.workingModel.layers.enumerated() {
             guard identity.layers.indices.contains(index) else { continue }
             let ids = identity.layers[index]
             rows.append(
                 WSSEditorStructureRow(
-                    id: .layer(ids.id), title: layerNames[index],
-                    depth: 0, symbol: workingScene.layers[index].visible ? "eye" : "eye.slash"))
+                    id: .layer(ids.id), title: names[index],
+                    depth: 0, symbol: scene.layers[index].visible ? "eye" : "eye.slash"))
             guard case .image(let image) = layer.content else { continue }
             for (effectIndex, effect) in image.effects.enumerated() {
                 guard ids.effects.indices.contains(effectIndex) else { continue }

@@ -61,7 +61,21 @@ Session layer/effect IDs survive reorder/delete/Undo. Parameter controls resolve
 
 The static canvas draws on demand, without a player/display link, capped at 2560 pixels on its longest edge. Canvas coordinates are independent of that cap and backing scale. Numeric zoom is 0.05…4; Fit is computed, and pan/zoom never dirty the document. Double-click a visible image to enter explicit transform mode; ordinary image selection has no transform handles. Visible Storm selection activates the same handles through a session-only position/direction/length/spread adapter; no transform object is persisted for Storm. Corner drag scales proportionally about the opposite corner, Shift at mouse-down chooses independent scaling, rotation is counterclockwise radians without snapping. Escape cancels an active gesture before leaving the mode. Focus loss/mouse-up ends one Undo transaction; field editors retain their own Escape semantics.
 
-Transform-only reuse requires complete equality after restoring the previous transforms. Storm-only value updates at unchanged layer slots may also reuse immutable prepared resources and the player; its per-player cache keys invalidate changed geometry. Other edits perform full preparation. Compatible updates keep player/clock/context ownership. Preview uses a separate coalescing worker with session/revision stale-result checks and keeps the last valid preview until replacement. Full resource replacement preserves elapsed time and pause/visibility but resets pointer/Trail history. Direction-field input unlocks after validated model/Undo adoption, without waiting for preview; authoring feedback also remains independent of preview currency. Active preview jobs pin only their referenced generation handles and coalesce pending revisions. Save does not wait for preview. Enlarging preview transfers the same surface rather than creating another player; presentation is session-only.
+Transform-only reuse requires complete equality after restoring the previous transforms. Fog and Storm parameter updates at unchanged layer slots can reuse immutable prepared resources. Storm cache keys invalidate changed geometry. Edits incompatible with prepared resources require full preparation. Compatible updates keep player/clock/context ownership. Preview uses a separate coalescing worker with session/revision stale-result checks and keeps the last valid preview until replacement. Full resource replacement preserves elapsed time and pause/visibility but resets pointer/Trail history. Direction-field input unlocks after validated model/Undo adoption, without waiting for preview; authoring feedback also remains independent of preview currency. Active preview jobs pin only their referenced generation handles and coalesce pending revisions. Save does not wait for preview. Enlarging preview transfers the same surface. Presentation is session-only.
+
+Fog speed dragging keeps the thumb and readout in local SwiftUI state. The native
+preview draws the latest transient drift with the prepared renderer and texture
+when the preview revision is current. Paused and on-demand views coalesce redraws.
+Releasing the slider commits the final X/Y drift as one document revision and one
+Undo step. If preparation is already pending, the preview worker reconciles the
+committed values with the other edits.
+
+For animated Fog, Storm and Starfield, the editor renews the player when leaving
+on-demand drawing or resuming after pausing continuous playback. This works
+around a stalled MetalKit draw timer, including when a hidden animated layer is
+shown again. Renewal reuses prepared resources and carries the playhead and
+pause state. The Starfield workaround also applies when transferring a running
+preview between windows.
 
 Close routes share Save/Don't Save/Cancel, await in-flight Save and recheck later dirty work. Deferred AppKit termination resolves all sessions before desktop cleanup. Cancellation or save failure keeps sessions intact. Save/Save As/Revert/Close must not race an active/finalizing stroke; finish/cancel it first. Undo/Redo operates on immutable generations after the transaction ends.
 

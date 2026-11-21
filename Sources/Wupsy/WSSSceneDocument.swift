@@ -412,6 +412,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             case rain(RainLayer)
             case storm(WSSStormLayer)
             case starfield(WSSStarfieldLayer)
+            case fog(WSSFogLayer)
             case trail(WSSTrailConfiguration, visible: Bool)
         }
         var content: Content
@@ -433,12 +434,18 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm, starfield
+                trail, mask, storm, starfield, fog
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
-            if type == "starfield" {
+            if type == "fog" {
+                try decoder.fields(["type", "visible", "fog"])
+                content = .fog(
+                    WSSFogLayer(
+                        visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
+                        fog: try c.decode(WSSFogConfiguration.self, forKey: .fog)))
+            } else if type == "starfield" {
                 try decoder.fields(["type", "name", "visible", "starfield"])
                 let layer = WSSStarfieldLayer(
                     name: try c.decodeIfPresent(String.self, forKey: .name),
@@ -528,6 +535,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         composition: layer.composition == "additive" ? .additive : .sourceOver,
                         mask: layer.mask.map { WSSImageMask(asset: WSSAssetID(value: $0.asset)) }))
             case .starfield(let layer): return .starfield(layer)
+            case .fog(let layer): return .fog(layer)
             case .storm(let layer): return .storm(layer)
             case .trail(let configuration, let visible):
                 return .trail(WSSTrailLayer(configuration: configuration, visible: visible))

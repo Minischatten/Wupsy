@@ -2,7 +2,8 @@
 
 Supported image effect types are `flow`, `ripple` and `clouds`; native `rain` and
 `cursorTrail` layers remain supported. Native `storm` layers add visible seeded lightning and optional global illumination;
-see the [Storm contract](docs/effects/STORM.md). Unknown effect types, including the removed
+see the [Storm contract](docs/effects/STORM.md). Native `fog` layers composite soft drifting haze in painter order;
+see the [Fog contract](docs/effects/FOG.md). Unknown effect types, including the removed
 `surfaceAdvection` and `waterSurface`, fail explicitly, even on hidden layers or
 inside effect chains. No legacy normalization, migration or fallback is performed.
 This boundary also applies to native projects in backup/restore/recovery payloads.

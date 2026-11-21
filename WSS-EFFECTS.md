@@ -10,6 +10,10 @@ Seeded scalar cloud structure and tone on images: [Clouds contract](docs/effects
 
 See [Clouds arithmetic](docs/effects/CLOUDS.md#coverage-and-tone-arithmetic).
 
+## Fog
+
+Sortable ground and atmospheric fog: [Fog contract](docs/effects/FOG.md).
+
 ## Rain
 
 Procedural rain streaks in a scene region: [Rain contract](docs/effects/RAIN.md), [random generation](docs/RAIN-RANDOM.md).

@@ -37,7 +37,10 @@ import MetalKit
                         ? "WSS rain v1"
                         : (resources.ripple != nil
                             ? "WSS ripple v1"
-                            : (resources.scene.isAnimated ? "WSS clouds v1" : "WSS static images")))
+                            : resources.fog != nil
+                                ? "WSS fog v1"
+                                : (resources.scene.isAnimated
+                                    ? "WSS clouds v1" : "WSS static images")))
     }
     init(
         resources: WSSStaticResources, size: CGSize, scale: CGFloat, maxDimension: Int, fps: Int,
@@ -72,9 +75,31 @@ import MetalKit
         (view as? SceneMetalView)?.geometryChanged = { [weak self] in self?.resize() }
         resize()
     }
+    private(set) var fogDragPreview: WSSStaticResources?
+    private var fogDragRedrawPending = false
+
+    func updateFogDragPreview(_ candidate: WSSStaticResources?) {
+        guard !stopped, candidate?.sharesPreparedResources(with: resources) ?? true else { return }
+        fogDragPreview = candidate
+        // A running view picks up the newest value at its normal draw cadence.
+        // Paused/on-demand previews need one explicit redraw after input returns.
+        guard view.isPaused, !fogDragRedrawPending else { return }
+        fogDragRedrawPending = true
+        Task { @MainActor [weak self] in
+            // Match normal editor preview cadence without delaying the input.
+            try? await Task.sleep(for: .milliseconds(33))
+            guard let self else { return }
+            fogDragRedrawPending = false
+            guard !stopped, view.isPaused, view.window?.isVisible == true, !view.bounds.isEmpty
+            else { return }
+            view.draw()
+        }
+    }
+
     @discardableResult
     func updateTransforms(_ candidate: WSSStaticResources) -> Bool {
         guard !stopped, resources.sharesPreparedResources(with: candidate) else { return false }
+        fogDragPreview = nil
         resources = candidate
         if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
@@ -177,7 +202,7 @@ import MetalKit
             inFlight.signal()
             return
         }
-        let frameResources = resources
+        let frameResources = fogDragPreview ?? resources
         let background = frameResources.scene.background
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].clearColor = MTLClearColorMake(

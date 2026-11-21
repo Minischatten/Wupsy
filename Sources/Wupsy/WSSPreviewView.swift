@@ -103,7 +103,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             }
         }
     }
-    var renewStarfieldPlayerOnAnimationStart = false
+    var renewEditorPlayerOnAnimationStart = false
     private var pausedAfterAnimatedPlayback = false
     private var resourcesID: ObjectIdentifier?
     private func install(_ resources: WSSStaticResources, offset: Double) {
@@ -187,7 +187,8 @@ struct WSSPreviewRenderPolicy: Equatable {
             // even with both mode flags set correctly. Begin this transition
             // with a new view, keeping the prepared resources and playhead.
             let renewPlayer =
-                player?.resources.scene.isAnimated == false && renewsStarfieldPlayer(for: resources)
+                player?.resources.scene.isAnimated == false
+                && renewsProceduralPlayer(for: resources)
             if !renewPlayer, player?.updateTransforms(resources) == true {
                 resourcesID = ObjectIdentifier(resources)
                 updatePlayback()
@@ -197,8 +198,20 @@ struct WSSPreviewRenderPolicy: Equatable {
         }
         updatePlayback()
     }
-    private func renewsStarfieldPlayer(for resources: WSSStaticResources) -> Bool {
-        renewStarfieldPlayerOnAnimationStart && resources.scene.isAnimated
+    private func renewsProceduralPlayer(for resources: WSSStaticResources) -> Bool {
+        renewEditorPlayerOnAnimationStart
+            && resources.scene.layers.contains {
+                switch $0 {
+                case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
+                case .fog(let layer): return layer.visible && layer.fog.isAnimated
+                case .storm(let layer): return layer.isAnimated
+                default: return false
+                }
+            }
+    }
+
+    private func renewsStarfieldPlayerAfterTransfer(for resources: WSSStaticResources) -> Bool {
+        renewEditorPlayerOnAnimationStart
             && resources.scene.layers.contains {
                 if case .starfield(let layer) = $0 {
                     return layer.visible && layer.starfield.isAnimated
@@ -240,7 +253,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             movingPresentation = false
             if wasDrawingContinuously, let sourceWindow, let destinationWindow = window,
                 sourceWindow !== destinationWindow, let resources = player?.resources,
-                renewsStarfieldPlayer(for: resources)
+                renewsStarfieldPlayerAfterTransfer(for: resources)
             {
                 // A running MTKView can stop receiving draw callbacks after reparenting.
                 replacePlayer(with: resources)
@@ -260,7 +273,7 @@ struct WSSPreviewRenderPolicy: Equatable {
         let shouldRun = wantsPlayback && visible && playbackBlocks.isEmpty
         guard shouldRun != running else { return }
         if shouldRun, pausedAfterAnimatedPlayback, let resources = player?.resources,
-            renewsStarfieldPlayer(for: resources)
+            renewsProceduralPlayer(for: resources)
         {
             // Starting a new view avoids resuming a stalled MetalKit draw timer.
             replacePlayer(with: resources)

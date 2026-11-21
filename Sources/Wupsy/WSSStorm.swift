@@ -90,6 +90,9 @@ struct WSSStormLayer: Equatable {
     var name: String? = nil
     var visible = true
     var storm = WSSStormConfiguration()
+    var isAnimated: Bool {
+        visible && ((storm.boltEnabled && storm.brightness > 0) || storm.illumination.isEffective)
+    }
     func validate() throws {
         if let name { _ = try WallpaperTitle.normalized(name) }
         try storm.validate()

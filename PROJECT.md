@@ -54,6 +54,15 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Native fog
+
+WSS v1 supports a sortable fog layer with Ground Fog and Atmospheric Fog presets.
+The inspector exposes density, softness, structure scale, height, native SDR
+color selection, directional arrows, numeric X/Y drift and a speed slider.
+Slider input stays local during dragging and commits the final drift as one Undo
+step. See the [Fog contract](docs/effects/FOG.md) and
+[preview architecture](docs/ARCHITECTURE.md#workspace-gestures-and-close).
+
 ## Known limitations
 
 - **Intermittent Starfield color picker delivery.** The macOS color panel can

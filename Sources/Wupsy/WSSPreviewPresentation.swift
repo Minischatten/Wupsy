@@ -6,7 +6,7 @@ extension WSSPreviewSurface {
             resources: document.editorPreviewResources, playing: document.playing,
             offset: document.initialPreviewTime,
             onError: { [weak document] in document?.previewFailed($0) })
-        renewStarfieldPlayerOnAnimationStart = true
+        renewEditorPlayerOnAnimationStart = true
         document.stopPreview = { [weak self] in self?.shutdown() }
     }
 }
@@ -30,6 +30,9 @@ extension WSSPreviewSurface {
         placeholder.textColor = .secondaryLabelColor
         placeholder.isHidden = true
         addSubview(placeholder)
+        document.displayFogDrift = { [weak self] resources in
+            self?.surface.player?.updateFogDragPreview(resources)
+        }
         document.togglePreviewExpansion = { [weak self] in self?.toggleExpansion() }
         document.stopPreview = { [weak self] in self?.shutdown() }
     }

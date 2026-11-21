@@ -229,6 +229,15 @@ import SwiftUI
     var starfieldColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var stormColorDrag: (WSSLayerID, WSSSceneDocumentV1)?
     var trailDrag: (WSSLayerID, String, WSSSceneDocumentV1)?
+    var fogStoppedDirections: [WSSLayerID: SIMD2<Double>] = [:]
+    struct FogSpeedDrag {
+        let layer: WSSLayerID
+        let direction: SIMD2<Double>
+        let original: WSSFogConfiguration
+        var draft: WSSFogConfiguration
+    }
+    var fogSpeedDrag: FogSpeedDrag?
+    var displayFogDrift: ((WSSStaticResources?) -> Void)?
     var rainDrag: (WSSLayerID, WSSRainParameter, WSSSceneDocumentV1)?
     private var drag: (WSSEffectAddress, WSSEditorParameter, Float)?
 
@@ -262,6 +271,9 @@ import SwiftUI
             if let (_, _, original) = self.trailDrag, original != self.state.workingModel {
                 return true
             }
+            if let drag = self.fogSpeedDrag, drag.original != drag.draft {
+                return true
+            }
             return self.canvasTransform.map { $0.model != self.state.workingModel } ?? false
         }
         undoManager.finishInteraction = { [weak self] in
@@ -270,6 +282,7 @@ import SwiftUI
             self?.endTrailInteraction()
             self?.endStormColorInteraction()
             self?.endStarfieldColorInteraction()
+            self?.endFogSpeedSlider()
         }
         undoManager.permitsEditing = { [weak self] in
             self.map { !$0.closed && !$0.interactionLocked && !$0.hasActivePaintInteraction }
@@ -326,6 +339,8 @@ import SwiftUI
     func close() {
         guard !closed else { return }
         endCanvasTransform()
+        fogSpeedDrag = nil
+        displayFogDrift = nil
         transformModeLayer = nil
         closed = true
         maskSessionStorage?.shutdown()
@@ -389,9 +404,15 @@ import SwiftUI
     var isResolvingClose: Bool { closeTask != nil }
     var canSave: Bool {
         !closed && !interactionLocked && !saving && !saveAsBusy && !hasActivePaintInteraction
-            && isDirty
+            && (isDirty || fogSpeedDrag.map { $0.original != $0.draft } == true)
     }
-    var workingScene: WSSScene { (try? state.workingModel.scene()) ?? project.scene }
+    var workingScene: WSSScene {
+        if canReusePreparedPreview, previewIsCurrent { return previewResources.scene }
+        return (try? state.workingModel.scene()) ?? project.scene
+    }
+    private var canReusePreparedPreview: Bool {
+        permitsResourceReuse && previewPreparationOverride == nil
+    }
     var previewIsCurrent: Bool {
         previewRevision == state.workingRevision && preparationError == nil
     }
@@ -412,6 +433,7 @@ import SwiftUI
         endTrailInteraction()
         endStormColorInteraction()
         endStarfieldColorInteraction()
+        endFogSpeedSlider()
         return true
     }
     func setParameter(
@@ -433,6 +455,30 @@ import SwiftUI
         installParameterMutation(
             model, before: before, title: EditorText.rippleSeed.text, registerUndo: true)
     }
+    func previewFogDrag(_ layer: WSSFogLayer, at index: Int) {
+        guard canReusePreparedPreview, previewIsCurrent, let displayFogDrift else { return }
+        displayFogDrift(previewResources.updatingFogDrift(layer, at: index))
+    }
+
+    func installFogDrift(_ layer: WSSFogLayer, at index: Int, undo: Bool) {
+        // A validated drift changes per-frame uniforms, never asset references or budgets.
+        var model = state.workingModel
+        model.layers[index].content = .fog(layer)
+        let resources =
+            canReusePreparedPreview && previewIsCurrent
+            ? previewResources.updatingFogDrift(layer, at: index) : nil
+        if undo { registerModelUndo(state.workingModel, name: WSSFogText.text("speed")) }
+        state.replaceWorkingModel(model)
+        if let resources {
+            previewModel = model
+            previewResources = resources
+            previewRevision = state.workingRevision
+        } else {
+            // Let the usual worker reconcile pending structural or asset edits.
+            requestPreview()
+        }
+    }
+
     private func installParameterMutation(
         _ model: WSSSceneDocumentV1,
         before: WSSSceneDocumentV1, title: String, registerUndo: Bool
@@ -756,6 +802,7 @@ import SwiftUI
                         URL(fileURLWithPath: image.asset.value).lastPathComponent)
                 }
             case .starfield(let layer): name = layer.name ?? WSSStarfieldText.title
+            case .fog: name = WSSFogText.text("title")
             case .storm(let layer): name = layer.name ?? WSSStormText.title
             case .rain: name = EditorText.effectRain.text
             case .trail: name = EditorText.effectTrail.text
@@ -810,7 +857,7 @@ import SwiftUI
                 sections += effectSections
             }
             if image.effects.isEmpty { section(.effects, "Effects", [.init(.count, "0")]) }
-        case .starfield: break
+        case .starfield, .fog: break
         case .storm: break  // Dedicated editable storm inspector.
         case .rain(let layer):
             let r = layer.rain

@@ -50,6 +50,9 @@ extension WSSEditorDocument {
         case .image(var image):
             image.visible = visible
             model.layers[index].content = .image(image)
+        case .fog(var layer):
+            layer.visible = visible
+            model.layers[index].content = .fog(layer)
         case .starfield(var layer):
             layer.visible = visible
             model.layers[index].content = .starfield(layer)
