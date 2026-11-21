@@ -37,6 +37,7 @@ enum WSSSceneLayer {
     case storm(WSSStormLayer)
     case starfield(WSSStarfieldLayer)
     case fog(WSSFogLayer)
+    case musicNotes(WSSMusicNotesLayer)
     var visible: Bool {
         switch self {
         case .image(let l): return l.visible
@@ -45,6 +46,7 @@ enum WSSSceneLayer {
         case .storm(let l): return l.visible
         case .starfield(let l): return l.visible
         case .fog(let l): return l.visible
+        case .musicNotes(let l): return l.visible
         }
     }
 }
@@ -87,6 +89,7 @@ struct WSSScene {
             case .trail(let l): return l.visible
             case .starfield(let l): return l.visible && l.starfield.isAnimated
             case .fog(let l): return l.visible && l.fog.isAnimated
+            case .musicNotes(let l): return l.isAnimated
             case .storm(let l): return l.isAnimated
             case .rain(let l):
                 return l.visible && l.rain.speed > 0 && l.rain.density > 0 && l.rain.opacity.max > 0
@@ -131,6 +134,16 @@ struct WSSScene {
         guard stormCount <= WSSStormGeometry.maximumLayers,
             stormSegments <= WSSStormGeometry.maximumSegmentsPerScene
         else { throw WSSSceneError.invalid("storm scene budget") }
+        var noteLayers = 0
+        var noteCount = 0
+        for case .musicNotes(let layer) in layers {
+            try layer.validate()
+            noteLayers += 1
+            noteCount += layer.notes.count
+        }
+        guard noteLayers <= WSSMusicNotesLayer.maximumLayers,
+            noteCount <= WSSMusicNotesLayer.maximumPerScene
+        else { throw WSSSceneError.invalid("musicNotes scene budget") }
         var trailBudget = 0.0
         var rainCount = 0
         for node in layers {

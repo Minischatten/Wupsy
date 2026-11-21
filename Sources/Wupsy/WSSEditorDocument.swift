@@ -803,6 +803,7 @@ import SwiftUI
                 }
             case .starfield(let layer): name = layer.name ?? WSSStarfieldText.title
             case .fog: name = WSSFogText.text("title")
+            case .musicNotes: name = WSSMusicNotesText.title
             case .storm(let layer): name = layer.name ?? WSSStormText.title
             case .rain: name = EditorText.effectRain.text
             case .trail: name = EditorText.effectTrail.text
@@ -857,7 +858,7 @@ import SwiftUI
                 sections += effectSections
             }
             if image.effects.isEmpty { section(.effects, "Effects", [.init(.count, "0")]) }
-        case .starfield, .fog: break
+        case .starfield, .fog, .musicNotes: break
         case .storm: break  // Dedicated editable storm inspector.
         case .rain(let layer):
             let r = layer.rain

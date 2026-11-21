@@ -17,6 +17,7 @@ extension WSSEditorDocument {
     }
     func transformHelp(for target: WSSEditorSelection) -> String? {
         guard case .layer(let id) = target, canTransform(id) else { return nil }
+        if musicNotesLayer(id) != nil { return WSSMusicNotesText.text("regionHelp") }
         if starfieldLayer(id) != nil { return WSSStarfieldText.text("help") }
         return stormLayer(id) == nil ? EditorText.transformHint.text : WSSStormText.transformHelp
     }
@@ -63,7 +64,7 @@ extension WSSEditorDocument {
         guard finishEditing(), !closed, !interactionLocked,
             let index = identity.layers.firstIndex(where: { $0.id == layer }),
             state.workingModel.layers[index].canvasTransform != nil,
-            !(starfieldLayer(layer) != nil && kind == .rotate)
+            kind != .rotate || workingScene.layers[index].allowsCanvasRotation
         else { return false }
         canvasTransform = WSSCanvasTransformTransaction(
             layer: layer, kind: kind, model: state.workingModel, identity: identity,
@@ -80,6 +81,13 @@ extension WSSEditorDocument {
         case .image(var image):
             image.transform = transform
             model.layers[index].content = .image(image)
+        case .musicNotes(var layer):
+            let width = transform.size[0] * transform.scale[0]
+            let height = transform.size[1] * transform.scale[1]
+            layer.region = .init(
+                x: transform.center[0] - width / 2, y: transform.center[1] - height / 2,
+                width: width, height: height)
+            model.layers[index].content = .musicNotes(layer)
         case .starfield(var layer):
             guard
                 let originalIndex = transaction.identity.layers.firstIndex(where: {

@@ -413,6 +413,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             case storm(WSSStormLayer)
             case starfield(WSSStarfieldLayer)
             case fog(WSSFogLayer)
+            case musicNotes(WSSMusicNotesLayer)
             case trail(WSSTrailConfiguration, visible: Bool)
         }
         var content: Content
@@ -434,17 +435,27 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm, starfield, fog
+                trail, mask, storm, starfield, fog, musicNotes, preset
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
-            if type == "fog" {
-                try decoder.fields(["type", "visible", "fog"])
+            if type == "musicNotes" {
+                try decoder.fields(["type", "visible", "region", "musicNotes"])
+                let layer = WSSMusicNotesLayer(
+                    visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
+                    region: try c.decode(Region.self, forKey: .region),
+                    notes: try c.decode(WSSMusicNotesLayer.Configuration.self, forKey: .musicNotes))
+                try layer.validate()
+                content = .musicNotes(layer)
+            } else if type == "fog" {
+                try decoder.fields(["type", "visible", "fog", "preset"])
+                let fog = try c.decode(WSSFogConfiguration.self, forKey: .fog)
+                let preset = try c.decodeIfPresent(WSSFogPreset.self, forKey: .preset)
                 content = .fog(
                     WSSFogLayer(
                         visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
-                        fog: try c.decode(WSSFogConfiguration.self, forKey: .fog)))
+                        fog: fog, preset: preset))
             } else if type == "starfield" {
                 try decoder.fields(["type", "name", "visible", "starfield"])
                 let layer = WSSStarfieldLayer(
@@ -536,6 +547,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         mask: layer.mask.map { WSSImageMask(asset: WSSAssetID(value: $0.asset)) }))
             case .starfield(let layer): return .starfield(layer)
             case .fog(let layer): return .fog(layer)
+            case .musicNotes(let layer): return .musicNotes(layer)
             case .storm(let layer): return .storm(layer)
             case .trail(let configuration, let visible):
                 return .trail(WSSTrailLayer(configuration: configuration, visible: visible))

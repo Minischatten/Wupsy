@@ -167,10 +167,18 @@ extension WSSSceneDocumentV1.Layer {
             try c.encode(image.visible, forKey: .visible)
             try c.encode(image.composition, forKey: .composition)
             try c.encode(image.effects, forKey: .effects)
+        case .musicNotes(let layer):
+            try c.encode("musicNotes", forKey: .type)
+            if !layer.visible { try c.encode(false, forKey: .visible) }
+            try c.encode(layer.region, forKey: .region)
+            try c.encode(layer.notes, forKey: .musicNotes)
         case .fog(let layer):
             try c.encode("fog", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)
             try c.encode(layer.fog, forKey: .fog)
+            if layer.preset != WSSFogPreset.inferred(from: layer.fog) {
+                try c.encode(layer.preset, forKey: .preset)
+            }
         case .starfield(let layer):
             try c.encode("starfield", forKey: .type)
             try c.encodeIfPresent(layer.name, forKey: .name)

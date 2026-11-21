@@ -45,6 +45,8 @@ final class WSSFogTests: XCTestCase {
             ("\"height\":0.62", "\"height\":0"), ("\"blue\":0.97", "\"blue\":1.5"),
             ("\"blue\":0.97", "\"blue\":0.97,\"alpha\":0.5"),
             ("\"density\":0.44", "\"density\":null"),
+            ("\"visible\":false", "\"visible\":false,\"preset\":\"unknown\""),
+            ("\"visible\":false", "\"visible\":false,\"preset\":null"),
         ] {
             XCTAssertThrowsError(
                 try WSSSceneDocumentV1.decode(
@@ -394,6 +396,46 @@ final class WSSFogTests: XCTestCase {
         try doc.setFogSpeed(0.125, layer: id)
         XCTAssertEqual(try configuration().driftX, 0)
         XCTAssertEqual(try configuration().driftY, 0.125)
+    }
+
+    @MainActor func testNumericSpeedKeepsDirectionAndRoundTripsDrift() async throws {
+        let helper = WSSEditorWorkspaceTests()
+        try await helper.setUp()
+        addTeardownBlock { @MainActor in try await helper.tearDown() }
+        let doc = helper.document()
+        defer { doc.close() }
+        try doc.addFog(.ground)
+        let id = try XCTUnwrap(doc.selection?.layer)
+        try doc.changeFog(id, name: "Drift") {
+            $0.driftX = -3
+            $0.driftY = 4
+        }
+        let before = doc.state.workingModel
+        doc.undoManager.removeAllActions()
+
+        try doc.setFogNumericSpeed(2.5, layer: id)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftX, -1.5)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftY, 2)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftSpeed, 2.5)
+        XCTAssertThrowsError(try doc.setFogNumericSpeed(161, layer: id))
+        let edited = doc.state.workingModel
+        XCTAssertEqual(try WSSSceneDocumentV1.decode(data: edited.encoded()), edited)
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertFalse(doc.undoManager.canUndo)
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.state.workingModel, edited)
+
+        try doc.setFogNumericSpeed(0, layer: id)
+        try doc.setFogNumericSpeed(5, layer: id)
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertTrue(doc.beginFogSpeedSlider(id))
+        try doc.setFogSpeed(10, layer: id)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftSpeed, 5)
+        doc.endFogSpeedSlider()
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftSpeed, 10)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftX, -6)
+        XCTAssertEqual(doc.fogLayer(id)?.fog.driftY, 8)
     }
 
     @MainActor func testSpeedFromLoadedStillFogDefaultsToRight() async throws {

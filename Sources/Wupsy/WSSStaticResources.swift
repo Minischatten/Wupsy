@@ -20,6 +20,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let milkyWay: WSSMilkyWayRenderer?
     let starfield: WSSStarfieldRenderer?
     let fog: WSSFogRenderer?
+    let musicNotes: WSSMusicNotesRenderer?
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
     let rain: WSSRainResources?
@@ -38,12 +39,13 @@ final class WSSStaticResources: @unchecked Sendable {
     private let replace: MTLRenderPipelineState
     private let sourceOver: MTLRenderPipelineState
     private var directionPreviewBytes = 0
-    var bufferBytes: Int { rain?.bufferBytes ?? 0 }
+    var bufferBytes: Int { (rain?.bufferBytes ?? 0) + (musicNotes?.bufferBytes ?? 0) }
     var textureBytes: Int {
         images.values.reduce(
             (clouds?.textureBytes ?? 0) + (ripple?.textureBytes ?? 0)
                 + (vectorFields?.textureBytes ?? 0) + (flow?.regionTextureBytes ?? 0)
-                + (rain?.textureBytes ?? 0) + (fog?.textureBytes ?? 0) + directionPreviewBytes
+                + (rain?.textureBytes ?? 0) + (fog?.textureBytes ?? 0)
+                + (musicNotes?.textureBytes ?? 0) + directionPreviewBytes
         ) {
             $0 + $1.texture.allocatedSize
         }
@@ -142,6 +144,11 @@ final class WSSStaticResources: @unchecked Sendable {
                 if case .starfield = $0 { return true }
                 return false
             } ? WSSStarfieldRenderer(scene: scene, device: device) : nil
+        musicNotes =
+            try scene.layers.contains {
+                if case .musicNotes = $0 { return true }
+                return false
+            } ? WSSMusicNotesRenderer(scene: scene, device: device) : nil
         fog =
             try scene.layers.contains {
                 if case .fog = $0 { return true }
@@ -181,7 +188,7 @@ final class WSSStaticResources: @unchecked Sendable {
         var loaded: [WSSAssetID: Image] = [:]
         var budget =
             (vectorFields?.textureBytes ?? 0) + (flow?.regionTextureBytes ?? 0)
-            + (rain?.textureBytes ?? 0)
+            + (rain?.textureBytes ?? 0) + (musicNotes?.textureBytes ?? 0)
         for layer in scene.imageLayers where loaded[layer.asset] == nil {
             try Task.checkCancellation()
             let asset = try assets.image(for: layer.asset)
@@ -258,6 +265,7 @@ final class WSSStaticResources: @unchecked Sendable {
         milkyWay = milkyWayOverride ?? original.milkyWay
         starfield = original.starfield
         fog = original.fog
+        musicNotes = original.musicNotes
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
@@ -344,6 +352,14 @@ final class WSSStaticResources: @unchecked Sendable {
         var normalized = candidate
         var updated = scene
         for index in previous.layers.indices {
+            if case .musicNotes(let old) = previous.layers[index].content,
+                case .musicNotes(let new) = normalized.layers[index].content
+            {
+                guard old.notes.seed == new.notes.seed else { return nil }
+                updated.layers[index] = .musicNotes(new)
+                normalized.layers[index].content = previous.layers[index].content
+                continue
+            }
             if case .fog = previous.layers[index].content,
                 case .fog(let new) = normalized.layers[index].content
             {
@@ -640,6 +656,12 @@ final class WSSStaticResources: @unchecked Sendable {
         encoder.setCullMode(.none)
         let storms = stormContext ?? WSSStormRenderContext()
         for (index, node) in scene.layers.enumerated() where node.visible {
+            if case .musicNotes(let layer) = node {
+                musicNotes?.encode(
+                    layer, canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
+                    time: time, encoder: encoder)
+                continue
+            }
             if case .fog(let layer) = node {
                 do {
                     guard let fog else { throw WSSSceneError.invalid("missing fog renderer") }

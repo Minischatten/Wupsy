@@ -54,13 +54,24 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Native music notes, stage 1
+
+WSS v1 supports sortable Music Notes layers with seeded activity in an editable
+rectangle, three selectable note symbols, color, opacity, speed and direction.
+Optional hover oscillates perpendicular to travel and uses a vertical axis at
+rest. The inspector also offers rotation and Reset to Defaults. See the
+[Music Notes contract](docs/effects/MUSIC-NOTES.md).
+
+The next stage is planned separately: freely authored open paths that restart
+after reaching the end, and closed paths with continuous circulation.
+
 ## Native fog
 
 WSS v1 supports a sortable fog layer with Ground Fog and Atmospheric Fog presets.
 The inspector exposes density, softness, structure scale, height, native SDR
-color selection, directional arrows, numeric X/Y drift and a speed slider.
-Slider input stays local during dragging and commits the final drift as one Undo
-step. See the [Fog contract](docs/effects/FOG.md) and
+color selection, directional arrows, numeric X/Y drift, a numeric speed field
+and a speed slider. Slider input stays local during dragging and commits the
+final drift as one Undo step. Reset to Defaults restores the insertion preset. See the [Fog contract](docs/effects/FOG.md) and
 [preview architecture](docs/ARCHITECTURE.md#workspace-gestures-and-close).
 
 ## Known limitations

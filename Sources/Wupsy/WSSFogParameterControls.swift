@@ -1,6 +1,10 @@
 import AppKit
 import SwiftUI
 
+enum WSSEffectReset {
+    static var title: String { Localization.string(key: "editor.effect.resetDefaults") }
+}
+
 enum WSSFogText {
     static func text(_ key: String) -> String {
         Localization.string(key: "editor.fog." + key)
@@ -74,6 +78,20 @@ extension WSSEditorDocument {
         commitFogSpeed(layer, at: index, id: id, previous: previous)
     }
 
+    func setFogNumericSpeed(_ speed: Double, layer id: WSSLayerID) throws {
+        guard permitsStructureEditing, finishParameterInteractions(), let layer = fogLayer(id)
+        else { return }
+        let limit = WSSFogConfiguration.driftSpeedLimit(in: fogSpeedDirection(id))
+        guard (0...limit).contains(speed) else { throw WSSSceneError.invalid("fog speed") }
+        guard speed != layer.fog.driftSpeed else { return }
+        try setFogSpeed(speed, layer: id)
+    }
+
+    func resetFog(_ id: WSSLayerID) throws {
+        guard permitsStructureEditing, finishEditing(), let layer = fogLayer(id) else { return }
+        try changeFog(id, name: WSSEffectReset.title) { $0 = layer.preset.configuration }
+    }
+
     func endFogSpeedSlider() {
         guard let drag = fogSpeedDrag else { return }
         fogSpeedDrag = nil
@@ -115,7 +133,8 @@ extension WSSEditorDocument {
         try maintenance.withMutation {
             var model = state.workingModel
             guard model.layers.count < 128 else { throw WSSImageImportError.layerLimit }
-            model.layers.append(.init(content: .fog(.init(fog: preset.configuration))))
+            model.layers.append(
+                .init(content: .fog(.init(fog: preset.configuration, preset: preset))))
             var ids = identity
             let id = WSSLayerID()
             ids.layers.append(.init(id: id, effects: []))
@@ -164,6 +183,7 @@ struct WSSFogParameterControls: View {
                             }
                         }
                         speedSlider(value.driftSpeed)
+                        speedField(value.driftSpeed)
                     }
                     let title = WSSFogText.text(parameter.rawValue)
                     HStack {
@@ -183,14 +203,30 @@ struct WSSFogParameterControls: View {
                     let title = WSSFogText.text("color")
                     Text(title).font(.caption)
                     Spacer()
-                    WSSFogColorWell(color: value.color, title: title) { color in
+                    WSSNativeSDRColorWell(color: value.color, title: title) { color in
                         perform { try document.changeFog(layer, name: title) { $0.color = color } }
                     }.frame(width: 50, height: 24)
                 }
+                Button(WSSEffectReset.title) { perform { try document.resetFog(layer) } }
                 if let error { Text(error).font(.caption).foregroundStyle(.red) }
             }
         }
         .disabled(!document.permitsStructureEditing)
+    }
+
+    private func speedField(_ speed: Double) -> some View {
+        let title = WSSFogText.text("speed")
+        let limit = WSSFogConfiguration.driftSpeedLimit(in: document.fogSpeedDirection(layer))
+        return HStack {
+            Text(title).font(.caption)
+            Spacer()
+            WSSParameterTextField(
+                value: Float(speed), range: 0...Float(limit), title: title,
+                maximumFractionDigits: 3, exactValue: speed, exactRange: 0...limit,
+                commitExact: { try document.setFogNumericSpeed($0, layer: layer) },
+                commit: { try document.setFogNumericSpeed(Double($0), layer: layer) }
+            ).frame(width: 100)
+        }
     }
 
     private func speedSlider(_ speed: Double) -> some View {
@@ -254,7 +290,7 @@ private struct WSSFogSpeedSlider: View {
 }
 
 // Use AppKit target/action for continuous delivery from the shared native color panel.
-private struct WSSFogColorWell: NSViewRepresentable {
+struct WSSNativeSDRColorWell: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     let color: WSSFogConfiguration.Color
     let title: String

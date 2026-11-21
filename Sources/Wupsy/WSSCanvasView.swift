@@ -619,7 +619,7 @@ struct WSSCanvasView: NSViewRepresentable {
             }() : nil
         outline.allowsRotation =
             !scene.layers.indices.contains(document.selectedLayer)
-            || !scene.layers[document.selectedLayer].isStarfield
+            || scene.layers[document.selectedLayer].allowsCanvasRotation
         outline.needsDisplay = true
         let candidate = document.canvasModel
         guard model != candidate, !stopped else { return }

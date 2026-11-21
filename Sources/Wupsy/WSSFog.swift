@@ -1,8 +1,15 @@
 import Foundation
 
 struct WSSFogLayer: Equatable {
-    var visible = true
+    var visible: Bool
     var fog: WSSFogConfiguration
+    var preset: WSSFogPreset
+
+    init(visible: Bool = true, fog: WSSFogConfiguration, preset: WSSFogPreset? = nil) {
+        self.visible = visible
+        self.fog = fog
+        self.preset = preset ?? WSSFogPreset.inferred(from: fog)
+    }
 }
 
 struct WSSFogConfiguration: Codable, Equatable {
@@ -92,8 +99,12 @@ struct WSSFogConfiguration: Codable, Equatable {
     }
 }
 
-enum WSSFogPreset: String, CaseIterable {
+enum WSSFogPreset: String, Codable, CaseIterable {
     case ground, atmosphere
+
+    static func inferred(from configuration: WSSFogConfiguration) -> Self {
+        configuration == Self.atmosphere.configuration ? .atmosphere : .ground
+    }
 
     var configuration: WSSFogConfiguration {
         switch self {

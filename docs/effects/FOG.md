@@ -20,12 +20,14 @@ Drift uses logical canvas units per second, positive right and down. The
 inspector's eight arrows preserve speed within the stored per-axis limits.
 Choosing an arrow from rest starts at the ground preset's speed. The speed slider
 scales the drift vector and gives fine control at low speeds. Its limit depends
-on the direction and the existing per-axis bounds. The numeric X and Y fields
-update the indicated speed, which is the magnitude of the drift vector. At zero,
+on the direction and the existing per-axis bounds. The numeric speed field
+scales the same vector within that limit. Editing X or Y updates the speed,
+which is the magnitude of the drift vector. At zero,
 the editor remembers the last direction for that layer during the current session.
 If none is known, increasing the speed starts motion to the right.
 
-The thumb and numeric speed display update locally during dragging. Live Preview
+The thumb and its numeric readout update locally during dragging. The editable
+speed and X/Y fields reflect the final values on release. Live Preview
 can skip intermediate values and draws the latest available drift using prepared
 resources. Releasing the slider adopts the final X/Y values as a single Undo step.
 WSS stores the drift components. The derived speed and remembered direction
@@ -43,8 +45,8 @@ different rates, with the time phases reduced independently. One draw per visibl
 nonzero-density layer covers at most its visible region. A hidden layer, zero
 density or two zero drift components does not request animation.
 
-The version 1 layer object accepts `type`, `visible` (defaults to true) and the
-required `fog` object. All keys in the following `fog` object are required:
+The version 1 layer object accepts `type`, `visible` (defaults to true), optional
+`preset` (`ground` or `atmosphere`) and the required `fog` object. All keys in the following `fog` object are required:
 
 ```json
 {
@@ -62,5 +64,8 @@ required `fog` object. All keys in the following `fog` object are required:
 }
 ```
 
-All numeric parameters are finite. Unknown keys fail validation. Preset names
-are editor actions. The saved layer contains the resulting parameter values.
+All numeric parameters are finite. Unknown keys fail validation. The inspector
+resets parameters to the insertion preset and keeps layer visibility and order.
+Without preset metadata, exact Atmospheric Fog settings identify that preset.
+Other older settings use Ground Fog as the reset source. The encoder writes
+`preset` when needed to preserve the reset choice across reloads.

@@ -81,6 +81,12 @@ struct WSSEditorView: View {
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
+                    Button(WSSMusicNotesText.title) {
+                        do {
+                            try document.addMusicNotes()
+                            effectCreationError = nil
+                        } catch { effectCreationError = EditorErrorPresentation.message(error) }
+                    }.disabled(!document.permitsStructureEditing)
                     Menu(WSSFogText.text("title")) {
                         ForEach(WSSFogPreset.allCases, id: \.self) { preset in
                             Button(WSSFogText.text(preset.rawValue)) {
@@ -332,6 +338,11 @@ struct WSSEditorView: View {
                             }
                         }
                     }
+                }
+                if document.effectAddress == nil, let id = document.selection?.layer,
+                    document.musicNotesLayer(id) != nil
+                {
+                    WSSMusicNotesParameterControls(document: document, layer: id).id(id)
                 }
                 if document.effectAddress == nil, let id = document.selection?.layer,
                     document.fogLayer(id) != nil

@@ -46,7 +46,8 @@ enum WSSCanvasInteractionGeometry {
         {
             let points = handles(
                 transform: transform, origin: origin, zoom: zoom,
-                height: CGFloat(scene.height), allowsRotation: !scene.layers[index].isStarfield)
+                height: CGFloat(scene.height),
+                allowsRotation: scene.layers[index].allowsCanvasRotation)
             // Nearest handle wins even when a very small quad makes hit zones overlap.
             if let index = points.indices.min(by: {
                 hypot(points[$0].x - point.x, points[$0].y - point.y)

@@ -29,6 +29,7 @@ extension WSSEditorDocument {
         selection = target
         if case .layer(let id) = target,
             stormLayer(id)?.visible == true || starfieldLayer(id)?.visible == true
+                || musicNotesLayer(id)?.visible == true
         {
             _ = activateTransformMode(id)
         }
@@ -50,6 +51,9 @@ extension WSSEditorDocument {
         case .image(var image):
             image.visible = visible
             model.layers[index].content = .image(image)
+        case .musicNotes(var layer):
+            layer.visible = visible
+            model.layers[index].content = .musicNotes(layer)
         case .fog(var layer):
             layer.visible = visible
             model.layers[index].content = .fog(layer)

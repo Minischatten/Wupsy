@@ -53,7 +53,7 @@ Canvas dimensions are positive integers, at most 8192 per axis and 32 Mi pixels
 in total. `title` is required, nonblank and at most 1024 UTF-8 bytes. Optional
 `background` is an RGB array in 0…1, default `[0,0,0]`.
 
-There are 1…128 ordered image, Rain, CursorTrail, Storm or Starfield layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
+There are 1…128 ordered image, Rain, CursorTrail, Storm, Starfield, Fog or Music Notes layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
 
 - `name`: optional user-facing image-layer name (same single-line, non-empty,
   at-most-256-character rules as wallpaper titles). Display metadata only; it is
@@ -230,3 +230,6 @@ validation, animation, resource limits and compatibility. Optional
 assets or format-version change. Optional `starfield.milkyWay` adds a bounded
 procedural galactic band, disabled when absent; its parameter and resource contract
 is also defined in the Starfield contract.
+
+The sortable `musicNotes` layer uses built-in symbol artwork and has no scene asset dependency.
+See the [Music Notes contract](docs/effects/MUSIC-NOTES.md) for its fields and limits.

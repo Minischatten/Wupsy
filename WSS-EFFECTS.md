@@ -22,6 +22,10 @@ Procedural rain streaks in a scene region: [Rain contract](docs/effects/RAIN.md)
 
 Seeded stars, optional twinkling and drift: [Starfield contract](docs/effects/STARFIELD.md).
 
+## Music Notes
+
+Sortable animated note sprites: [Music Notes contract](docs/effects/MUSIC-NOTES.md).
+
 ## Storm
 
 Seeded procedural lightning layer: [Storm contract](docs/effects/STORM.md).
