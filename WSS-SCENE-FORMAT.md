@@ -231,5 +231,10 @@ assets or format-version change. Optional `starfield.milkyWay` adds a bounded
 procedural galactic band, disabled when absent; its parameter and resource contract
 is also defined in the Starfield contract.
 
-The sortable `musicNotes` layer uses built-in symbol artwork and has no scene asset dependency.
-See the [Music Notes contract](docs/effects/MUSIC-NOTES.md) for its fields and limits.
+## Music Notes
+
+The sortable `musicNotes` layer uses built-in symbol artwork and has no scene
+asset dependency. Stage 2.1 adds an optional layer-level `path` field. Omission
+preserves the original WSS-v1 spelling, and explicit null is invalid.
+See the [Music Notes contract](docs/effects/MUSIC-NOTES.md) for fields, bounds,
+playback status and older-reader compatibility.

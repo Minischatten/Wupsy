@@ -33,8 +33,15 @@ extension WSSEditorDocument {
     }
 
     func resetMusicNotes(_ id: WSSLayerID) throws {
-        guard permitsStructureEditing, finishEditing() else { return }
-        try changeMusicNotes(id, name: WSSEffectReset.title) { $0 = .init() }
+        guard permitsStructureEditing, finishEditing(),
+            let index = identity.layers.firstIndex(where: { $0.id == id }),
+            var layer = musicNotesLayer(id)
+        else { return }
+        layer.notes = .init()
+        layer.path?.enabled = false
+        var model = state.workingModel
+        model.layers[index].content = .musicNotes(layer)
+        try mutate(model, name: WSSEffectReset.title)
     }
 
     func changeMusicNotes(
@@ -59,8 +66,10 @@ struct WSSMusicNotesParameterControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(WSSMusicNotesText.title).font(.headline)
-            if let notes = document.musicNotesLayer(layer)?.notes {
+            Text(WSSMusicNotesText.title).wupsyFont(.headline)
+            if let value = document.musicNotesLayer(layer) {
+                let notes = value.notes
+                pathControls(value)
                 field(
                     "count", value: Float(notes.count),
                     range: 0...Float(WSSMusicNotesLayer.maximumCount), digits: 0
@@ -76,13 +85,13 @@ struct WSSMusicNotesParameterControls: View {
                 field("opacity", value: notes.opacity, range: 0...1) { $0.opacity = $1 }
                 HStack {
                     let title = WSSMusicNotesText.text("color")
-                    Text(title).font(.caption)
+                    Text(title).wupsyFont(.caption)
                     Spacer()
                     WSSNativeSDRColorWell(color: notes.color, title: title) { color in
                         perform {
                             try document.changeMusicNotes(layer, name: title) { $0.color = color }
                         }
-                    }.frame(width: 50, height: 24)
+                    }.wupsyControlFrame(width: 50, height: 24)
                 }
                 ForEach(WSSMusicNoteSymbol.allCases, id: \.self) { symbol in
                     let selected = notes.symbols.contains(symbol)
@@ -107,20 +116,22 @@ struct WSSMusicNotesParameterControls: View {
                             })
                     ).disabled(selected && notes.symbols.count == 1)
                 }
-                let direction = WSSMusicNotesText.text("direction")
-                Text(direction).font(.caption)
-                WSSDirectionGrid(
-                    angle: Double(notes.direction), currentTitle: direction,
-                    identifierPrefix: "wss.musicNotes.direction."
-                ) { arrow in
-                    perform {
-                        guard document.finishEditing() else { return }
-                        try document.changeMusicNotes(layer, name: direction) {
-                            $0.direction = Float(arrow.rawValue)
+                if value.path?.enabled != true {
+                    let direction = WSSMusicNotesText.text("direction")
+                    Text(direction).wupsyFont(.caption)
+                    WSSDirectionGrid(
+                        angle: Double(notes.direction), currentTitle: direction,
+                        identifierPrefix: "wss.musicNotes.direction."
+                    ) { arrow in
+                        perform {
+                            guard document.finishEditing() else { return }
+                            try document.changeMusicNotes(layer, name: direction) {
+                                $0.direction = Float(arrow.rawValue)
+                            }
                         }
                     }
+                    field("direction", value: notes.direction, range: 0...360) { $0.direction = $1 }
                 }
-                field("direction", value: notes.direction, range: 0...360) { $0.direction = $1 }
                 WSSMusicNotesSpeedSlider(speed: notes.speed, begin: document.finishEditing) {
                     speed in
                     perform {
@@ -136,10 +147,95 @@ struct WSSMusicNotesParameterControls: View {
                 toggle("hover", notes: notes, property: \.hover)
                 toggle("rotation", notes: notes, property: \.rotation)
                 Button(WSSEffectReset.title) { perform { try document.resetMusicNotes(layer) } }
-                if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
             }
         }
         .disabled(!document.permitsStructureEditing)
+    }
+
+    private func pathControls(_ value: WSSMusicNotesLayer) -> some View {
+        let path = value.path
+        let enabled = path?.enabled == true
+        let editing = document.musicNotesPathEditLayer == layer
+        return VStack(alignment: .leading, spacing: 6) {
+            Picker(
+                WSSMusicNotesText.text("motionMode"),
+                selection: Binding(
+                    get: { enabled },
+                    set: { enabled in
+                        perform { try document.setMusicNotesPathEnabled(enabled, layer: layer) }
+                    }
+                )
+            ) {
+                Text(WSSMusicNotesText.text("linear")).tag(false)
+                Text(WSSMusicNotesText.text("path")).tag(true)
+            }.pickerStyle(.segmented)
+            if let path, enabled {
+                Picker(
+                    WSSMusicNotesText.text("pathType"),
+                    selection: Binding(
+                        get: { path.closed },
+                        set: { closed in
+                            perform {
+                                try document.changeMusicNotesPath(
+                                    layer, name: WSSMusicNotesText.text("pathType")
+                                ) {
+                                    try $0?.setClosed(closed, in: value.region)
+                                }
+                            }
+                        }
+                    )
+                ) {
+                    Text(WSSMusicNotesText.text("open")).tag(false)
+                    Text(WSSMusicNotesText.text("closed")).tag(true)
+                }.pickerStyle(.segmented)
+                Picker(
+                    WSSMusicNotesText.text("pathDirection"),
+                    selection: Binding(
+                        get: { path.direction },
+                        set: { direction in
+                            perform {
+                                try document.changeMusicNotesPath(
+                                    layer, name: WSSMusicNotesText.text("pathDirection")
+                                ) {
+                                    $0?.direction = direction
+                                }
+                            }
+                        }
+                    )
+                ) {
+                    Text(WSSMusicNotesText.text("forward")).tag(WSSMusicNotesPath.Direction.forward)
+                    Text(WSSMusicNotesText.text("reverse")).tag(WSSMusicNotesPath.Direction.reverse)
+                }.pickerStyle(.segmented)
+                Button(WSSMusicNotesText.text(editing ? "finishPath" : "editPath")) {
+                    if editing {
+                        document.leaveMusicNotesPathEditing(restoreTransform: true)
+                    } else {
+                        document.beginMusicNotesPathEditing(layer)
+                    }
+                }.disabled(!value.visible)
+                if editing {
+                    Text(WSSMusicNotesText.text("pathHelp"))
+                        .wupsyFont(size: 14)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if value.hasShortOpenPathFade {
+                    Text(WSSMusicNotesText.text("shortPath")).wupsyFont(.caption).foregroundStyle(
+                        .secondary)
+                }
+            }
+            if path != nil {
+                Button(WSSMusicNotesText.text("deletePath")) {
+                    perform {
+                        try document.changeMusicNotesPath(
+                            layer, name: WSSMusicNotesText.text("deletePath")
+                        ) {
+                            $0 = nil
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func field(
@@ -148,13 +244,13 @@ struct WSSMusicNotesParameterControls: View {
     ) -> some View {
         let title = WSSMusicNotesText.text(key)
         return HStack {
-            Text(title).font(.caption)
+            Text(title).wupsyFont(.caption)
             Spacer()
             WSSParameterTextField(
                 value: value, range: range, title: title, maximumFractionDigits: digits
             ) { value in
                 try document.changeMusicNotes(layer, name: title) { try apply(&$0, value) }
-            }.frame(width: 100)
+            }.wupsyControlFrame(width: 100)
         }
     }
 
@@ -210,7 +306,7 @@ private struct WSSMusicNotesSpeedSlider: View {
                     }),
                 in: 0...1, step: 0.001
             ) {
-                Text(WSSMusicNotesText.text("speed")).font(.caption)
+                Text(WSSMusicNotesText.text("speed")).wupsyFont(.caption)
             } onEditingChanged: { active in
                 dragging = active
                 if active {
@@ -221,7 +317,7 @@ private struct WSSMusicNotesSpeedSlider: View {
                 }
             }
             .accessibilityValue(formatted)
-            Text(formatted).font(.caption).monospacedDigit().frame(
+            Text(formatted).wupsyFont(.caption).monospacedDigit().frame(
                 minWidth: 48, alignment: .trailing
             )
             .accessibilityHidden(true)

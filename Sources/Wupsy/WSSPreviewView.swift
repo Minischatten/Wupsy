@@ -314,8 +314,12 @@ struct WSSPreviewRenderPolicy: Equatable {
 }
 
 struct WSSPreviewView: NSViewRepresentable {
+    @Environment(\.wupsyMetrics) private var metrics
     @ObservedObject var document: WSSEditorDocument
     func makeNSView(context: Context) -> WSSPreviewHost { WSSPreviewHost(document: document) }
-    func updateNSView(_ view: WSSPreviewHost, context: Context) { view.update(document) }
+    func updateNSView(_ view: WSSPreviewHost, context: Context) {
+        view.interfaceMetrics = metrics
+        view.update(document)
+    }
     static func dismantleNSView(_ view: WSSPreviewHost, coordinator: ()) { view.shutdown() }
 }

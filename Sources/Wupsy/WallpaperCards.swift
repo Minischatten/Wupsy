@@ -66,7 +66,7 @@ struct WallpaperHero: View {
                             systemName: fitPreview
                                 ? "arrow.up.left.and.arrow.down.right"
                                 : "arrow.down.right.and.arrow.up.left"
-                        ).font(.system(size: 12)).foregroundStyle(.white).frame(
+                        ).wupsyFont(size: 12).foregroundStyle(.white).wupsyControlFrame(
                             width: 34, height: 34
                         ).background(.black.opacity(0.32), in: Circle()).overlay(
                             Circle().stroke(.white.opacity(0.15)))
@@ -74,12 +74,12 @@ struct WallpaperHero: View {
                         fitPreview ? ProductText.fillPreview.text : ProductText.showEntire.text
                     ).accessibilityLabel(ProductText.previewFitLabel.text)
                     Button(action: favorite) {
-                        Image(systemName: isFavorite ? "heart.fill" : "heart").font(
-                            .system(size: 14)
-                        ).foregroundStyle(isFavorite ? WupsyTheme.lavender : .white).frame(
-                            width: 34, height: 34
-                        ).background(.black.opacity(0.32), in: Circle()).overlay(
-                            Circle().stroke(.white.opacity(0.15)))
+                        Image(systemName: isFavorite ? "heart.fill" : "heart").wupsyFont(size: 14)
+                            .foregroundStyle(isFavorite ? WupsyTheme.lavender : .white)
+                            .wupsyControlFrame(
+                                width: 34, height: 34
+                            ).background(.black.opacity(0.32), in: Circle()).overlay(
+                                Circle().stroke(.white.opacity(0.15)))
                     }.buttonStyle(.plain).help(
                         isFavorite ? ProductText.removeFavorite.text : ProductText.addFavorite.text
                     ).accessibilityLabel(ProductText.favoriteSelected.text)
@@ -87,9 +87,8 @@ struct WallpaperHero: View {
                 Spacer()
                 HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(item.title).font(
-                            .system(size: 27, weight: .semibold, design: .rounded)
-                        ).lineLimit(1).foregroundStyle(.white)
+                        Text(item.title).wupsyFont(size: 27, weight: .semibold, design: .rounded)
+                            .lineLimit(1).foregroundStyle(.white)
                         HStack(spacing: 6) {
                             DetailBadge(text: item.displayKind, icon: item.symbol)
                             if !details.dimensions.isEmpty {
@@ -109,7 +108,7 @@ struct WallpaperHero: View {
                             systemImage: "play.fill")
                     }.buttonStyle(VioletButtonStyle()).disabled(preparing)
                 }
-            }.padding(20)
+            }.wupsyPadding(.all, 20)
         }
         .frame(height: 245).clipShape(RoundedRectangle(cornerRadius: 16)).overlay(
             RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.12))
@@ -127,6 +126,7 @@ struct WallpaperHero: View {
     }
 }
 struct WallpaperCard: View {
+    @Environment(\.wupsyMetrics) private var metrics
     let item: Wallpaper
     let isSelected: Bool
     let isActive: Bool
@@ -145,30 +145,31 @@ struct WallpaperCard: View {
         Button(action: select) {
             VStack(alignment: .leading, spacing: 0) {
                 WallpaperPreview(item: item).frame(height: 107).overlay(alignment: .bottomLeading) {
-                    Label(item.displayKind, systemImage: item.symbol).font(
-                        .system(size: 8, weight: .semibold)
-                    ).padding(.horizontal, 7).padding(.vertical, 4).background(
+                    Label(item.displayKind, systemImage: item.symbol).wupsyFont(
+                        size: 8, weight: .semibold
+                    ).wupsyPadding(.horizontal, 7).wupsyPadding(.vertical, 4).background(
                         .black.opacity(0.6), in: Capsule()
-                    ).padding(8)
+                    ).wupsyPadding(.all, 8)
                 }.clipped().modifier(LibraryThumbnailDrag(item: reorderItem))
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                        Text(item.title).wupsyFont(size: 11, weight: .medium)
+                            .lineLimit(metrics.scale == .standard ? 1 : 2)
                         Text(
                             isActive
                                 ? ProductText.currentWallpaper.text
                                 : item.url.pathExtension.uppercased()
                         )
-                        .font(.system(size: 9)).foregroundStyle(
+                        .wupsyFont(size: 9).foregroundStyle(
                             isActive ? WupsyTheme.lavender : Color.secondary)
                     }
                     Spacer(minLength: 2)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(
                             WupsyTheme.accent
-                        ).font(.system(size: 13))
+                        ).wupsyFont(size: 13)
                     }
-                }.padding(11)
+                }.wupsyPadding(.all, 11)
             }
             .background(WupsyTheme.surface).clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
@@ -179,11 +180,12 @@ struct WallpaperCard: View {
         { hovered = $0 }.help(ProductText.cardClickHelp.text)
             .overlay(alignment: .topTrailing) {
                 Button(action: favorite) {
-                    Image(systemName: isFavorite ? "heart.fill" : "heart").font(.system(size: 11))
+                    Image(systemName: isFavorite ? "heart.fill" : "heart").wupsyFont(size: 11)
                         .foregroundStyle(isFavorite ? WupsyTheme.lavender : .white.opacity(0.85))
-                        .frame(width: 27, height: 27).background(.black.opacity(0.45), in: Circle())
+                        .wupsyControlFrame(width: 27, height: 27).background(
+                            .black.opacity(0.45), in: Circle())
                 }
-                .buttonStyle(.plain).padding(7).help(
+                .buttonStyle(.plain).wupsyPadding(.all, 7).help(
                     isFavorite ? ProductText.removeFavorite.text : ProductText.addFavorite.text
                 ).accessibilityLabel(ProductText.favoriteTitle.format(item.title))
             }

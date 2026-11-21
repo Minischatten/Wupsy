@@ -20,11 +20,11 @@ struct PlaylistNameView: View {
             Text(
                 playlistID == nil
                     ? ProductText.playlistNewTitle.text : ProductText.playlistRenameTitle.text
-            ).font(.headline)
+            ).wupsyFont(.headline)
             TextField(ProductText.playlistName.text, text: $name).focused($focused)
                 .accessibilityLabel(ProductText.playlistName.text).onSubmit { save() }
             if let error {
-                Text(error).font(.callout).foregroundStyle(.red).accessibilityLabel(
+                Text(error).wupsyFont(.callout).foregroundStyle(.red).accessibilityLabel(
                     ProductText.playlistNameError.format(error))
             }
             HStack {
@@ -35,7 +35,7 @@ struct PlaylistNameView: View {
                 }.keyboardShortcut(
                     .defaultAction)
             }
-        }.padding(24).frame(width: 380).onAppear { focused = true }
+        }.wupsyPadding(.all, 24).wupsyControlFrame(width: 380).onAppear { focused = true }
     }
     private func save() {
         guard !saving else { return }

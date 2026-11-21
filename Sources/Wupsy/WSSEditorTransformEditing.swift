@@ -33,6 +33,13 @@ extension WSSEditorDocument {
     @discardableResult
     func cancelTransformInteraction() -> Bool {
         guard !closed, !interactionLocked else { return false }
+        if musicNotesPathEditLayer != nil {
+            if !finishMusicNotesPathGesture(cancel: true) {
+                leaveMusicNotesPathEditing(restoreTransform: true)
+            }
+            finishCanvasInteraction?()
+            return true
+        }
         if canvasTransform != nil {
             endCanvasTransform(cancel: true)
             finishCanvasInteraction?()
@@ -48,12 +55,14 @@ extension WSSEditorDocument {
         guard !closed, !interactionLocked, finishEditing(), selection == .layer(layer),
             canTransform(layer)
         else { return false }
+        leaveMusicNotesPathEditing(restoreTransform: false)
         directionCanvas.setEnabled(false)
         maskCanvas.setBrush(false)
         transformModeLayer = layer
         return true
     }
     func leaveTransformMode() {
+        leaveMusicNotesPathEditing(restoreTransform: false)
         endCanvasTransform()
         transformModeLayer = nil
         finishCanvasInteraction?()
@@ -61,7 +70,7 @@ extension WSSEditorDocument {
 
     @discardableResult
     func beginCanvasTransform(_ layer: WSSLayerID, kind: WSSCanvasGesture.Kind) -> Bool {
-        guard finishEditing(), !closed, !interactionLocked,
+        guard musicNotesPathEditLayer == nil, finishEditing(), !closed, !interactionLocked,
             let index = identity.layers.firstIndex(where: { $0.id == layer }),
             state.workingModel.layers[index].canvasTransform != nil,
             kind != .rotate || workingScene.layers[index].allowsCanvasRotation

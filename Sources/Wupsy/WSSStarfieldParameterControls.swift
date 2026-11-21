@@ -9,7 +9,7 @@ struct WSSStarfieldParameterControls: View {
     @State private var colorEnd: Task<Void, Never>?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(WSSStarfieldText.title).font(.headline)
+            Text(WSSStarfieldText.title).wupsyFont(.headline)
             if let value = document.starfieldLayer(layer) {
                 HStack {
                     TextField(WSSStormText.name, text: $name).onSubmit { rename() }
@@ -58,7 +58,7 @@ struct WSSStarfieldParameterControls: View {
                         }))
                 ForEach(WSSStarfieldParameter.allCases, id: \.self) { parameter in
                     HStack {
-                        Text(parameter.title).font(.caption)
+                        Text(parameter.title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: Float(parameter.value(value.starfield)),
@@ -75,13 +75,13 @@ struct WSSStarfieldParameterControls: View {
                                 try document.setStarfield(
                                     parameter, value: Double($0), layer: layer)
                             }
-                        ).frame(width: 110)
+                        ).wupsyControlFrame(width: 110)
                     }
                 }
-                Text(WSSStarfieldText.text("help")).font(.caption).foregroundStyle(.secondary)
+                Text(WSSStarfieldText.text("help")).wupsyFont(.caption).foregroundStyle(.secondary)
                 WSSMilkyWayParameterControls(document: document, layer: layer)
                 Divider()
-                Text(WSSStarfieldText.text("shootingStars.title")).font(.headline)
+                Text(WSSStarfieldText.text("shootingStars.title")).wupsyFont(.headline)
                 Toggle(
                     WSSStarfieldText.text("shootingStars.enabled"),
                     isOn: Binding(
@@ -89,7 +89,7 @@ struct WSSStarfieldParameterControls: View {
                         set: { enabled in
                             perform { try document.setShootingStarsEnabled(enabled, layer: layer) }
                         }))
-                Text(WSSStarfieldText.text("shootingStars.color.help")).font(.caption)
+                Text(WSSStarfieldText.text("shootingStars.color.help")).wupsyFont(.caption)
                     .foregroundStyle(.secondary)
                 ForEach(WSSShootingStarParameter.allCases, id: \.self) { parameter in
                     if parameter == .direction {
@@ -102,7 +102,7 @@ struct WSSStarfieldParameterControls: View {
                         }
                     }
                     HStack {
-                        Text(parameter.title).font(.caption)
+                        Text(parameter.title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: Float(parameter.displayValue(value.starfield.shootingStars)),
@@ -120,21 +120,25 @@ struct WSSStarfieldParameterControls: View {
                                 try document.setShootingStarsDisplayValue(
                                     parameter, value: Double($0), layer: layer)
                             }
-                        ).frame(width: 110)
+                        ).wupsyControlFrame(width: 110)
                     }
                     if parameter == .frequency {
-                        Text(WSSStarfieldText.text("shootingStars.frequency.help")).font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text(WSSStarfieldText.text("shootingStars.frequency.help")).wupsyFont(
+                            .caption
+                        )
+                        .foregroundStyle(.secondary)
                     }
                     if parameter == .direction {
-                        Text(WSSStarfieldText.text("shootingStars.direction.help")).font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text(WSSStarfieldText.text("shootingStars.direction.help")).wupsyFont(
+                            .caption
+                        )
+                        .foregroundStyle(.secondary)
                     }
                 }
-                Text(WSSStarfieldText.text("shootingStars.drift.help")).font(.caption)
+                Text(WSSStarfieldText.text("shootingStars.drift.help")).wupsyFont(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
         }
         .onAppear { name = document.starfieldLayer(layer)?.name ?? WSSStarfieldText.title }
         .onChange(of: layer) { _, _ in

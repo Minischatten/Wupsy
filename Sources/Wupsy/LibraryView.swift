@@ -3,6 +3,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryView: View {
+    @Environment(\.wupsyMetrics) private var metrics
+    private var sidebarMinimum: CGFloat {
+        min(280, metrics.points(LibrarySidebarLayout.minimumWidth))
+    }
     private enum ImportDropTarget: Equatable {
         case card(UUID)
         case gridEnd
@@ -41,12 +45,12 @@ struct LibraryView: View {
         NavigationSplitView {
             sidebar
                 .frame(
-                    minWidth: LibrarySidebarLayout.minimumWidth,
-                    maxWidth: LibrarySidebarLayout.maximumWidth
+                    minWidth: sidebarMinimum,
+                    maxWidth: metrics.points(LibrarySidebarLayout.maximumWidth)
                 )
                 .navigationSplitViewColumnWidth(
-                    min: LibrarySidebarLayout.minimumWidth, ideal: LibrarySidebarLayout.idealWidth,
-                    max: LibrarySidebarLayout.maximumWidth)
+                    min: sidebarMinimum, ideal: metrics.points(LibrarySidebarLayout.idealWidth),
+                    max: metrics.points(LibrarySidebarLayout.maximumWidth))
         } detail: {
             // Keep changing content's intrinsic width out of split-column sizing.
             GeometryReader { geometry in
@@ -135,7 +139,7 @@ struct LibraryView: View {
                             playlistDialog = PlaylistDialogTarget()
                         }
                         .disabled(!playlist.canEdit)
-                    }.padding(26)
+                    }.wupsyPadding(.all, 26)
                 }
             } else if page == .widgets {
                 WidgetStudio(widgets: widgets)
@@ -162,15 +166,19 @@ struct LibraryView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             LazyVGrid(
-                                columns: [GridItem(.adaptive(minimum: 178, maximum: 270))],
-                                spacing: 16
+                                columns: [
+                                    GridItem(
+                                        .adaptive(
+                                            minimum: 178 + metrics.spacing(32) - 32, maximum: 270))
+                                ],
+                                spacing: metrics.spacing(16)
                             ) {
                                 ForEach(filtered) { item in
                                     wallpaperCard(item)
                                 }
                             }
                             .background(LibraryDragScroll(controller: reorder))
-                            .padding(.bottom, 4)
+                            .wupsyPadding(.bottom, 4)
                             if let last = filtered.last {
                                 Color.clear.frame(height: 28).contentShape(Rectangle())
                                     .overlay(alignment: .top) {
@@ -196,7 +204,7 @@ struct LibraryView: View {
                         )
                         .allowsHitTesting(false))
                     footer
-                }.padding(26).background(WupsyTheme.background)
+                }.wupsyPadding(.all, 26).background(WupsyTheme.background)
                     .onDrop(
                         of: [UTType.fileURL.identifier], isTargeted: $isBackgroundDropTarget,
                         perform: receiveDrop
@@ -337,10 +345,12 @@ struct LibraryView: View {
     private var headerTitle: some View {
         VStack(alignment: .leading, spacing: 5) {
             Eyebrow(text: ProductText.personalSpace.text)
-            Text(ProductText.atmosphere.text).font(
-                .system(size: 29, weight: .semibold, design: .rounded))
-            Text(ProductText.atmosphereHint.text).font(.subheadline).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(ProductText.atmosphere.text).wupsyFont(
+                size: 29, weight: .semibold, design: .rounded)
+            Text(ProductText.atmosphereHint.text).wupsyFont(.subheadline).foregroundStyle(
+                .secondary
+            )
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
     private var headerActions: some View {
@@ -350,47 +360,56 @@ struct LibraryView: View {
     private var collectionToolbar: some View {
         VStack(spacing: 13) {
             HStack(spacing: 7) {
-                Text(favoritesOnly ? ProductText.favorites.text : ProductText.collection.text).font(
-                    .system(size: 14, weight: .semibold))
-                Text(ProductText.wallpaperCount.format(Int64(filtered.count))).font(
-                    .system(size: 10, weight: .medium)
+                Text(favoritesOnly ? ProductText.favorites.text : ProductText.collection.text)
+                    .wupsyFont(size: 14, weight: .semibold)
+                Text(ProductText.wallpaperCount.format(Int64(filtered.count))).wupsyFont(
+                    size: 10, weight: .medium
                 ).foregroundStyle(
                     WupsyTheme.lavender
-                ).padding(.horizontal, 7).padding(.vertical, 3).background(
+                ).wupsyPadding(.horizontal, 7).wupsyPadding(.vertical, 3).background(
                     WupsyTheme.accent.opacity(0.12), in: Capsule())
                 Spacer()
                 HStack(spacing: 7) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField(ProductText.searchWallpapers.text, text: $search).textFieldStyle(
                         .plain)
-                }.font(.system(size: 11)).padding(8).frame(width: 185).background(
-                    WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+                }.wupsyFont(size: 11).wupsyPadding(.all, 8).wupsyControlFrame(width: 185)
+                    .background(
+                        WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 8))
             }
-            HStack(spacing: 6) {
-                ForEach(WallpaperFilter.allCases) { category in
-                    Button {
-                        filter = category
-                    } label: {
-                        Text(category.title).font(.system(size: 10, weight: .medium)).padding(
-                            .horizontal, 13
-                        ).padding(.vertical, 7)
-                            .foregroundStyle(
-                                filter == category ? WupsyTheme.lavender : Color.secondary
-                            )
-                            .background(
+            if metrics.scale == .standard {
+                categoryButtons
+            } else {
+                ScrollView(.horizontal) { categoryButtons }
+            }
+        }
+    }
+
+    private var categoryButtons: some View {
+        HStack(spacing: metrics.spacing(6)) {
+            ForEach(WallpaperFilter.allCases) { category in
+                Button {
+                    filter = category
+                } label: {
+                    Text(category.title).wupsyFont(size: 10, weight: .medium).wupsyPadding(
+                        .horizontal, 13
+                    ).wupsyPadding(.vertical, 7)
+                        .foregroundStyle(
+                            filter == category ? WupsyTheme.lavender : Color.secondary
+                        )
+                        .background(
+                            filter == category
+                                ? WupsyTheme.accent.opacity(0.16) : Color.clear, in: Capsule()
+                        )
+                        .overlay(
+                            Capsule().stroke(
                                 filter == category
-                                    ? WupsyTheme.accent.opacity(0.16) : Color.clear, in: Capsule()
-                            )
-                            .overlay(
-                                Capsule().stroke(
-                                    filter == category
-                                        ? WupsyTheme.accent.opacity(0.3)
-                                        : Color.white.opacity(0.06)))
-                    }.buttonStyle(.plain).accessibilityLabel(
-                        ProductText.filterLabel.format(category.title))
-                }
-                Spacer()
+                                    ? WupsyTheme.accent.opacity(0.3)
+                                    : Color.white.opacity(0.06)))
+                }.buttonStyle(.plain).accessibilityLabel(
+                    ProductText.filterLabel.format(category.title))
             }
+            if metrics.scale == .standard { Spacer() }
         }
     }
     private var sidebar: some View {
@@ -398,22 +417,19 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(spacing: 11) {
-                        Image(systemName: "sparkles.rectangle.stack.fill").font(.system(size: 23))
+                        Image(systemName: "sparkles.rectangle.stack.fill").wupsyFont(size: 23)
                             .foregroundStyle(WupsyTheme.lavender).frame(width: 38, height: 38)
                             .background(
                                 WupsyTheme.accent.opacity(0.13),
                                 in: RoundedRectangle(cornerRadius: 11))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Wupsy").font(
-                                .system(size: 22, weight: .semibold, design: .rounded))
-                            Text(ProductText.studioTagline.text).font(
-                                .system(size: 7, weight: .medium)
-                            )
-                            .tracking(1.2).foregroundStyle(.secondary)
+                            Text("Wupsy").wupsyFont(size: 22, weight: .semibold, design: .rounded)
+                            Text(ProductText.studioTagline.text).wupsyFont(size: 7, weight: .medium)
+                                .tracking(1.2).foregroundStyle(.secondary)
                         }
-                    }.padding(.vertical, 8)
+                    }.wupsyPadding(.vertical, 8)
                     VStack(alignment: .leading, spacing: 7) {
-                        Eyebrow(text: ProductText.studio.text).padding(.bottom, 3)
+                        Eyebrow(text: ProductText.studio.text).wupsyPadding(.bottom, 3)
                         navigationRow(
                             ProductText.navOverview.text, icon: "rectangle.grid.1x2", count: -1,
                             active: page == .overview
@@ -446,14 +462,14 @@ struct LibraryView: View {
                                 playlistNavigationRow(definition)
                             }
                             if playlist.state.definitions.isEmpty {
-                                Text(ProductText.noPlaylistsYet.text).font(.caption)
+                                Text(ProductText.noPlaylistsYet.text).wupsyFont(.caption)
                                     .foregroundStyle(.secondary)
-                                    .padding(.vertical, 8)
+                                    .wupsyPadding(.vertical, 8)
                             }
-                        }.padding(.top, 6)
+                        }.wupsyPadding(.top, 6)
                     } label: {
-                        Label(ProductText.playlists.text, systemImage: "list.number").font(
-                            .system(size: 11, weight: .medium))
+                        Label(ProductText.playlists.text, systemImage: "list.number").wupsyFont(
+                            size: 11, weight: .medium)
                     }
                     .disclosureGroupStyle(
                         PlaylistHeaderDisclosureStyle(count: playlist.state.definitions.count)
@@ -471,34 +487,35 @@ struct LibraryView: View {
                             Button {
                                 showQualityHelp.toggle()
                             } label: {
-                                Image(systemName: "info.circle").font(.caption).foregroundStyle(
-                                    .secondary)
+                                Image(systemName: "info.circle").wupsyFont(.caption)
+                                    .foregroundStyle(
+                                        .secondary)
                             }.buttonStyle(.plain).help(ProductText.qualityHelp.text).popover(
                                 isPresented: $showQualityHelp
                             ) { qualityHelp }
                         }
-                        Text(ProductText.qualityProfile.text).font(.caption).foregroundStyle(
+                        Text(ProductText.qualityProfile.text).wupsyFont(.caption).foregroundStyle(
                             .secondary)
                         qualityPicker.pickerStyle(.menu)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .labelsHidden().controlSize(.small)
+                            .labelsHidden().wupsyControlSize(.small)
                         Label(
                             library.profile.detail,
                             systemImage: library.profile == .original ? "checkmark.shield" : "leaf"
                         )
-                        .font(.system(size: 10)).foregroundStyle(WupsyTheme.lavender)
+                        .wupsyFont(size: 10).foregroundStyle(WupsyTheme.lavender)
                         .fixedSize(horizontal: false, vertical: true)
                         if library.profile != .original {
                             Text(ProductText.reducedQualityHint.text)
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .wupsyFont(.caption2).foregroundStyle(.secondary)
                         }
                         if library.active?.kind == .scene || selected?.kind == .scene {
                             Divider()
                             Text(ProductText.sceneRenderScope.text)
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .wupsyFont(.caption2).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                             HStack {
-                                Text(ProductText.sceneResolution.text).font(.caption)
+                                Text(ProductText.sceneResolution.text).wupsyFont(.caption)
                                 Spacer()
                                 Picker(
                                     ProductText.sceneResolution.text,
@@ -507,26 +524,26 @@ struct LibraryView: View {
                                     ForEach(SceneRenderResolution.allCases) { resolution in
                                         Text(resolution.title).tag(resolution)
                                     }
-                                }.pickerStyle(.menu).labelsHidden().controlSize(.small)
+                                }.pickerStyle(.menu).labelsHidden().wupsyControlSize(.small)
                                     .frame(width: 100)
                                     .help(ProductText.resolutionHelp.text)
                             }
                             HStack {
-                                Text(ProductText.sceneMotion.text).font(.caption)
+                                Text(ProductText.sceneMotion.text).wupsyFont(.caption)
                                 Spacer()
                                 Picker(ProductText.sceneMotion.text, selection: $library.sceneFPS) {
                                     Text(ProductText.fps24.text).tag(24)
                                     Text(ProductText.fps30.text).tag(30)
                                     Text(ProductText.fps60.text).tag(60)
-                                }.pickerStyle(.menu).labelsHidden().controlSize(.small)
+                                }.pickerStyle(.menu).labelsHidden().wupsyControlSize(.small)
                                     .frame(width: 100)
                                     .help(ProductText.motionHelp.text)
                             }
                             Text(ProductText.sceneProfileLimit.text)
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .wupsyFont(.caption2).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                    }.padding(13).background(
+                    }.wupsyPadding(.all, 13).background(
                         WupsyTheme.accent.opacity(0.065), in: RoundedRectangle(cornerRadius: 12)
                     ).overlay(
                         RoundedRectangle(cornerRadius: 12).stroke(WupsyTheme.accent.opacity(0.14))
@@ -540,7 +557,7 @@ struct LibraryView: View {
                         Toggle(ProductText.powerSaving.text, isOn: $library.conserve).help(
                             ProductText.powerSavingHelp.text
                         )
-                    }.font(.system(size: 11)).toggleStyle(.switch).controlSize(.mini)
+                    }.wupsyFont(size: 11).toggleStyle(.switch).wupsyControlSize(.mini)
                     Spacer(minLength: 12)
                     nowPlaying
                     HStack {
@@ -555,13 +572,15 @@ struct LibraryView: View {
                                 .help(ProductText.clearCacheHelp.text)
                                 .accessibilityHint(ProductText.clearCacheHelp.text)
                             Text(ProductText.originalsPreserved.text)
+                            Divider()
+                            SettingsLink { Text(ProductText.openSettings.text) }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }.menuStyle(.borderlessButton).fixedSize().help(
                             ProductText.clearCacheHelp.text
                         )
                         .accessibilityLabel(ProductText.maintenanceHelp.text)
-                    }.font(.system(size: 10)).foregroundStyle(.secondary)
+                    }.wupsyFont(size: 10).foregroundStyle(.secondary)
                 }
                 // Constrain the whole scroll content, not just one disclosure row.
                 // A control's intrinsic width must not widen or crop every sibling.
@@ -588,15 +607,15 @@ struct LibraryView: View {
                 Text(definition.name).lineLimit(1)
                 Spacer(minLength: 2)
                 if playlist.pendingActivationID == definition.id {
-                    ProgressView().controlSize(.mini).accessibilityLabel(
+                    ProgressView().wupsyControlSize(.mini).accessibilityLabel(
                         ProductText.playlistActivating.format(definition.name))
                 } else if playlist.activePlaylistID == definition.id {
                     Image(systemName: "play.fill").accessibilityLabel(
                         ProductText.activePlaylist.text)
                 }
             }
-            .font(.system(size: 11, weight: .medium))
-            .padding(.horizontal, 11).padding(.vertical, 10)
+            .wupsyFont(size: 11, weight: .medium)
+            .wupsyPadding(.horizontal, 11).wupsyPadding(.vertical, 10)
             .background(
                 page == .playlist && playlist.selectedPlaylistID == definition.id
                     ? WupsyTheme.accent.opacity(0.13) : .clear,
@@ -641,15 +660,15 @@ struct LibraryView: View {
                 if count >= 0 {
                     Text("\(count)").accessibilityLabel(
                         countResource.format(Int64(count))
-                    ).fixedSize().font(.system(size: 10).monospacedDigit()).foregroundStyle(
+                    ).fixedSize().wupsyFont(size: 10).monospacedDigit().foregroundStyle(
                         active ? WupsyTheme.lavender : .secondary)
                 }
             }
-            .font(.system(size: 11, weight: .medium)).foregroundStyle(
+            .wupsyFont(size: 11, weight: .medium).foregroundStyle(
                 active ? WupsyTheme.lavender : Color.secondary
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 11).padding(.vertical, 11).background(
+            .wupsyPadding(.horizontal, 11).wupsyPadding(.vertical, 11).background(
                 active ? WupsyTheme.accent.opacity(0.13) : .clear,
                 in: RoundedRectangle(cornerRadius: 9)
             )
@@ -662,7 +681,7 @@ struct LibraryView: View {
                 text: library.active == nil
                     ? ProductText.readyHeader.text : ProductText.onDesktopHeader.text)
             if playlist.activePlaylistID != nil || playlist.pendingActivationID != nil {
-                Text(playlist.status).font(.caption2).foregroundStyle(
+                Text(playlist.status).wupsyFont(.caption2).foregroundStyle(
                     WupsyTheme.lavender)
             }
             if let active = library.active {
@@ -670,9 +689,9 @@ struct LibraryView: View {
                     WallpaperPreview(item: active).frame(width: 38, height: 38).clipShape(
                         RoundedRectangle(cornerRadius: 7))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(active.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                        Text(ProductText.qualityLabel.format(library.profile.title)).font(
-                            .system(size: 9)
+                        Text(active.title).wupsyFont(size: 11, weight: .medium).lineLimit(1)
+                        Text(ProductText.qualityLabel.format(library.profile.title)).wupsyFont(
+                            size: 9
                         )
                         .foregroundStyle(.secondary)
                     }
@@ -682,7 +701,7 @@ struct LibraryView: View {
                 Circle().fill(
                     library.playbackStatus.isPlaying ? WupsyTheme.accent : .secondary
                 ).frame(width: 5, height: 5)
-                Text(library.status).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                Text(library.status).wupsyFont(size: 9).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
             }
             HStack(spacing: 8) {
@@ -692,7 +711,7 @@ struct LibraryView: View {
                     Label(
                         library.manuallyPaused ? ProductText.resume.text : ProductText.pause.text,
                         systemImage: library.manuallyPaused ? "play.fill" : "pause.fill"
-                    ).font(.system(size: 10, weight: .medium)).frame(maxWidth: .infinity).padding(
+                    ).wupsyFont(size: 10, weight: .medium).frame(maxWidth: .infinity).padding(
                         .vertical, 8
                     ).background(
                         WupsyTheme.accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
@@ -700,13 +719,16 @@ struct LibraryView: View {
                 Button {
                     library.stop()
                 } label: {
-                    Image(systemName: "stop.fill").font(.system(size: 9)).padding(10).background(
-                        .white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    Image(systemName: "stop.fill").wupsyFont(size: 9).wupsyPadding(.all, 10)
+                        .background(
+                            .white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                 }.buttonStyle(.plain).help(ProductText.stopWallpaperHelp.text).disabled(
                     library.active == nil)
             }.foregroundStyle(WupsyTheme.lavender)
-        }.padding(13).background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WupsyTheme.border))
+        }.wupsyPadding(.all, 13).background(
+            .black.opacity(0.16), in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WupsyTheme.border))
     }
     private var footer: some View {
         HStack(spacing: 7) {
@@ -714,25 +736,24 @@ struct LibraryView: View {
             Text(ProductText.dropImport.text).foregroundStyle(.secondary)
             Spacer()
             Text(ProductText.shortcutHint.text).foregroundStyle(.tertiary)
-        }.font(.system(size: 9))
+        }.wupsyFont(size: 9)
     }
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: favoritesOnly ? "heart" : "sparkles.rectangle.stack").font(
-                .system(size: 43, weight: .ultraLight)
+            Image(systemName: favoritesOnly ? "heart" : "sparkles.rectangle.stack").wupsyFont(
+                size: 43, weight: .ultraLight
             ).foregroundStyle(WupsyTheme.lavender)
             Text(
                 library.items.isEmpty
                     ? ProductText.emptyWelcome.text : ProductText.emptyResults.text
-            ).font(
-                .system(size: 21, weight: .medium, design: .rounded))
+            ).wupsyFont(size: 21, weight: .medium, design: .rounded)
             Text(
                 library.items.isEmpty
                     ? ProductText.emptyImportHint.text
                     : favoritesOnly
                         ? ProductText.emptyFavoritesHint.text
                         : ProductText.emptySearchHint.text
-            ).font(.subheadline).foregroundStyle(.secondary)
+            ).wupsyFont(.subheadline).foregroundStyle(.secondary)
             if library.items.isEmpty {
                 Button(ProductText.browseWallpapers.text, action: library.importFiles).buttonStyle(
                     VioletButtonStyle())
@@ -754,14 +775,14 @@ struct LibraryView: View {
         ZStack {
             WupsyTheme.background.opacity(0.94)
             VStack(spacing: 15) {
-                Image(systemName: "square.and.arrow.down").font(.system(size: 42))
-                Text(ProductText.dropCollection.text).font(.title2.weight(.semibold))
+                Image(systemName: "square.and.arrow.down").wupsyFont(size: 42)
+                Text(ProductText.dropCollection.text).wupsyFont(size: 17, weight: .semibold)
                 Text(ProductText.dropFormats.text).foregroundStyle(.secondary)
             }.foregroundStyle(WupsyTheme.lavender)
-        }.padding(8).overlay(
+        }.wupsyPadding(.all, 8).overlay(
             RoundedRectangle(cornerRadius: 15).stroke(
                 WupsyTheme.accent, style: StrokeStyle(lineWidth: 2, dash: [8]))
-        ).padding(12).allowsHitTesting(false)
+        ).wupsyPadding(.all, 12).allowsHitTesting(false)
     }
     private func receiveDrop(_ providers: [NSItemProvider]) -> Bool {
         guard library.maintenance.allowsNewOperations else { return false }
@@ -789,7 +810,7 @@ struct LibraryView: View {
     }
     private var qualityHelp: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text(ProductText.qualityChoice.text).font(.headline)
+            Text(ProductText.qualityChoice.text).wupsyFont(.headline)
             Text(
                 ProductText.qualityOriginalHelp.text
             )
@@ -799,12 +820,14 @@ struct LibraryView: View {
             Text(
                 ProductText.qualityPreparationHelp.text
             ).foregroundStyle(.secondary)
-        }.font(.system(size: 11)).padding(20).frame(width: 315)
+        }.wupsyFont(size: 11).wupsyPadding(.all, 20).wupsyControlFrame(width: 315)
     }
     private var compatibility: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label(ProductText.formatsTitle.text, systemImage: "sparkles").font(.title2.bold())
-                .foregroundStyle(WupsyTheme.lavender)
+            Label(ProductText.formatsTitle.text, systemImage: "sparkles").wupsyFont(
+                size: 17, weight: .bold
+            )
+            .foregroundStyle(WupsyTheme.lavender)
             Text(
                 ProductText.formatsList.text
             )
@@ -815,7 +838,7 @@ struct LibraryView: View {
                 VioletButtonStyle()
             ).frame(
                 maxWidth: .infinity, alignment: .trailing)
-        }.padding(30).frame(width: 520).background(WupsyTheme.surface)
+        }.wupsyPadding(.all, 30).wupsyControlFrame(width: 520).background(WupsyTheme.surface)
     }
 }
 
@@ -835,7 +858,7 @@ private struct PlaylistHeaderDisclosureStyle: DisclosureGroupStyle {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .semibold)).frame(width: 8)
+                        .wupsyFont(size: 9, weight: .semibold).frame(width: 8)
                     configuration.label
                     Spacer(minLength: 0)
                 }

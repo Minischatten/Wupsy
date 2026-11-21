@@ -435,18 +435,19 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm, starfield, fog, musicNotes, preset
+                trail, mask, storm, starfield, fog, musicNotes, preset, path
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
             if type == "musicNotes" {
-                try decoder.fields(["type", "visible", "region", "musicNotes"])
+                try decoder.fields(["type", "visible", "region", "musicNotes", "path"])
                 let layer = WSSMusicNotesLayer(
                     visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
                     region: try c.decode(Region.self, forKey: .region),
-                    notes: try c.decode(WSSMusicNotesLayer.Configuration.self, forKey: .musicNotes))
-                try layer.validate()
+                    notes: try c.decode(WSSMusicNotesLayer.Configuration.self, forKey: .musicNotes),
+                    path: try c.decodeIfPresent(WSSMusicNotesPath.self, forKey: .path))
+                try WSSMusicNotesLayer.validateRegion(layer.region)
                 content = .musicNotes(layer)
             } else if type == "fog" {
                 try decoder.fields(["type", "visible", "fog", "preset"])

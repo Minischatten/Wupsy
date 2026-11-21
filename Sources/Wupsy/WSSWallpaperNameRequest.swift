@@ -12,7 +12,10 @@ struct WSSImageFirstSaveChoice {
         alert.messageText = title
         alert.informativeText = EditorText.nameLabel.localized(language: language)
         let field = NSTextField(string: proposedName)
-        field.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
+        let metrics = WupsyMetrics(scale: WupsyAppearance.shared.scale)
+        field.controlSize = metrics.nativeControlSize
+        field.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
+        field.frame = NSRect(x: 0, y: 0, width: metrics.points(360), height: metrics.target(24))
         field.setAccessibilityLabel(ProductText.wallpaperName.localized(language: language))
         alert.accessoryView = field
         alert.addButton(withTitle: ProductText.save.localized(language: language)).keyEquivalent =
@@ -38,12 +41,17 @@ struct WSSImageFirstSaveChoice {
         options.setAccessibilityLabel(EditorText.imageSaveMode.localized(language: language))
         let hint = NSTextField(
             wrappingLabelWithString: EditorText.imageSaveExplanation.localized(language: language))
-        hint.preferredMaxLayoutWidth = 420
+        let metrics = WupsyMetrics(scale: WupsyAppearance.shared.scale)
+        let width = metrics.points(420)
+        hint.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
+        hint.preferredMaxLayoutWidth = width
+        options.controlSize = metrics.nativeControlSize
+        options.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
         let stack = NSStackView(views: [field, options, hint])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 10
-        stack.frame = NSRect(x: 0, y: 0, width: 420, height: 155)
+        stack.spacing = metrics.spacing(10)
+        stack.frame = NSRect(x: 0, y: 0, width: width, height: metrics.points(155))
         sheet.accessoryView = stack
         return (sheet, field, options)
     }

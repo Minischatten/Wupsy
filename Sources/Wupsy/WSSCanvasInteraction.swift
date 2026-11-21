@@ -37,7 +37,7 @@ enum WSSCanvasInteractionGeometry {
     }
     static func hit(
         point: CGPoint, scene: WSSScene, identity: WSSEditorIdentity, selected: WSSLayerID?,
-        origin: CGPoint, zoom: CGFloat
+        origin: CGPoint, zoom: CGFloat, handleRadius: CGFloat = 9
     ) -> WSSCanvasHit? {
         guard zoom > 0 else { return nil }
         if let selected, let index = identity.layers.firstIndex(where: { $0.id == selected }),
@@ -52,7 +52,7 @@ enum WSSCanvasInteractionGeometry {
             if let index = points.indices.min(by: {
                 hypot(points[$0].x - point.x, points[$0].y - point.y)
                     < hypot(points[$1].x - point.x, points[$1].y - point.y)
-            }), hypot(points[index].x - point.x, points[index].y - point.y) <= 9 {
+            }), hypot(points[index].x - point.x, points[index].y - point.y) <= handleRadius {
                 return index == 4 ? .rotation(selected) : .corner(selected, index)
             }
         }

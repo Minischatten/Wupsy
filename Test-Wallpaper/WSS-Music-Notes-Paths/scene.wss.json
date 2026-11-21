@@ -1,0 +1,172 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Music Notes Paths",
+  "canvas": {
+    "width": 640,
+    "height": 360
+  },
+  "background": [
+    0.035,
+    0.045,
+    0.085
+  ],
+  "layers": [
+    {
+      "type": "musicNotes",
+      "region": {
+        "x": 56,
+        "y": 210,
+        "width": 528,
+        "height": 108
+      },
+      "musicNotes": {
+        "count": 5,
+        "size": 38,
+        "color": {
+          "red": 1,
+          "green": 0.74,
+          "blue": 0.26
+        },
+        "opacity": 1,
+        "direction": 90,
+        "speed": 90,
+        "hover": true,
+        "rotation": true,
+        "seed": 1,
+        "symbols": [
+          "quarter",
+          "eighth",
+          "double"
+        ]
+      },
+      "path": {
+        "enabled": true,
+        "closed": false,
+        "direction": "forward",
+        "anchors": [
+          {
+            "position": [
+              0,
+              0.22
+            ],
+            "incoming": [
+              0,
+              0.22
+            ],
+            "outgoing": [
+              0.35,
+              1
+            ]
+          },
+          {
+            "position": [
+              1,
+              0.78
+            ],
+            "incoming": [
+              0.65,
+              0
+            ],
+            "outgoing": [
+              1,
+              0.78
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "musicNotes",
+      "region": {
+        "x": 136,
+        "y": 40,
+        "width": 368,
+        "height": 124
+      },
+      "musicNotes": {
+        "count": 5,
+        "size": 38,
+        "color": {
+          "red": 0.37,
+          "green": 0.82,
+          "blue": 1
+        },
+        "opacity": 1,
+        "direction": 90,
+        "speed": 90,
+        "hover": true,
+        "rotation": true,
+        "seed": 1,
+        "symbols": [
+          "quarter",
+          "eighth",
+          "double"
+        ]
+      },
+      "path": {
+        "enabled": true,
+        "closed": true,
+        "direction": "reverse",
+        "anchors": [
+          {
+            "position": [
+              1,
+              0.5
+            ],
+            "incoming": [
+              1,
+              0.224
+            ],
+            "outgoing": [
+              1,
+              0.776
+            ]
+          },
+          {
+            "position": [
+              0.5,
+              1
+            ],
+            "incoming": [
+              0.776,
+              1
+            ],
+            "outgoing": [
+              0.224,
+              1
+            ]
+          },
+          {
+            "position": [
+              0,
+              0.5
+            ],
+            "incoming": [
+              0,
+              0.776
+            ],
+            "outgoing": [
+              0,
+              0.224
+            ]
+          },
+          {
+            "position": [
+              0.5,
+              0
+            ],
+            "incoming": [
+              0.224,
+              0
+            ],
+            "outgoing": [
+              0.776,
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

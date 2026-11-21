@@ -90,8 +90,9 @@ struct UpdateCheckMessage {
             contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         panel.title = "Wupsy"
         panel.isReleasedWhenClosed = false
-        let content = NSHostingView(
-            rootView: UpdateCheckDialog(message: message, language: language, action: action))
+        let content = WupsyPanelHostingView(
+            appearance: .shared,
+            root: UpdateCheckDialog(message: message, language: language, action: action))
         panel.contentView = content
         panel.setContentSize(content.fittingSize)
         return panel
@@ -128,12 +129,12 @@ private struct UpdateCheckDialog: View {
                     Image(nsImage: NSApplication.shared.applicationIconImage)
                         .resizable().scaledToFit().frame(width: iconSize, height: iconSize)
                         .accessibilityHidden(true)
-                    Text(message.title).font(.headline)
+                    Text(message.title).wupsyFont(.headline)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }.frame(maxWidth: .infinity)
             } else {
-                Text(message.title).font(.headline)
+                Text(message.title).wupsyFont(.headline)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(message.detail).fixedSize(horizontal: false, vertical: true).textSelection(
@@ -152,7 +153,8 @@ private struct UpdateCheckDialog: View {
                     Button(UpdateText.close.text(language: language)) { action(.close) }
                         .keyboardShortcut(.cancelAction)
                 }
-            }.padding(.top, 4)
-        }.padding(22).frame(width: 480).fixedSize(horizontal: false, vertical: true)
+            }.wupsyPadding(.top, 4)
+        }.wupsyPadding(.all, 22).wupsyControlFrame(width: 480).fixedSize(
+            horizontal: false, vertical: true)
     }
 }

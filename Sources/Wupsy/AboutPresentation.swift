@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 enum AboutText: String, CaseIterable {
@@ -72,8 +73,9 @@ enum AboutDocument: CaseIterable {
             contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = AboutText.title.text(language: language)
         window.isReleasedWhenClosed = false
-        let view = NSHostingView(
-            rootView: AboutView(content: content, language: language, document: document))
+        let view = WupsyPanelHostingView(
+            appearance: .shared,
+            root: AboutView(content: content, language: language, document: document))
         window.contentView = view
         window.setContentSize(view.fittingSize)
         window.center()
@@ -105,7 +107,7 @@ enum AboutDocument: CaseIterable {
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.title = title
         window.isReleasedWhenClosed = false
-        let scroll = NSScrollView()
+        let scroll = AboutDocumentScrollView(appearance: .shared)
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 680, height: 520))
@@ -122,9 +124,30 @@ enum AboutDocument: CaseIterable {
         view.textContainer?.widthTracksTextView = true
         view.string = text
         scroll.documentView = view
+        scroll.applyScale(WupsyAppearance.shared.scale)
         window.contentView = scroll
         window.center()
         return window
+    }
+}
+
+@MainActor private final class AboutDocumentScrollView: NSScrollView {
+    private var observation: AnyCancellable?
+
+    init(appearance: WupsyAppearance) {
+        super.init(frame: .zero)
+        observation = appearance.$scale.sink { [weak self] scale in self?.applyScale(scale) }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func applyScale(_ scale: WupsyInterfaceScale) {
+        guard let text = documentView as? NSTextView else { return }
+        let metrics = WupsyMetrics(scale: scale)
+        text.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
+        let inset = metrics.spacing(20)
+        text.textContainerInset = NSSize(width: inset, height: inset)
     }
 }
 
@@ -140,7 +163,7 @@ private struct AboutView: View {
                     .accessibilityLabel(AboutText.logo.text(language: language))
             }
             VStack(spacing: 5) {
-                Text(verbatim: ProductIdentity.name).font(.title2.weight(.semibold))
+                Text(verbatim: ProductIdentity.name).wupsyFont(size: 17, weight: .semibold)
                 Text(content.versionText(language: language)).foregroundStyle(.secondary)
             }
             Text(AboutText.description.text(language: language))
@@ -163,7 +186,7 @@ private struct AboutView: View {
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
-        .padding(28).frame(width: 400)
+        .wupsyPadding(.all, 28).wupsyControlFrame(width: 400)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }

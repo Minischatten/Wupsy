@@ -9,7 +9,7 @@ struct WSSStormParameterControls: View {
     @State private var colorEnd: Task<Void, Never>?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(WSSStormText.title).font(.headline)
+            Text(WSSStormText.title).wupsyFont(.headline)
             if let storm = document.stormLayer(layer) {
                 HStack {
                     TextField(WSSStormText.name, text: $name)
@@ -29,7 +29,7 @@ struct WSSStormParameterControls: View {
                     id: \.self
                 ) { parameter in
                     HStack {
-                        Text(parameter.title).font(.caption)
+                        Text(parameter.title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: Float(parameter.value(storm.storm)),
@@ -44,7 +44,7 @@ struct WSSStormParameterControls: View {
                             commit: {
                                 try document.setStorm(parameter, value: Double($0), layer: layer)
                             }
-                        ).frame(width: 110)
+                        ).wupsyControlFrame(width: 110)
                     }
                 }
                 Divider()
@@ -60,7 +60,7 @@ struct WSSStormParameterControls: View {
                 colorPicker(storm.storm, role: .illumination)
                 ForEach(WSSStormIlluminationParameter.allCases, id: \.self) { parameter in
                     HStack {
-                        Text(parameter.title).font(.caption)
+                        Text(parameter.title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: Float(parameter.value(storm.storm.illumination)),
@@ -77,13 +77,13 @@ struct WSSStormParameterControls: View {
                                 try document.setStormIllumination(
                                     parameter, value: Double($0), layer: layer)
                             }
-                        ).frame(width: 110)
+                        ).wupsyControlFrame(width: 110)
                     }
                 }
-                Text(WSSStormText.lightHelp).font(.caption).foregroundStyle(.secondary)
-                Text(WSSStormText.help).font(.caption).foregroundStyle(.secondary)
+                Text(WSSStormText.lightHelp).wupsyFont(.caption).foregroundStyle(.secondary)
+                Text(WSSStormText.help).wupsyFont(.caption).foregroundStyle(.secondary)
             }
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
         }
         .onAppear { name = document.stormLayer(layer)?.name ?? WSSStormText.title }
         .onDisappear {

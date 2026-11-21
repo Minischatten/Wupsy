@@ -20,6 +20,13 @@ extension WSSPreviewSurface {
     private var expandedContent: WSSExpandedPreviewContent?
     private let placeholder = NSTextField(wrappingLabelWithString: EditorText.previewEnlarged.text)
     private var stopped = false
+    var interfaceMetrics = WupsyMetrics() {
+        didSet {
+            guard interfaceMetrics != oldValue else { return }
+            placeholder.font = .systemFont(ofSize: interfaceMetrics.points(NSFont.systemFontSize))
+            expandedContent?.interfaceMetrics = interfaceMetrics
+        }
+    }
 
     init(document: WSSEditorDocument) {
         self.document = document
@@ -94,6 +101,7 @@ extension WSSPreviewSurface {
                     width: document.project.scene.width, height: document.project.scene.height),
                 target: self)
             expandedContent = content
+            content.interfaceMetrics = interfaceMetrics
             enlarged.contentView = content
             enlarged.delegate = self
             content.update(playing: document.playing, current: document.previewIsCurrent)
@@ -151,6 +159,18 @@ extension WSSPreviewSurface {
     private let play: NSButton
     private let close: NSButton
     private let status = NSTextField(labelWithString: EditorText.livePreview.text)
+    var interfaceMetrics = WupsyMetrics() {
+        didSet {
+            guard interfaceMetrics != oldValue else { return }
+            let font = NSFont.systemFont(ofSize: interfaceMetrics.points(NSFont.systemFontSize))
+            for button in [play, close] {
+                button.controlSize = interfaceMetrics.nativeControlSize
+                button.font = font
+            }
+            status.font = font
+            needsLayout = true
+        }
+    }
     init(surface: WSSPreviewSurface, canvas: CGSize, target: WSSPreviewHost) {
         self.surface = surface
         self.canvas = canvas
@@ -180,15 +200,28 @@ extension WSSPreviewSurface {
     }
     override func layout() {
         super.layout()
+        let pad = interfaceMetrics.spacing(12)
+        let buttonHeight = interfaceMetrics.target(26)
+        let closeWidth =
+            interfaceMetrics.scale == .standard
+            ? 154 : min(interfaceMetrics.target(154), bounds.width * 0.46)
+        let playWidth =
+            interfaceMetrics.scale == .standard
+            ? 72 : min(interfaceMetrics.target(72), bounds.width * 0.24)
+        let buttonY = bounds.height - pad - buttonHeight
+        let closeX = bounds.width - pad - closeWidth
+        let playX = closeX - interfaceMetrics.spacing(8) - playWidth
         let area = CGRect(
-            x: 12, y: 12, width: max(0, bounds.width - 24), height: max(0, bounds.height - 56))
+            x: pad, y: pad, width: max(0, bounds.width - 2 * pad),
+            height: max(0, bounds.height - interfaceMetrics.spacing(56)))
         let fit = WSSPreviewGeometry.fit(canvas: canvas, available: area.size)
         surface.frame = CGRect(
             x: area.midX - fit.width / 2, y: area.midY - fit.height / 2, width: fit.width,
             height: fit.height)
-        close.frame = CGRect(x: bounds.width - 166, y: bounds.height - 38, width: 154, height: 26)
-        play.frame = CGRect(x: bounds.width - 246, y: bounds.height - 38, width: 72, height: 26)
+        close.frame = CGRect(x: closeX, y: buttonY, width: closeWidth, height: buttonHeight)
+        play.frame = CGRect(x: playX, y: buttonY, width: playWidth, height: buttonHeight)
         status.frame = CGRect(
-            x: 12, y: bounds.height - 34, width: max(0, bounds.width - 270), height: 22)
+            x: pad, y: buttonY + interfaceMetrics.spacing(4), width: max(0, playX - 2 * pad),
+            height: interfaceMetrics.points(22))
     }
 }

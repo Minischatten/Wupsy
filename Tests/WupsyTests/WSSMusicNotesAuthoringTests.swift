@@ -207,6 +207,30 @@ import XCTest
         XCTAssertNotEqual(
             steady, try WSSStormLightingRenderTests().render(hovering, time: 1.5).0)
 
+        let elapsedBeforePath = player.elapsed
+        var model = doc.state.workingModel
+        var layer = try XCTUnwrap(doc.musicNotesLayer(id))
+        let start = SIMD2<Double>(0.15, 0.25)
+        let end = SIMD2<Double>(0.85, 0.75)
+        layer.path = .init(
+            enabled: true, closed: false, direction: .reverse,
+            anchors: [
+                .init(position: start, incoming: start, outgoing: start),
+                .init(position: end, incoming: end, outgoing: end),
+            ])
+        model.layers[try XCTUnwrap(model.layers.indices.last)].content = .musicNotes(layer)
+        try doc.mutate(model, name: "Path")
+        await doc.waitForPreview()
+        let withPath = doc.previewResources
+        for _ in 0..<100 where player.resources !== withPath {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(host.surface.player === player)
+        XCTAssertTrue(player.resources === withPath)
+        XCTAssertTrue(withPath.musicNotes === renderer)
+        XCTAssertEqual(withPath.musicNotesPaths.count, 1)
+        XCTAssertGreaterThanOrEqual(player.elapsed, elapsedBeforePath)
+
         try doc.setVisibility(false, layer: id)
         await doc.waitForPreview()
         for _ in 0..<100 where !player.view.isPaused {

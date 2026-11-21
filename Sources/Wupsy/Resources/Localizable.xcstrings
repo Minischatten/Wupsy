@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "appearance.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darstellung"
+          }
+        }
+      }
+    },
+    "appearance.scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface Size"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe der Bedienoberfläche"
+          }
+        }
+      }
+    },
+    "appearance.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to Wupsy windows and editing controls. Canvas zoom and wallpaper resolution are independent."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt für Wupsy-Fenster und Bearbeitungswerkzeuge. Canvas-Zoom und Wallpaper-Auflösung sind unabhängig."
+          }
+        }
+      }
+    },
     "about.emailLabel": {
       "extractionState": "manual",
       "localizations": {
@@ -456,6 +507,278 @@
           "stringUnit": {
             "state": "translated",
             "value": "Das ursprüngliche Bild wurde umbenannt, verändert, entfernt oder ersetzt. Dein Entwurf bleibt erhalten. Wähle „Als neues Hintergrundbild speichern“ oder öffne die aktuelle Quelle erneut."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.closed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geschlossen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.deletePath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Path"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfad löschen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.editPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Path"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfad bearbeiten"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.finishPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish Path Editing"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadbearbeitung beenden"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.forward": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorwärts"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.insertAnchor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Path Anchor"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadanker hinzufügen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.linear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.motionMode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motion"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewegungsmodus"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.path": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfad"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.pathDirection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path direction"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadrichtung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.pathHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag anchors or grips. Double-click the curve to add an anchor. Delete removes the selected anchor. Escape cancels a drag."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziehe Anker oder Griffe. Ein Doppelklick auf die Kurve fügt einen Anker hinzu. Entf löscht den ausgewählten Anker. Escape bricht das Ziehen ab."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.pathType": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path type"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadtyp"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.removeAnchor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Path Anchor"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadanker entfernen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.reverse": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reverse"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückwärts"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.shortPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At this speed the endpoint fade may fall between frames."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei diesem Tempo kann die Blende zwischen zwei Bildern liegen."
           }
         }
       }
@@ -1123,6 +1446,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hintergrundbild-Mediathek sichern …"
+          }
+        }
+      }
+    },
+    "core.openSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen …"
           }
         }
       }

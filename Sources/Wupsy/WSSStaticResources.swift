@@ -21,6 +21,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let starfield: WSSStarfieldRenderer?
     let fog: WSSFogRenderer?
     let musicNotes: WSSMusicNotesRenderer?
+    let musicNotesPaths: [Int: WSSMusicNotesRenderer.PreparedPath]
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
     let rain: WSSRainResources?
@@ -39,7 +40,11 @@ final class WSSStaticResources: @unchecked Sendable {
     private let replace: MTLRenderPipelineState
     private let sourceOver: MTLRenderPipelineState
     private var directionPreviewBytes = 0
-    var bufferBytes: Int { (rain?.bufferBytes ?? 0) + (musicNotes?.bufferBytes ?? 0) }
+    var bufferBytes: Int {
+        musicNotesPaths.values.reduce((rain?.bufferBytes ?? 0) + (musicNotes?.bufferBytes ?? 0)) {
+            $0 + $1.buffer.length
+        }
+    }
     var textureBytes: Int {
         images.values.reduce(
             (clouds?.textureBytes ?? 0) + (ripple?.textureBytes ?? 0)
@@ -149,6 +154,7 @@ final class WSSStaticResources: @unchecked Sendable {
                 if case .musicNotes = $0 { return true }
                 return false
             } ? WSSMusicNotesRenderer(scene: scene, device: device) : nil
+        musicNotesPaths = try WSSMusicNotesRenderer.preparePaths(scene: scene, device: device)
         fog =
             try scene.layers.contains {
                 if case .fog = $0 { return true }
@@ -254,7 +260,8 @@ final class WSSStaticResources: @unchecked Sendable {
         scene: WSSScene, sharing original: WSSStaticResources,
         flowOverride: WSSFlowResources? = nil,
         lightingOverride: WSSStormLightingRenderer? = nil,
-        milkyWayOverride: WSSMilkyWayRenderer? = nil
+        milkyWayOverride: WSSMilkyWayRenderer? = nil,
+        musicNotesPaths: [Int: WSSMusicNotesRenderer.PreparedPath]? = nil
     ) {
         self.scene = scene
         family = original.family
@@ -266,6 +273,7 @@ final class WSSStaticResources: @unchecked Sendable {
         starfield = original.starfield
         fog = original.fog
         musicNotes = original.musicNotes
+        self.musicNotesPaths = musicNotesPaths ?? original.musicNotesPaths
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
@@ -411,8 +419,11 @@ final class WSSStaticResources: @unchecked Sendable {
         let galaxy =
             updated.hasEffectiveMilkyWay && milkyWay == nil
             ? try WSSMilkyWayRenderer(device: device) : milkyWay
+        let paths = try WSSMusicNotesRenderer.preparePaths(
+            scene: updated, device: device, previous: self)
         return WSSStaticResources(
-            scene: updated, sharing: self, lightingOverride: lighting, milkyWayOverride: galaxy)
+            scene: updated, sharing: self, lightingOverride: lighting, milkyWayOverride: galaxy,
+            musicNotesPaths: paths)
     }
     private static func upload(_ asset: WSSImageAsset, device: MTLDevice, queue: MTLCommandQueue)
         throws -> MTLTexture
@@ -658,7 +669,8 @@ final class WSSStaticResources: @unchecked Sendable {
         for (index, node) in scene.layers.enumerated() where node.visible {
             if case .musicNotes(let layer) = node {
                 musicNotes?.encode(
-                    layer, canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
+                    layer, path: musicNotesPaths[index],
+                    canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
                     time: time, encoder: encoder)
                 continue
             }

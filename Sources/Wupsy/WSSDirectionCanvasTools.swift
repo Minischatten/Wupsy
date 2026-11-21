@@ -28,12 +28,12 @@ struct WSSDirectionBrushTools: View {
                         }
                     }
                 }
-                Text(session.dragHelp).font(.caption).foregroundStyle(
+                Text(session.dragHelp).wupsyFont(.caption).foregroundStyle(
                     .secondary)
                 if let error = session.error {
-                    Text(error).font(.caption).foregroundStyle(.secondary)
+                    Text(error).wupsyFont(.caption).foregroundStyle(.secondary)
                 }
-            }.padding(.horizontal, 10).padding(.bottom, 8)
+            }.wupsyPadding(.horizontal, 10).wupsyPadding(.bottom, 8)
                 .disabled(
                     session.blocksDocumentActions || document.interactionLocked || document.saving
                         || document.saveAsBusy || document.importingImage
@@ -41,13 +41,13 @@ struct WSSDirectionBrushTools: View {
                 .accessibilityIdentifier("wss.direction.brush-tools")
         }
     }
-    private var title: some View { Text(EditorText.brush.text).font(.headline) }
+    private var title: some View { Text(EditorText.brush.text).wupsyFont(.headline) }
     private var erase: some View {
-        Text(EditorText.optionErase.text).font(.caption).help(session.optionHelp)
+        Text(EditorText.optionErase.text).wupsyFont(.caption).help(session.optionHelp)
     }
     private var size: some View {
         HStack(spacing: 4) {
-            Text(EditorText.brushSize.text).font(.caption)
+            Text(EditorText.brushSize.text).wupsyFont(.caption)
             Slider(
                 value: Binding(
                     get: { log2(session.diameter) }, set: { session.setDiameter(pow(2, $0)) }),
@@ -64,12 +64,12 @@ struct WSSDirectionBrushTools: View {
             )
             .frame(width: 54).textFieldStyle(.roundedBorder)
             .accessibilityLabel(EditorText.directionDiameter.text)
-            Text("px").font(.caption)
+            Text("px").wupsyFont(.caption)
         }.fixedSize(horizontal: true, vertical: false)
     }
     private var magnitude: some View {
         HStack(spacing: 4) {
-            Text(EditorText.movementStrength.text).font(.caption)
+            Text(EditorText.movementStrength.text).wupsyFont(.caption)
             Slider(
                 value: Binding(
                     get: { Double(session.magnitude) }, set: { session.setMagnitude(Float($0)) }),
@@ -77,7 +77,7 @@ struct WSSDirectionBrushTools: View {
             )
             .frame(minWidth: 45, idealWidth: 65, maxWidth: 90).accessibilityLabel(
                 EditorText.vectorMagnitude.text)
-            Text("\(Int(session.magnitude * 100)) %").font(.caption).monospacedDigit().frame(
+            Text("\(Int(session.magnitude * 100)) %").wupsyFont(.caption).monospacedDigit().frame(
                 width: 38)
         }.fixedSize(horizontal: true, vertical: false)
     }

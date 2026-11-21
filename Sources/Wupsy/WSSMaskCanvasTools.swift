@@ -30,14 +30,14 @@ struct WSSMaskCanvasTools: View {
                 }
                 if !directPaint && document.selectedMaskTarget == nil {
                     Text(EditorText.maskBlackHint.text)
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wupsyFont(.caption).foregroundStyle(.secondary)
                 }
-            }.padding(.horizontal, 10)
+            }.wupsyPadding(.horizontal, 10)
                 .disabled(
                     document.interactionLocked || document.importingImage || document.saving
                         || document.saveAsBusy)
             if !directPaint && session.loaded == nil {
-                brush.padding(.horizontal, 10).padding(.bottom, 8)
+                brush.wupsyPadding(.horizontal, 10).wupsyPadding(.bottom, 8)
                     .disabled(
                         !document.canManageMask(.create) && document.selectedMaskTarget == nil
                             || document.interactionLocked || document.importingImage
@@ -45,14 +45,15 @@ struct WSSMaskCanvasTools: View {
             }
         }
         if directPaint || session.loaded != nil {
-            settings.padding(.horizontal, 10).padding(.bottom, 8)
+            settings.wupsyPadding(.horizontal, 10).wupsyPadding(.bottom, 8)
                 .disabled(
                     session.blocksDocumentActions || !session.overlayAvailable
                         || document.interactionLocked || document.importingImage || document.saving
                         || document.saveAsBusy)
         }
         if let error = session.error {
-            Text(error).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10)
+            Text(error).wupsyFont(.caption).foregroundStyle(.secondary).wupsyPadding(
+                .horizontal, 10)
         }
     }
     private var settings: some View {
@@ -78,7 +79,7 @@ struct WSSMaskCanvasTools: View {
     @ViewBuilder private var brush: some View {
         if directPaint {
             // Match the existing direct Direction Paint title, without a toggle action.
-            Text(EditorText.brush.text).font(.headline)
+            Text(EditorText.brush.text).wupsyFont(.headline)
                 .accessibilityIdentifier("wss.mask.brush-title")
         } else {
             Toggle(
@@ -93,7 +94,7 @@ struct WSSMaskCanvasTools: View {
     }
     private var size: some View {
         HStack(spacing: 4) {
-            Text(EditorText.brushSize.text).font(.caption)
+            Text(EditorText.brushSize.text).wupsyFont(.caption)
             Slider(
                 value: Binding(
                     get: { log2(displayedDiameter) }, set: { session.setDiameter(pow(2, $0)) }),
@@ -111,12 +112,12 @@ struct WSSMaskCanvasTools: View {
             )
             .frame(width: 54).textFieldStyle(.roundedBorder).accessibilityLabel(
                 EditorText.brushSizeAX.text)
-            Text("px").font(.caption)
+            Text("px").wupsyFont(.caption)
         }.fixedSize(horizontal: true, vertical: false)
     }
     private var opacity: some View {
         HStack(spacing: 4) {
-            Text(EditorText.maskOpacity.text).font(.caption)
+            Text(EditorText.maskOpacity.text).wupsyFont(.caption)
             Slider(
                 value: Binding(get: { session.opacity }, set: { session.setOpacity($0) }), in: 0...1
             ) {
@@ -133,11 +134,11 @@ struct WSSMaskCanvasTools: View {
             )
             .frame(width: 48).textFieldStyle(.roundedBorder).accessibilityLabel(
                 EditorText.maskOpacityPercent.text)
-            Text("%").font(.caption)
+            Text("%").wupsyFont(.caption)
         }.fixedSize(horizontal: true, vertical: false)
             .help(EditorText.maskOpacityHelp.text)
     }
     private var erase: some View {
-        Text(EditorText.optionErase.text).font(.caption).help(EditorText.maskEraseHelp.text)
+        Text(EditorText.optionErase.text).wupsyFont(.caption).help(EditorText.maskEraseHelp.text)
     }
 }

@@ -407,12 +407,13 @@ struct DesktopWidgetSettings: Codable, Equatable {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(
-            rootView: HStack(spacing: 16) {
+        panel.contentView = WupsyPanelHostingView(
+            appearance: .shared,
+            root: HStack(spacing: 16) {
                 Image(systemName: "hand.draw").foregroundStyle(WupsyTheme.lavender)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(ProductText.widgetsEdit.localized()).font(.headline)
-                    Text(WidgetText.editHint.localized()).font(.caption)
+                    Text(ProductText.widgetsEdit.localized()).wupsyFont(.headline)
+                    Text(WidgetText.editHint.localized()).wupsyFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Button(ProductText.widgetsFinish.localized()) { [weak self] in
@@ -420,7 +421,7 @@ struct DesktopWidgetSettings: Codable, Equatable {
                 }
                 .buttonStyle(
                     VioletButtonStyle())
-            }.padding(14).frame(width: 640, height: 62).background(
+            }.wupsyPadding(.all, 14).frame(maxWidth: min(640, area.width - 16)).background(
                 WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 16)
             ).preferredColorScheme(.dark))
         panel.orderFrontRegardless()

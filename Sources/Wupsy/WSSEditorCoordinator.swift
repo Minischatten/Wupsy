@@ -624,6 +624,8 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
 {
     private(set) var editorDocument: WSSEditorDocument
     private var observation: AnyCancellable?
+    private var appearanceObservation: AnyCancellable?
+    let appearance: WupsyAppearance
     private var approvedClose = false
     private var closing = false
     private var onClose: (() -> Void)?
@@ -634,8 +636,9 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
     private var fullScreenTransition = false
     init(
         document: WSSEditorDocument, onClose: @escaping () -> Void,
-        sizePreferences: WSSEditorWindowSize = .init()
+        sizePreferences: WSSEditorWindowSize = .init(), appearance: WupsyAppearance? = nil
     ) {
+        self.appearance = appearance ?? .shared
         self.sizePreferences = sizePreferences
         editorDocument = document
         self.onClose = onClose
@@ -658,12 +661,19 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         toolbar.displayMode = .iconAndLabel
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
+        appearanceObservation = self.appearance.$scale.dropFirst().sink { [weak self] scale in
+            guard let self, let toolbar = self.window?.toolbar else { return }
+            for item in toolbar.items { self.applyToolbarScale(scale, to: item) }
+        }
         let visible =
             (NSApp.keyWindow?.screen ?? NSScreen.main)?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
         constrainWindow(to: visible, restoringSize: true)
         // Construct native canvases only after the final initial frame is known.
-        window.contentView = NSHostingView(rootView: WSSEditorView(document: document))
+        window.contentView = NSHostingView(
+            rootView: WupsyAppearanceScope(self.appearance) {
+                WSSEditorView(document: document)
+            })
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenParametersChanged(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -843,7 +853,10 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         (window as? WSSEditorNativeWindow)?.editorDocument = document
         window.title = EditorText.windowTitle.format(document.project.handle.wallpaper.title)
         window.isDocumentEdited = false
-        window.contentView = NSHostingView(rootView: WSSEditorView(document: document))
+        window.contentView = NSHostingView(
+            rootView: WupsyAppearanceScope(self.appearance) {
+                WSSEditorView(document: document)
+            })
         bindDocument(document)
         window.makeFirstResponder(window.contentView)
         window.makeKeyAndOrderFront(nil)
@@ -867,31 +880,57 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         _ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        let item = NSToolbarItem(itemIdentifier: id)
+        let item = WSSAppearanceToolbarItem(itemIdentifier: id)
         item.target = self
         if id == Self.saveItem {
             item.label = ProductText.save.text
-            item.image = NSImage(
-                systemSymbolName: "square.and.arrow.down",
-                accessibilityDescription: EditorText.saveWallpaperAX.text)
             item.action = #selector(saveEditor(_:))
         } else if id == Self.saveAsItem {
             item.label = EditorText.saveAs.text
             item.toolTip = EditorText.saveAsHelp.text
-            item.image = NSImage(
-                systemSymbolName: "square.and.arrow.down.on.square",
-                accessibilityDescription: EditorText.saveCopyAX.text)
             item.action = #selector(saveAsEditor(_:))
         } else if id == Self.revertItem {
             item.label = EditorText.revert.text
-            item.image = NSImage(
-                systemSymbolName: "arrow.uturn.backward",
-                accessibilityDescription: EditorText.revert.text)
             item.action = #selector(revertEditor(_:))
         } else {
             return nil
         }
+        applyToolbarScale(appearance.scale, to: item)
         return item
+    }
+    private func applyToolbarScale(_ scale: WupsyInterfaceScale, to item: NSToolbarItem) {
+        let symbol: String
+        let accessibility: String
+        switch item.itemIdentifier {
+        case Self.saveItem:
+            symbol = "square.and.arrow.down"
+            accessibility = EditorText.saveWallpaperAX.text
+        case Self.saveAsItem:
+            symbol = "square.and.arrow.down.on.square"
+            accessibility = EditorText.saveCopyAX.text
+        case Self.revertItem:
+            symbol = "arrow.uturn.backward"
+            accessibility = EditorText.revert.text
+        default: return
+        }
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibility)
+        if scale == .standard {
+            item.view = nil
+            item.image = image
+        } else {
+            let metrics = WupsyMetrics(scale: scale)
+            let button = NSButton(title: item.label, target: self, action: item.action)
+            button.controlSize = metrics.nativeControlSize
+            button.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
+            button.image = image?.withSymbolConfiguration(
+                .init(pointSize: metrics.points(13), weight: .regular))
+            button.imagePosition = .imageLeading
+            button.toolTip = item.toolTip ?? accessibility
+            button.setAccessibilityLabel(accessibility)
+            button.setFrameSize(button.fittingSize)
+            item.view = button
+            item.validate()
+        }
     }
     private var commands: WSSEditorCommands {
         WSSEditorCommands(document: editorDocument, window: window)
@@ -1038,5 +1077,19 @@ final class WSSEditorNativeWindow: NSWindow {
                 && editorDocument?.undoManager.canRedo == true
         }
         return super.validateMenuItem(menuItem)
+    }
+}
+
+@MainActor private final class WSSAppearanceToolbarItem: NSToolbarItem {
+    override func validate() {
+        guard let button = view as? NSButton,
+            let validator = target as? NSToolbarItemValidation
+        else {
+            super.validate()
+            return
+        }
+        let enabled = validator.validateToolbarItem(self)
+        isEnabled = enabled
+        button.isEnabled = enabled
     }
 }

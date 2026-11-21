@@ -54,6 +54,14 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Interface size
+
+The Settings window offers 100%, 125% and 150% under Appearance. Open it
+from the Library’s three-dot menu or the Wupsy menu in the menu bar.
+Library, editor and separately hosted Wupsy panels share one live,
+UserDefaults-backed setting. See [interface sizing](docs/EDITOR.md#interface-size).
+Canvas coordinates, zoom and wallpaper rendering use their existing units.
+
 ## Native music notes, stage 1
 
 WSS v1 supports sortable Music Notes layers with seeded activity in an editable
@@ -62,8 +70,18 @@ Optional hover oscillates perpendicular to travel and uses a vertical axis at
 rest. The inspector also offers rotation and Reset to Defaults. See the
 [Music Notes contract](docs/effects/MUSIC-NOTES.md).
 
-The next stage is planned separately: freely authored open paths that restart
-after reaching the end, and closed paths with continuous circulation.
+### Music Notes paths
+
+- **Stage 2.1** supports the optional open or closed path model, strict WSS
+  persistence and bounded CPU Bézier preparation. See the
+  [path contract](docs/effects/MUSIC-NOTES.md#stage-21-path-data-and-geometry).
+- **Stage 2.2** plays enabled paths in the Music Notes Metal renderer.
+  Open paths fade at the restart, closed paths loop continuously, and both
+  support forward and reverse travel. See the
+  [playback contract](docs/effects/MUSIC-NOTES.md#stage-22-metal-path-playback).
+- **Stage 2.3** adds inspector path controls and Canvas Bézier editing with
+  coalesced Undo and throttled Live Preview updates. See the
+  [authoring contract](docs/effects/MUSIC-NOTES.md#stage-23-path-authoring).
 
 ## Native fog
 

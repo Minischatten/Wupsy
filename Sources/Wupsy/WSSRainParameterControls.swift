@@ -6,12 +6,12 @@ struct WSSRainParameterControls: View {
     @State private var error: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(EditorText.effectRain.text).font(.headline)
+            Text(EditorText.effectRain.text).wupsyFont(.headline)
             ForEach(WSSRainParameter.allCases, id: \.self) { parameter in
                 if let rain = document.rainLayer(layer) {
                     let value = parameter.value(rain.rain.effect)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(parameter.title).font(.caption).foregroundStyle(.secondary)
+                        Text(parameter.title).wupsyFont(.caption).foregroundStyle(.secondary)
                         HStack {
                             Slider(
                                 value: Binding(
@@ -48,13 +48,13 @@ struct WSSRainParameterControls: View {
                                 maximumFractionDigits: parameter.displayFractionDigits
                             ) {
                                 try document.setRain(parameter, value: $0, layer: layer)
-                            }.frame(width: 85)
+                            }.wupsyControlFrame(width: 85)
                         }
                     }
                 }
             }
-            Text(EditorText.rainLayerHelp.text).font(.caption).foregroundStyle(.secondary)
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            Text(EditorText.rainLayerHelp.text).wupsyFont(.caption).foregroundStyle(.secondary)
+            if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
         }.disabled(document.interactionLocked)
     }
 }

@@ -16,13 +16,13 @@ struct WallpaperRenameView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(ProductText.renameWallpaperTitle.text).font(.headline)
+            Text(ProductText.renameWallpaperTitle.text).wupsyFont(.headline)
             TextField(ProductText.wallpaperName.text, text: $title)
                 .accessibilityLabel(ProductText.wallpaperName.text)
                 .focused($focused).disabled(saving)
                 .onSubmit { save() }
             if let error {
-                Text(error).foregroundStyle(.red).font(.callout)
+                Text(error).foregroundStyle(.red).wupsyFont(.callout)
                     .accessibilityLabel(ProductText.wallpaperNameError.format(error))
             }
             HStack {
@@ -33,7 +33,7 @@ struct WallpaperRenameView: View {
                     .keyboardShortcut(.defaultAction).disabled(saving)
             }
         }
-        .padding(24).frame(width: 380)
+        .wupsyPadding(.all, 24).wupsyControlFrame(width: 380)
         .interactiveDismissDisabled(saving)
         .onAppear { focused = true }
     }

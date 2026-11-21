@@ -115,3 +115,25 @@ is a fraction of its shorter side, and angle is counterclockwise (0° horizontal
 Existing star and meteor distributions stay unchanged. The band follows star drift
 periodically; with no other animation it remains static. Use Live Preview for the
 rendered field; the existing Canvas rectangle controls the complete Starfield.
+
+## Interface size
+
+Choose Wupsy → Settings → Appearance to select 100%, 125% or 150%.
+The setting is stored as the integer `interfaceScale` in the app's preferences.
+Missing or invalid values use 100%. Change it while the Library, editor or a
+Wupsy panel is open. The windows observe the same setting without reopening
+documents. Preference changes do not enter the scene manifest or Undo history.
+
+SwiftUI reads the shared metrics from its environment, including at the
+roots of separately hosted AppKit windows. Shared typography, controls and
+padding grow in logical points. Native input fields, their validation hints
+and the application-owned Canvas controls consume the same metrics. The
+Library's adaptive columns reflow, and the editor keeps its inspector and
+layer list scrollable. Window limits and saved positions and sizes are still
+in AppKit points. Native menus, file pickers and OS tooltips use system sizing.
+
+The Library's image preview dimensions and the wallpaper resolution setting
+are independent of interface size. Split-view changes may change the display
+space available for an image. Canvas fit, zoom, panning and the Retina render
+pixel conversion retain their existing policy. Larger Canvas handles and hit
+areas share the original geometry centers, including Bézier anchors and grips.

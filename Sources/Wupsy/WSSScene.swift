@@ -137,13 +137,16 @@ struct WSSScene {
         var noteLayers = 0
         var noteCount = 0
         for case .musicNotes(let layer) in layers {
-            try layer.validate()
             noteLayers += 1
+            guard noteLayers <= WSSMusicNotesLayer.maximumLayers else {
+                throw WSSSceneError.invalid("musicNotes scene budget")
+            }
+            try layer.validate()
             noteCount += layer.notes.count
+            guard noteCount <= WSSMusicNotesLayer.maximumPerScene else {
+                throw WSSSceneError.invalid("musicNotes scene budget")
+            }
         }
-        guard noteLayers <= WSSMusicNotesLayer.maximumLayers,
-            noteCount <= WSSMusicNotesLayer.maximumPerScene
-        else { throw WSSSceneError.invalid("musicNotes scene budget") }
         var trailBudget = 0.0
         var rainCount = 0
         for node in layers {

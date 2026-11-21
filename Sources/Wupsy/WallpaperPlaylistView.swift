@@ -96,7 +96,7 @@ struct WallpaperPlaylistView: View {
                                         }
                                     }
                                     Text(ProductText.playlistDropEnd.text)
-                                        .font(.caption).foregroundStyle(.secondary)
+                                        .wupsyFont(.caption).foregroundStyle(.secondary)
                                         .frame(maxWidth: .infinity, minHeight: 32)
                                         .contentShape(Rectangle())
                                         .overlay(alignment: .bottom) {
@@ -110,7 +110,7 @@ struct WallpaperPlaylistView: View {
                                             dropAtEnd = $0
                                         }
                                 }
-                            }.padding(8)
+                            }.wupsyPadding(.all, 8)
                         }
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -160,11 +160,11 @@ struct WallpaperPlaylistView: View {
                                             .disabled(
                                                 !playlist.canEditDefinition(playlistID)
                                             )
-                                        }.buttonStyle(.borderless).padding(.vertical, 5)
+                                        }.buttonStyle(.borderless).wupsyPadding(.vertical, 5)
                                             .accessibilityElement(children: .contain)
                                     }
                                 }
-                            }.padding(8)
+                            }.wupsyPadding(.all, 8)
                         }
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -172,9 +172,9 @@ struct WallpaperPlaylistView: View {
             Text(
                 ProductText.playlistIntervalsHint.text
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wupsyFont(.caption).foregroundStyle(.secondary)
         }
-        .padding(26).background(WupsyTheme.background)
+        .wupsyPadding(.all, 26).background(WupsyTheme.background)
         .onChange(of: playlistID) { _, _ in
             dropTargetID = nil
             dropAtEnd = false
@@ -194,7 +194,7 @@ struct WallpaperPlaylistView: View {
             ForEach(PlaylistDefinition.intervals, id: \.seconds) { interval in
                 Text(interval.title).tag(interval.seconds)
             }
-        }.frame(width: 280).disabled(!playlist.canEditDefinition(playlistID))
+        }.wupsyControlFrame(width: 280).disabled(!playlist.canEditDefinition(playlistID))
         Text(verbatim: definition.name).font(.callout).foregroundStyle(.secondary)
         Picker(
             ProductText.playlistPlaybackMode.text,
@@ -211,7 +211,7 @@ struct WallpaperPlaylistView: View {
                 Text(mode.title).tag(mode)
             }
         }
-        .labelsHidden().frame(width: 130)
+        .labelsHidden().wupsyControlFrame(width: 130)
         .disabled(!playlist.canSetPlaybackMode(playlistID))
     }
 
@@ -228,11 +228,12 @@ struct WallpaperPlaylistView: View {
             HStack(spacing: 9) {
                 Image(systemName: "line.3.horizontal")
                     .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 32)
+                    .wupsyControlFrame(width: 20, height: 32)
                     .contentShape(Rectangle())
                     .help(ProductText.playlistDrag.text)
                     .accessibilityLabel(ProductText.playlistDragTitle.format(item.title))
-                Text("\(index + 1)").monospacedDigit().foregroundStyle(.secondary).frame(width: 22)
+                Text("\(index + 1)").monospacedDigit().foregroundStyle(.secondary)
+                    .wupsyControlFrame(width: 22)
                 WallpaperPreview(item: item).frame(width: 44, height: 32)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
                 VStack(alignment: .leading, spacing: 4) {
@@ -241,7 +242,8 @@ struct WallpaperPlaylistView: View {
                         playlist.pendingActivationID == playlistID
                             || playlist.activePlaylistID == playlistID
                     {
-                        Text(ProductText.preparing.text).font(.caption).foregroundStyle(.secondary)
+                        Text(ProductText.preparing.text).wupsyFont(.caption).foregroundStyle(
+                            .secondary)
                     } else if playlist.activePlaylistID == playlistID,
                         playlist.state.playback?.currentWallpaperID == item.id,
                         library.active?.id == item.id
@@ -255,10 +257,10 @@ struct WallpaperPlaylistView: View {
                 Spacer(minLength: 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 6)
+            .wupsyPadding(.vertical, 6)
             .contentShape(Rectangle())
             .draggable(PlaylistReorderItem(sourcePlaylistID: playlistID, wallpaperID: item.id)) {
-                Label(item.title, systemImage: "line.3.horizontal").padding(8)
+                Label(item.title, systemImage: "line.3.horizontal").wupsyPadding(.all, 8)
             }
             .disabled(!playlist.canEditDefinition(playlistID))
             Button {

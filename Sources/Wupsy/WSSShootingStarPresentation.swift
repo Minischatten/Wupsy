@@ -92,7 +92,7 @@ struct WSSDirectionGrid: View {
                         } else {
                             Image(systemName: angle == nil ? "minus" : "arrow.right")
                                 .rotationEffect(.degrees(-(angle ?? 0)))
-                                .frame(width: 24, height: 24)
+                                .wupsyControlFrame(width: 24, height: 24)
                                 .foregroundStyle(.secondary)
                                 .accessibilityLabel(currentTitle)
                                 .accessibilityValue(angleText)
@@ -109,7 +109,7 @@ struct WSSDirectionGrid: View {
         let degrees = String(Int(direction.rawValue)) + "°"
         let hint = direction.title + " (" + degrees + ")"
         return Button(action: { select(direction) }) {
-            Image(systemName: direction.symbol).frame(width: 24, height: 24)
+            Image(systemName: direction.symbol).wupsyControlFrame(width: 24, height: 24)
         }
         .buttonStyle(.bordered)
         .tint(selected ? Color.accentColor : Color.secondary)

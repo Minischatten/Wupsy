@@ -22,6 +22,7 @@ struct WSSMusicNotesLayer: Equatable {
     var visible = true
     var region: WSSSceneDocumentV1.Region
     var notes = Configuration()
+    var path: WSSMusicNotesPath? = nil
 
     var isAnimated: Bool { visible && notes.isAnimated }
 
@@ -75,6 +76,14 @@ struct WSSMusicNotesLayer: Equatable {
 
     func validate() throws {
         try notes.validate()
+        if let path {
+            _ = try path.prepare(in: region)
+        } else {
+            try Self.validateRegion(region)
+        }
+    }
+
+    static func validateRegion(_ region: WSSSceneDocumentV1.Region) throws {
         guard abs(region.x) <= 1_000_000, abs(region.y) <= 1_000_000,
             (1...8192).contains(region.width), (1...8192).contains(region.height),
             Double(region.width) * Double(region.height) <= 32 * 1024 * 1024
@@ -100,6 +109,7 @@ struct WSSMusicNotesLayer: Equatable {
 
     func phases(at time: Double) -> SIMD4<Float> {
         let heading = heading
+        let oscillation = oscillationPhases(at: time)
         return SIMD4(
             Self.phase(
                 time,
@@ -109,6 +119,12 @@ struct WSSMusicNotesLayer: Equatable {
                 time,
                 rate: abs(heading.y) < 1e-12
                     ? 0 : heading.y * Double(notes.speed) / Double(region.height)),
+            oscillation.x,
+            oscillation.y)
+    }
+
+    func oscillationPhases(at time: Double) -> SIMD2<Float> {
+        SIMD2(
             notes.hover ? Self.phase(time, rate: 0.23) : 0,
             notes.rotation ? Self.phase(time, rate: 0.13) : 0)
     }

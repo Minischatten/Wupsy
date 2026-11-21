@@ -156,8 +156,8 @@ import UniformTypeIdentifiers
             contentRect: NSRect(x: 0, y: 0, width: 470, height: 150),
             styleMask: [.titled], backing: .buffered, defer: false)
         panel.title = RestoreText.windowTitle.text
-        panel.contentView = NSHostingView(
-            rootView: LibraryRestoreProgress(coordinator: coordinator))
+        panel.contentView = WupsyPanelHostingView(
+            appearance: .shared, root: LibraryRestoreProgress(coordinator: coordinator))
         panel.center()
         panel.makeKeyAndOrderFront(nil)
         self.panel = panel
@@ -182,13 +182,13 @@ struct LibraryMaintenanceProgress: View {
     let cancel: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(phase).lineLimit(2).font(.callout)
+            Text(phase).lineLimit(2).wupsyFont(.callout)
             ProgressView().progressViewStyle(.linear)
             HStack {
                 Spacer()
                 Button(ProductText.cancel.text, action: cancel).disabled(!canCancel)
             }
-        }.padding(20).frame(width: 470, height: 150)
+        }.wupsyPadding(.all, 20).wupsyControlFrame(width: 470).frame(minHeight: 150)
     }
 }
 

@@ -172,6 +172,7 @@ extension WSSSceneDocumentV1.Layer {
             if !layer.visible { try c.encode(false, forKey: .visible) }
             try c.encode(layer.region, forKey: .region)
             try c.encode(layer.notes, forKey: .musicNotes)
+            try c.encodeIfPresent(layer.path, forKey: .path)
         case .fog(let layer):
             try c.encode("fog", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)

@@ -15,7 +15,7 @@ struct WSSTrailParameterControls: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(EditorText.effectTrail.text).font(.headline)
+            Text(EditorText.effectTrail.text).wupsyFont(.headline)
             if let configuration = document.trailLayer(layer) {
                 if configuration.colorMode == .ageGradient && configuration.colors.count == 2 {
                     ForEach(0..<2, id: \.self) { index in
@@ -52,7 +52,7 @@ struct WSSTrailParameterControls: View {
                                 }), supportsOpacity: false)
                     }
                 } else {
-                    Text(EditorText.trailLegacy.text).font(.caption)
+                    Text(EditorText.trailLegacy.text).wupsyFont(.caption)
                     Button(EditorText.trailConvert.text) {
                         perform { try document.convertTrailColors(layer) }
                     }
@@ -60,7 +60,7 @@ struct WSSTrailParameterControls: View {
                 ForEach(WSSTrailParameter.allCases, id: \.self) { parameter in
                     VStack(alignment: .leading, spacing: 4) {
                         if parameter == .curveSmoothing {
-                            Text(EditorText.trailCurveHelp.text).font(.caption)
+                            Text(EditorText.trailCurveHelp.text).wupsyFont(.caption)
                                 .foregroundStyle(.secondary)
                             Button(EditorText.trailCurveReset.text) {
                                 perform {
@@ -75,7 +75,7 @@ struct WSSTrailParameterControls: View {
                             )
                             .accessibilityIdentifier("wss.trail.curve-reset")
                         }
-                        Text(parameter.title).font(.caption).foregroundStyle(.secondary)
+                        Text(parameter.title).wupsyFont(.caption).foregroundStyle(.secondary)
                         if let value = parameter.value(configuration) {
                             let range = parameter.slider(canvas: document.state.workingModel)
                             HStack {
@@ -114,10 +114,10 @@ struct WSSTrailParameterControls: View {
                                         ? { try document.setTrailLifetime($0, layer: layer) } : nil
                                 ) {
                                     try document.setTrail(parameter, value: $0, layer: layer)
-                                }.frame(width: 85)
+                                }.wupsyControlFrame(width: 85)
                             }
                         } else {
-                            Text(EditorText.trailUnlimited.text).font(.caption)
+                            Text(EditorText.trailUnlimited.text).wupsyFont(.caption)
                             Button(EditorText.trailLimit.text) {
                                 perform {
                                     try document.setTrail(
@@ -137,8 +137,8 @@ struct WSSTrailParameterControls: View {
                     }
                 }
             }
-            Text(EditorText.trailPreviewHelp.text).font(.caption).foregroundStyle(.secondary)
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            Text(EditorText.trailPreviewHelp.text).wupsyFont(.caption).foregroundStyle(.secondary)
+            if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
         }.disabled(document.interactionLocked)
             .onDisappear {
                 colorEnd?.cancel()

@@ -42,6 +42,7 @@ import SwiftUI
 
 struct WupsyApp: App {
     @NSApplicationDelegateAdaptor(WupsyDelegate.self) private var delegate
+    @ObservedObject private var appearance = WupsyAppearance.shared
     @ObservedObject private var maintenance = MaintenanceCoordinator.shared
     @StateObject private var backup = LibraryBackupCoordinator()
     @StateObject private var restore = LibraryRestoreUI()
@@ -96,16 +97,19 @@ struct WupsyApp: App {
 
     var body: some Scene {
         Window("Wupsy", id: "library") {
-            LibraryView().environmentObject(editors).environmentObject(library).environmentObject(
-                widgets
-            ).environmentObject(
-                playlist
-            )
-            .frame(minWidth: 1040, minHeight: 740).preferredColorScheme(.dark).tint(
-                WupsyTheme.accent
-            )
-            .modifier(RestoreLibraryWindowGate(coordinator: restore.coordinator))
-            .task { await Benchmark.runIfRequested(library) }
+            WupsyAppearanceScope(appearance) {
+                LibraryView().environmentObject(editors).environmentObject(library)
+                    .environmentObject(
+                        widgets
+                    ).environmentObject(
+                        playlist
+                    )
+                    .frame(minWidth: 1040, minHeight: 740).preferredColorScheme(.dark).tint(
+                        WupsyTheme.accent
+                    )
+                    .modifier(RestoreLibraryWindowGate(coordinator: restore.coordinator))
+                    .task { await Benchmark.runIfRequested(library) }
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1200, height: 830)
@@ -162,6 +166,11 @@ struct WupsyApp: App {
                     editorHasFocus || library.active == nil || !maintenance.allowsNewOperations)
                 Button(ProductText.stop.text) { if !editorHasFocus { library.stop() } }.disabled(
                     editorHasFocus || !maintenance.allowsNewOperations)
+            }
+        }
+        Settings {
+            WupsyAppearanceScope(appearance) {
+                WupsyAppearanceSettings(appearance: appearance)
             }
         }
         MenuBarExtra {
@@ -254,6 +263,7 @@ struct WupsyMenu: View {
         Button(UpdateText.checkNow.text()) { updates.checkNow() }
             .disabled(maintenance.state != .normal)
         Divider()
+        SettingsLink { Text(ProductText.openSettings.text) }
         Button(AboutText.title.text()) { AboutPresentation.shared.show() }
         Divider()
         Button(ProductText.quit.text) {

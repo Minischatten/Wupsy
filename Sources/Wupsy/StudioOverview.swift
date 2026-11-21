@@ -50,13 +50,13 @@ struct StudioOverview: View {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Label(ProductText.playbackHealth.text, systemImage: "heart.text.square")
-                            .font(.headline)
+                            .wupsyFont(.headline)
                         Spacer()
                         Text(library.status).foregroundStyle(WupsyTheme.lavender)
                     }
                     Text(
                         ProductText.playbackHealthHint.text
-                    ).font(.subheadline).foregroundStyle(.secondary)
+                    ).wupsyFont(.subheadline).foregroundStyle(.secondary)
                     HStack {
                         Button(
                             library.manuallyPaused
@@ -72,29 +72,29 @@ struct StudioOverview: View {
                             VioletButtonStyle())
                     }
                     Divider()
-                    Text(ProductText.recentActivity.text).font(.caption.weight(.semibold))
+                    Text(ProductText.recentActivity.text).wupsyFont(size: 10, weight: .semibold)
                         .foregroundStyle(
                             .secondary)
                     ForEach(
                         Array(library.playbackEvents.suffix(6).reversed().enumerated()),
                         id: \.offset
                     ) { _, event in
-                        Text(event.localized()).font(.system(size: 11, design: .monospaced))
+                        Text(event.localized()).wupsyFont(size: 11, design: .monospaced)
                             .foregroundStyle(
                                 .secondary
                             ).textSelection(.enabled)
                     }
-                }.padding(22).background(
+                }.wupsyPadding(.all, 22).background(
                     WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 16))
-            }.padding(26)
+            }.wupsyPadding(.all, 26)
         }.background(WupsyTheme.background)
             .background(OverviewInitialFocus().allowsHitTesting(false))
     }
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 24) {
             Eyebrow(text: ProductText.overviewHeader.text)
-            Text(ProductText.overviewWelcome.text).font(
-                .system(size: 30, weight: .semibold, design: .rounded))
+            Text(ProductText.overviewWelcome.text).wupsyFont(
+                size: 30, weight: .semibold, design: .rounded)
         }
     }
     private func summary(_ label: String, value: String, icon: String, action: @escaping () -> Void)
@@ -102,11 +102,11 @@ struct StudioOverview: View {
     {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
-                Label(label, systemImage: icon).font(.caption).foregroundStyle(
+                Label(label, systemImage: icon).wupsyFont(.caption).foregroundStyle(
                     WupsyTheme.lavender)
-                Text(value).font(.system(size: 25, weight: .semibold, design: .rounded))
+                Text(value).wupsyFont(size: 25, weight: .semibold, design: .rounded)
                     .foregroundStyle(.white)
-            }.padding(20).frame(maxWidth: .infinity, alignment: .leading).background(
+            }.wupsyPadding(.all, 20).frame(maxWidth: .infinity, alignment: .leading).background(
                 WupsyTheme.surface, in: RoundedRectangle(cornerRadius: 14))
         }.buttonStyle(.plain)
     }

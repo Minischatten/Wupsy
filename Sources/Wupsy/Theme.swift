@@ -9,8 +9,8 @@ enum WupsyTheme {
 }
 struct VioletButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-            .padding(.horizontal, 17).padding(.vertical, 11)
+        configuration.label.wupsyFont(size: 12, weight: .semibold).foregroundStyle(.white)
+            .wupsyPadding(.horizontal, 17).wupsyPadding(.vertical, 11)
             .background(
                 LinearGradient(
                     colors: [WupsyTheme.accent, Color(red: 0.44, green: 0.29, blue: 0.83)],
@@ -24,7 +24,7 @@ struct VioletButtonStyle: ButtonStyle {
 struct Eyebrow: View {
     let text: String
     var body: some View {
-        Text(text).font(.system(size: 9, weight: .semibold)).tracking(1.8).foregroundStyle(
+        Text(text).wupsyFont(size: 9, weight: .semibold).tracking(1.8).foregroundStyle(
             .secondary)
     }
 }
@@ -32,9 +32,9 @@ struct DetailBadge: View {
     let text: String
     let icon: String
     var body: some View {
-        Label(text, systemImage: icon).font(.system(size: 10, weight: .medium)).foregroundStyle(
+        Label(text, systemImage: icon).wupsyFont(size: 10, weight: .medium).foregroundStyle(
             .white.opacity(0.8)
-        ).padding(.horizontal, 10).padding(.vertical, 6).background(
+        ).wupsyPadding(.horizontal, 10).wupsyPadding(.vertical, 6).background(
             .black.opacity(0.32), in: Capsule()
         ).overlay(Capsule().stroke(.white.opacity(0.13)))
     }

@@ -3,6 +3,7 @@ import Foundation
 enum ProductText: String, CaseIterable {
     case menuBackup = "core.menuBackup"
     case menuRestore = "core.menuRestore"
+    case openSettings = "core.openSettings"
     case widgetsFinish = "core.widgetsFinish"
     case widgetsEdit = "core.widgetsEdit"
     case pauseWallpapers = "core.pauseWallpapers"

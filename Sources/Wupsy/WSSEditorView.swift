@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WSSEditorView: View {
+    @Environment(\.wupsyMetrics) private var metrics
     @ObservedObject var document: WSSEditorDocument
     @State private var zoom: CGFloat? = nil
     @State private var effectCreationError: String?
@@ -12,10 +13,12 @@ struct WSSEditorView: View {
     }
     var body: some View {
         HSplitView {
-            structure.frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
+            structure.frame(
+                minWidth: min(205, metrics.points(180)), idealWidth: metrics.points(220),
+                maxWidth: metrics.points(320))
             VStack(spacing: 0) {
                 HStack {
-                    Text(EditorText.canvas.text).font(.headline)
+                    Text(EditorText.canvas.text).wupsyFont(.headline)
                     Spacer()
                     if case .layer(let id) = document.selection, document.canTransform(id) {
                         Button {
@@ -41,23 +44,31 @@ struct WSSEditorView: View {
                             Button("\(value)%") { zoom = CGFloat(value) / 100 }
                         }
                     }.fixedSize().accessibilityLabel(EditorText.canvasZoom.text).disabled(
-                        document.canvasTransform != nil || document.hasActivePaintInteraction)
-                }.padding(10)
+                        document.canvasTransform != nil || document.musicNotesPathGesture != nil
+                            || document.hasActivePaintInteraction)
+                }.wupsyPadding(.all, 10)
                 WSSMaskCanvasTools(document: document)
                 WSSDirectionBrushTools(document: document)
                 WSSCanvasView(document: document, zoom: $zoom)
+                    .id(ObjectIdentifier(document))
                     .focusable().focused($canvasFocused)
-            }.frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+            }.frame(
+                minWidth: metrics.scale == .standard ? 400 : 350, maxWidth: .infinity,
+                maxHeight: .infinity)
             VSplitView {
                 inspector.frame(minHeight: 280, maxHeight: .infinity)
                 livePreview.frame(minHeight: 160, idealHeight: 220)
-            }.frame(minWidth: 300, idealWidth: 340, maxWidth: 480)
+            }.frame(
+                minWidth: min(360, metrics.points(300)), idealWidth: metrics.points(340),
+                maxWidth: metrics.points(480))
         }
         .overlay {
             if document.saveAsBusy && document.interactionLocked {
-                ProgressView(EditorText.savingCopy.text).padding(24).background(.regularMaterial)
-                    .cornerRadius(
-                        10)
+                ProgressView(EditorText.savingCopy.text).wupsyPadding(.all, 24).background(
+                    .regularMaterial
+                )
+                .cornerRadius(
+                    10)
             }
         }
     }
@@ -66,7 +77,7 @@ struct WSSEditorView: View {
         let session = document.state.sessionID
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(EditorText.layersEffects.text).font(.headline)
+                Text(EditorText.layersEffects.text).wupsyFont(.headline)
                 Spacer()
                 Menu {
                     Button(EditorText.effectTrail.text) {
@@ -132,33 +143,33 @@ struct WSSEditorView: View {
                     EditorText.addSceneContent.text
                 )
                 .disabled(!document.permitsStructureEditing)
-            }.padding(10)
+            }.wupsyPadding(.all, 10)
             if let effectCreationError {
-                Text(effectCreationError).font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
+                Text(effectCreationError).wupsyFont(.caption).foregroundStyle(.secondary)
+                    .wupsyPadding(.horizontal, 10)
             }
-            Text(EditorText.layerOrderHint.text).font(.caption).foregroundStyle(
+            Text(EditorText.layerOrderHint.text).wupsyFont(.caption).foregroundStyle(
                 .secondary
-            ).padding(.horizontal, 10)
+            ).wupsyPadding(.horizontal, 10)
             List(
                 selection: Binding(
                     get: { document.selection },
                     set: { document.select($0) })
             ) {
                 ForEach(rows) { row in
-                    HStack(spacing: 4) {
+                    HStack(spacing: metrics.spacing(4)) {
                         if case .layer(let id) = row.id {
                             WSSLayerVisibilityButton(
                                 symbol: row.symbol, help: document.visibilityHelp(id),
                                 enabled: !document.interactionLocked,
                                 action: { try? document.toggleVisibility(id) }
-                            ).frame(width: 26, height: 26)
+                            ).wupsyControlFrame(width: 26, height: 26)
                             if document.canTransform(id) {
                                 Image(
                                     systemName: document.stormLayer(id) == nil
                                         ? "photo" : "bolt.fill"
                                 )
-                                .frame(width: 26, height: 26)
+                                .wupsyControlFrame(width: 26, height: 26)
                                 .contentShape(Rectangle())
                                 .help(
                                     document.transformHelp(for: .layer(id))
@@ -178,7 +189,7 @@ struct WSSEditorView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                     }
-                    .padding(.leading, CGFloat(row.depth) * 18)
+                    .padding(.leading, CGFloat(row.depth) * metrics.spacing(18))
                     .contentShape(Rectangle())
                     .moveDisabled(!document.permitsStructureEditing)
                     .tag(row.id)
@@ -208,7 +219,7 @@ struct WSSEditorView: View {
                     document.interactionLocked || document.importingImage
                         || document.identity.layers.count >= 128
                 )
-                .padding(.horizontal, 10)
+                .wupsyPadding(.horizontal, 10)
             HStack {
                 Button {
                     try? document.moveSelection(by: -1)
@@ -235,13 +246,13 @@ struct WSSEditorView: View {
                     document.deleteSelectionTitle
                 )
                 .disabled(!document.structureCommands.canPerform(.delete))
-            }.padding(10).disabled(document.interactionLocked)
+            }.wupsyPadding(.all, 10).disabled(document.interactionLocked)
         }
     }
     private var livePreview: some View {
         VStack(spacing: 6) {
             HStack {
-                Text(EditorText.livePreview.text).font(.headline)
+                Text(EditorText.livePreview.text).wupsyFont(.headline)
                 Spacer()
                 Button {
                     document.playing.toggle()
@@ -274,7 +285,7 @@ struct WSSEditorView: View {
                     document.preparationError.map { EditorText.previewNotCurrentDetail.format($0) }
                         ?? EditorText.updatingPreview.text
                 )
-                .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10)
+                .wupsyFont(.caption).foregroundStyle(.secondary).wupsyPadding(.horizontal, 10)
             }
             GeometryReader { geometry in
                 let fitted = WSSPreviewGeometry.fit(
@@ -284,7 +295,7 @@ struct WSSEditorView: View {
                 ZStack {
                     Color.black.opacity(0.85)
                     if let error = document.previewError {
-                        Text(error).font(.caption).padding()
+                        Text(error).wupsyFont(.caption).padding()
                     } else {
                         WSSPreviewView(document: document).frame(
                             width: fitted.width, height: fitted.height)
@@ -295,8 +306,8 @@ struct WSSEditorView: View {
     }
     private var inspector: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(EditorText.inspector.text).font(.headline)
+            VStack(alignment: .leading, spacing: metrics.spacing(14)) {
+                Text(EditorText.inspector.text).wupsyFont(.headline)
                 if document.effectAddress == nil, let id = document.selection?.layer {
                     Toggle(
                         EditorText.visible.text,
@@ -312,7 +323,7 @@ struct WSSEditorView: View {
                         .disabled(document.interactionLocked || document.importingImage)
                         ForEach(WSSImageProperty.allCases, id: \.self) { property in
                             VStack(alignment: .leading) {
-                                Text(property.title).font(.caption).foregroundStyle(.secondary)
+                                Text(property.title).wupsyFont(.caption).foregroundStyle(.secondary)
                                 if property == .opacity {
                                     Slider(
                                         value: Binding(
@@ -377,7 +388,7 @@ struct WSSEditorView: View {
                 ) {
                     _, section in
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(section.title).font(.headline)
+                        Text(section.title).wupsyFont(.headline)
                         if let address = section.editableAddress,
                             document.identity.layers.indices.contains(address.layerIndex),
                             document.identity.layers[address.layerIndex].effects.indices.contains(
@@ -393,7 +404,7 @@ struct WSSEditorView: View {
                     }
                     Divider()
                 }
-            }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            }.wupsyPadding(.all, 14).frame(maxWidth: .infinity, alignment: .leading)
                 .disabled(document.interactionLocked)
         }
     }
@@ -401,6 +412,7 @@ struct WSSEditorView: View {
 
 // A native button consumes its own mouse sequence independently of List row gestures.
 struct WSSLayerVisibilityButton: NSViewRepresentable {
+    @Environment(\.wupsyMetrics) private var metrics
     let symbol: String
     let help: String
     let enabled: Bool
@@ -416,7 +428,13 @@ struct WSSLayerVisibilityButton: NSViewRepresentable {
     }
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.action = action
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
+        button.image =
+            metrics.scale == .standard
+            ? image
+            : image?.withSymbolConfiguration(
+                .init(pointSize: metrics.points(13), weight: .regular))
+        button.controlSize = metrics.nativeControlSize
         button.toolTip = help
         button.setAccessibilityLabel(help)
         button.isEnabled = enabled

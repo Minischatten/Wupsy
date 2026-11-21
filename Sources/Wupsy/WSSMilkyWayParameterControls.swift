@@ -9,7 +9,7 @@ struct WSSMilkyWayParameterControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider()
-            Text(WSSStarfieldText.text("milkyWay.title")).font(.headline)
+            Text(WSSStarfieldText.text("milkyWay.title")).wupsyFont(.headline)
             if let m = document.starfieldLayer(layer)?.starfield.milkyWay {
                 Toggle(
                     WSSStarfieldText.text("milkyWay.enabled"),
@@ -52,7 +52,7 @@ struct WSSMilkyWayParameterControls: View {
                         }), supportsOpacity: false)
                 ForEach(WSSMilkyWayParameter.allCases, id: \.self) { parameter in
                     HStack {
-                        Text(parameter.title).font(.caption)
+                        Text(parameter.title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: Float(parameter.value(m)),
@@ -67,13 +67,13 @@ struct WSSMilkyWayParameterControls: View {
                             commit: {
                                 try document.setMilkyWay(parameter, value: Double($0), layer: layer)
                             }
-                        ).frame(width: 110)
+                        ).wupsyControlFrame(width: 110)
                     }
                 }
-                Text(WSSStarfieldText.text("milkyWay.help")).font(.caption).foregroundStyle(
+                Text(WSSStarfieldText.text("milkyWay.help")).wupsyFont(.caption).foregroundStyle(
                     .secondary)
             }
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
         }
         .onDisappear {
             colorEnd?.cancel()

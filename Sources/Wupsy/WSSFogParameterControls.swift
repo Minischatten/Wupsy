@@ -168,11 +168,11 @@ struct WSSFogParameterControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(WSSFogText.text("title")).font(.headline)
+            Text(WSSFogText.text("title")).wupsyFont(.headline)
             if let value = document.fogLayer(layer)?.fog {
                 ForEach(WSSFogParameter.allCases, id: \.self) { parameter in
                     if parameter == .driftX {
-                        Text(WSSFogText.text("driftDirection")).font(.caption)
+                        Text(WSSFogText.text("driftDirection")).wupsyFont(.caption)
                         WSSDirectionGrid(
                             angle: value.driftAngle,
                             currentTitle: WSSFogText.text("driftDirection"),
@@ -187,7 +187,7 @@ struct WSSFogParameterControls: View {
                     }
                     let title = WSSFogText.text(parameter.rawValue)
                     HStack {
-                        Text(title).font(.caption)
+                        Text(title).wupsyFont(.caption)
                         Spacer()
                         WSSParameterTextField(
                             value: value[keyPath: parameter.keyPath], range: parameter.range,
@@ -196,19 +196,19 @@ struct WSSFogParameterControls: View {
                             try document.changeFog(layer, name: title) {
                                 $0[keyPath: parameter.keyPath] = newValue
                             }
-                        }.frame(width: 100)
+                        }.wupsyControlFrame(width: 100)
                     }
                 }
                 HStack {
                     let title = WSSFogText.text("color")
-                    Text(title).font(.caption)
+                    Text(title).wupsyFont(.caption)
                     Spacer()
                     WSSNativeSDRColorWell(color: value.color, title: title) { color in
                         perform { try document.changeFog(layer, name: title) { $0.color = color } }
-                    }.frame(width: 50, height: 24)
+                    }.wupsyControlFrame(width: 50, height: 24)
                 }
                 Button(WSSEffectReset.title) { perform { try document.resetFog(layer) } }
-                if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                if let error { Text(error).wupsyFont(.caption).foregroundStyle(.red) }
             }
         }
         .disabled(!document.permitsStructureEditing)
@@ -218,14 +218,14 @@ struct WSSFogParameterControls: View {
         let title = WSSFogText.text("speed")
         let limit = WSSFogConfiguration.driftSpeedLimit(in: document.fogSpeedDirection(layer))
         return HStack {
-            Text(title).font(.caption)
+            Text(title).wupsyFont(.caption)
             Spacer()
             WSSParameterTextField(
                 value: Float(speed), range: 0...Float(limit), title: title,
                 maximumFractionDigits: 3, exactValue: speed, exactRange: 0...limit,
                 commitExact: { try document.setFogNumericSpeed($0, layer: layer) },
                 commit: { try document.setFogNumericSpeed(Double($0), layer: layer) }
-            ).frame(width: 100)
+            ).wupsyControlFrame(width: 100)
         }
     }
 
@@ -269,7 +269,7 @@ private struct WSSFogSpeedSlider: View {
                     }),
                 in: 0...1, step: 0.001
             ) {
-                Text(WSSFogText.text("speed")).font(.caption)
+                Text(WSSFogText.text("speed")).wupsyFont(.caption)
             } onEditingChanged: { active in
                 if active {
                     if begin() { draftPosition = position }
@@ -279,7 +279,7 @@ private struct WSSFogSpeedSlider: View {
                 }
             }
             .accessibilityValue(formatted)
-            Text(formatted).font(.caption).monospacedDigit().frame(
+            Text(formatted).wupsyFont(.caption).monospacedDigit().frame(
                 minWidth: 48, alignment: .trailing
             )
             .accessibilityHidden(true)
@@ -291,6 +291,7 @@ private struct WSSFogSpeedSlider: View {
 
 // Use AppKit target/action for continuous delivery from the shared native color panel.
 struct WSSNativeSDRColorWell: NSViewRepresentable {
+    @Environment(\.wupsyMetrics) private var metrics
     @Environment(\.isEnabled) private var isEnabled
     let color: WSSFogConfiguration.Color
     let title: String
@@ -311,6 +312,7 @@ struct WSSNativeSDRColorWell: NSViewRepresentable {
         context.coordinator.change = change
         well.setAccessibilityLabel(title)
         well.isEnabled = isEnabled
+        well.controlSize = metrics.nativeControlSize
         let selected = NSColor(
             srgbRed: CGFloat(color.red), green: CGFloat(color.green), blue: CGFloat(color.blue),
             alpha: 1)

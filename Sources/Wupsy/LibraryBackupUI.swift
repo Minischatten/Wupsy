@@ -44,7 +44,8 @@ enum LibraryBackupCheckpoint: CaseIterable { case snapshot, archive, verificatio
             contentRect: NSRect(x: 0, y: 0, width: 470, height: 150),
             styleMask: [.titled], backing: .buffered, defer: false)
         panel.title = BackupText.windowTitle.text
-        panel.contentView = NSHostingView(rootView: LibraryBackupProgress(coordinator: self))
+        panel.contentView = WupsyPanelHostingView(
+            appearance: .shared, root: LibraryBackupProgress(coordinator: self))
         panel.center()
         panel.makeKeyAndOrderFront(nil)
         self.panel = panel
@@ -221,13 +222,13 @@ private struct LibraryBackupProgress: View {
     @ObservedObject var coordinator: LibraryBackupCoordinator
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(coordinator.phase).lineLimit(2).font(.callout)
+            Text(coordinator.phase).lineLimit(2).wupsyFont(.callout)
             ProgressView().progressViewStyle(.linear)
             HStack {
                 Spacer()
                 Button(ProductText.cancel.text, action: coordinator.cancel)
             }
-        }.padding(20).frame(width: 470, height: 150)
+        }.wupsyPadding(.all, 20).wupsyControlFrame(width: 470).frame(minHeight: 150)
     }
 }
 

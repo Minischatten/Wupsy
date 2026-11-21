@@ -10,14 +10,14 @@ struct ImportFailureView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(ImportText.failures.format(Int64(report.failures.count)))
-                .font(.headline)
+                .wupsyFont(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(report.failures.enumerated()), id: \.element.id) {
                         index, failure in
                         failureView(failure, index: index)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8)
+                }.frame(maxWidth: .infinity, alignment: .leading).wupsyPadding(.trailing, 8)
             }
             .frame(
                 height: min(
@@ -29,7 +29,7 @@ struct ImportFailureView: View {
                     .focused($closeFocused)
             }
         }
-        .padding(24).frame(width: 560)
+        .wupsyPadding(.all, 24).wupsyControlFrame(width: 560)
         .onAppear { closeFocused = true }
         .onExitCommand { dismiss() }
     }
@@ -41,7 +41,7 @@ struct ImportFailureView: View {
                     ? ImportText.sourceNumber.format(Int64(index + 1), failure.sourceName)
                     : failure.sourceName
             )
-            .font(.subheadline).foregroundStyle(.secondary)
+            .wupsyFont(.subheadline).foregroundStyle(.secondary)
             .textSelection(.enabled)
             Text(failure.title).fontWeight(.semibold)
             Text(failure.explanation)
@@ -69,7 +69,7 @@ struct ImportFailureView: View {
                         Self.copy(failure, to: .general)
                     }
                     .accessibilityLabel(ImportText.copyAccessibility.format(failure.sourceName))
-                }.padding(.top, 8)
+                }.wupsyPadding(.top, 8)
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }

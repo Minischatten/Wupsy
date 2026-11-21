@@ -15,7 +15,8 @@ struct WSSEditorParameterControls: View {
             WSSEditorParameter.cloudsBrightness.value(in: document.state.workingModel, at: address)
                 != nil
         {
-            Text(EditorText.cloudsMotionToneHelp.text).font(.caption).foregroundStyle(.secondary)
+            Text(EditorText.cloudsMotionToneHelp.text).wupsyFont(.caption).foregroundStyle(
+                .secondary)
         }
         if let address,
             let seed = WSSEditorParameter.rippleSeed(in: document.state.workingModel, at: address)
@@ -27,7 +28,8 @@ struct WSSEditorParameterControls: View {
                         control(parameter)
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(EditorText.rippleSeed.text).font(.caption).foregroundStyle(.secondary)
+                        Text(EditorText.rippleSeed.text).wupsyFont(.caption).foregroundStyle(
+                            .secondary)
                         WSSParameterTextField(
                             value: Float(seed), range: 0...Float(UInt32.max),
                             title: EditorText.rippleSeed.text, maximumFractionDigits: 0,
@@ -42,9 +44,9 @@ struct WSSEditorParameterControls: View {
                             }
                         )
                     }
-                    Text(EditorText.rippleLateralHelp.text).font(.caption).foregroundStyle(
+                    Text(EditorText.rippleLateralHelp.text).wupsyFont(.caption).foregroundStyle(
                         .secondary)
-                }.padding(.top, 6)
+                }.wupsyPadding(.top, 6)
             }.disabled(document.interactionLocked)
         }
     }
@@ -55,7 +57,7 @@ struct WSSEditorParameterControls: View {
             let sliderRange = parameter.sliderRange(
                 in: document.state.workingModel, at: address)
             VStack(alignment: .leading, spacing: 4) {
-                Text(parameter.title).font(.caption).foregroundStyle(.secondary)
+                Text(parameter.title).wupsyFont(.caption).foregroundStyle(.secondary)
                 HStack {
                     Slider(
                         value: Binding(
@@ -93,7 +95,7 @@ struct WSSEditorParameterControls: View {
                         if let current = self.address {
                             try document.setParameter(parameter, at: current, value: $0)
                         }
-                    }.frame(width: 85)
+                    }.wupsyControlFrame(width: 85)
                 }
             }.disabled(document.interactionLocked)
         }
@@ -132,6 +134,7 @@ struct WSSParameterNumberPresentation {
 }
 
 struct WSSParameterTextField: NSViewRepresentable {
+    @Environment(\.wupsyMetrics) private var metrics
     let value: Float
     let range: ClosedRange<Float>
     let title: String
@@ -152,7 +155,7 @@ struct WSSParameterTextField: NSViewRepresentable {
         field.delegate = context.coordinator
         field.setAccessibilityLabel(title)
         let hint = NSTextField(wrappingLabelWithString: "")
-        hint.font = .systemFont(ofSize: 10)
+        hint.font = .systemFont(ofSize: metrics.points(10))
         hint.textColor = .systemRed
         hint.isHidden = true
         let stack = NSStackView(views: [field, hint])
@@ -167,6 +170,11 @@ struct WSSParameterTextField: NSViewRepresentable {
             context.coordinator.synchronize(self, in: field)
         }
         context.coordinator.field?.isEnabled = context.environment.isEnabled
+        if let field = context.coordinator.field {
+            field.controlSize = metrics.nativeControlSize
+            field.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
+        }
+        context.coordinator.hint?.font = .systemFont(ofSize: metrics.points(10))
     }
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: WSSParameterTextField

@@ -21,6 +21,10 @@ import SwiftUI
         set { snapshot.identity = newValue }
     }
     @Published var transformModeLayer: WSSLayerID?
+    @Published var musicNotesPathEditLayer: WSSLayerID?
+    @Published var musicNotesPathAnchor: Int?
+    var musicNotesPathGesture: WSSMusicNotesPathGesture?
+    var musicNotesPathPreviewTask: Task<Void, Never>?
     // Window-level key tracking is authoritative, including key-up events that
     // AppKit does not deliver to the Canvas responder.
     var canvasSpaceDown = false {
@@ -55,6 +59,7 @@ import SwiftUI
         get { snapshot.selection }
         set {
             let changed = newValue != selection
+            if changed { leaveMusicNotesPathEditing(restoreTransform: false) }
             snapshot.selection = newValue
             if changed {
                 selectionRevision &+= 1
@@ -260,6 +265,9 @@ import SwiftUI
         previewResources = project.resources
         undoManager.groupsByEvent = false
         self.project = project
+        if let first = project.scene.layers.first, first.visible, first.isPositionableRegion {
+            transformModeLayer = initialIDs.layers.first?.id
+        }
         undoManager.hasPendingInteraction = { [weak self] in
             guard let self else { return false }
             if let (_, original) = self.starfieldColorDrag, original != self.state.workingModel {
@@ -274,11 +282,17 @@ import SwiftUI
             if let drag = self.fogSpeedDrag, drag.original != drag.draft {
                 return true
             }
+            if let gesture = self.musicNotesPathGesture,
+                gesture.draft != gesture.start || gesture.original != self.state.workingModel
+            {
+                return true
+            }
             return self.canvasTransform.map { $0.model != self.state.workingModel } ?? false
         }
         undoManager.finishInteraction = { [weak self] in
             self?.finishCanvasInteraction?()
             self?.endCanvasTransform()
+            self?.finishMusicNotesPathGesture()
             self?.endTrailInteraction()
             self?.endStormColorInteraction()
             self?.endStarfieldColorInteraction()
@@ -310,6 +324,15 @@ import SwiftUI
             selectionRevision &+= 1
             transformModeLayer = nil
         }
+        reconcileMusicNotesPathEditing()
+        if selectionChanged, case .layer(let id) = selection,
+            let index = identity.layers.firstIndex(where: { $0.id == id }),
+            model.layers[index].canvasTransform != nil,
+            let layer = try? model.layers[index].makeNative(), layer.visible,
+            layer.isPositionableRegion
+        {
+            transformModeLayer = id
+        }
         refreshMaskSelection(selectionChanged: selectionChanged)
         directionSessionStorage?.refresh(selectionChanged: selectionChanged)
     }
@@ -339,6 +362,7 @@ import SwiftUI
     func close() {
         guard !closed else { return }
         endCanvasTransform()
+        leaveMusicNotesPathEditing(restoreTransform: false)
         fogSpeedDrag = nil
         displayFogDrift = nil
         transformModeLayer = nil
@@ -404,7 +428,8 @@ import SwiftUI
     var isResolvingClose: Bool { closeTask != nil }
     var canSave: Bool {
         !closed && !interactionLocked && !saving && !saveAsBusy && !hasActivePaintInteraction
-            && (isDirty || fogSpeedDrag.map { $0.original != $0.draft } == true)
+            && (isDirty || fogSpeedDrag.map { $0.original != $0.draft } == true
+                || musicNotesPathGesture.map { $0.start != $0.draft } == true)
     }
     var workingScene: WSSScene {
         if canReusePreparedPreview, previewIsCurrent { return previewResources.scene }
@@ -427,6 +452,7 @@ import SwiftUI
         guard !hasActivePaintInteraction else { return false }
         finishCanvasInteraction?()
         endCanvasTransform()
+        finishMusicNotesPathGesture()
         endSlider()
         endImageSlider()
         endRainSlider()
@@ -523,6 +549,7 @@ import SwiftUI
         registerModelUndo(state.workingModel, name: name, directional: directional)
         let changed = model != state.workingModel
         installSnapshot(model, ids: ids, selected: selected)
+        if musicNotesPathAnchor != nil { musicNotesPathAnchor = nil }
         if changed { requestPreview() }
     }
     func updateSlider(_ parameter: WSSEditorParameter, at address: WSSEffectAddress, value: Float)
