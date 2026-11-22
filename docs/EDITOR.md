@@ -36,6 +36,11 @@ Select an effect to inspect/edit its mask where supported. Scalar mask painting 
 independent generations, never the original file. The selected overlay is editor state;
 it is not a persisted visual layer.
 
+## Music Notes
+
+The [Music Notes user guide](anleitungen/MUSIC-NOTES.md) shows how to animate
+notes, draw your own paths, and set up depth changes and perspective.
+
 ## Fog
 
 Choose Ground Fog or Atmospheric Fog from the layer add menu. Reorder the fog layer

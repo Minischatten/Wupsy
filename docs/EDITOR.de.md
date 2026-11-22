@@ -18,6 +18,11 @@ Füge der ausgewählten Bildebene Ripple, Clouds oder Flow hinzu und wähle ansc
 
 Wähle einen Effekt aus, um seine Maske zu prüfen oder zu bearbeiten, soweit dies unterstützt wird. Das Malen skalarer Masken schreibt unabhängige Dateigenerationen, niemals die Originaldatei. Die ausgewählte Überlagerung gehört zum Editorzustand; sie ist keine dauerhaft gespeicherte sichtbare Ebene.
 
+## Musiknoten
+
+Mit der [Benutzeranleitung für Musiknoten](anleitungen/MUSIKNOTEN.md) lernst du,
+wie du Noten animierst, eigene Kurven zeichnest und Tiefenwechsel und Perspektive einstellst.
+
 ## Nebel
 
 Wähle im Menü zum Hinzufügen von Ebenen Bodennebel oder atmosphärischen Nebel.
