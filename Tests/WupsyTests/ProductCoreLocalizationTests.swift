@@ -34,6 +34,11 @@ final class ProductCoreLocalizationTests: XCTestCase {
                 "Entfernt das Wallpaper aus der Mediathek und löscht die zugehörigen von Wupsy verwalteten Dateien. Externe Originaldateien bleiben erhalten."
             ),
             (.quit, "Quit Wupsy", "Wupsy beenden"),
+            (.settingsPlayback, "Playback", "Wiedergabe"),
+            (.settingsLibrary, "Library", "Mediathek"),
+            (.settingsGeneral, "General", "Allgemein"),
+            (.menuBackup, "Back Up Library…", "Mediathek sichern …"),
+            (.menuRestore, "Restore Library…", "Mediathek wiederherstellen …"),
             (.launchLogin, "Launch at Login", "Bei der Anmeldung starten"),
             (.navAll, "All wallpapers", "Alle Hintergrundbilder"),
             (.favorites, "Favorites", "Favoriten"),

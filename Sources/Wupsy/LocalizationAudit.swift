@@ -15,8 +15,8 @@ enum LocalizationAudit {
         try require(Set(bundle.localizations).isSuperset(of: ["en", "de"]), "Missing en/de")
         let english = Localization.string(.libraryOpen, language: "en")
         let german = Localization.string(.libraryOpen, language: "de")
-        try require(english == "Open Wallpaper Library", "English lookup failed")
-        try require(german == "Hintergrundbild-Mediathek öffnen", "German lookup failed")
+        try require(english == "Open Wupsy", "English lookup failed")
+        try require(german == "Wupsy öffnen", "German lookup failed")
         try require(
             Localization.wallpaperNamed("A %@ ä", language: "de") == "Hintergrundbild: A %@ ä",
             "Interpolation failed")

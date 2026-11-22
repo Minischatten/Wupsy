@@ -9,9 +9,9 @@ final class LocalizationFoundationTests: XCTestCase {
         for language in ["en", "de"] {
             XCTAssertNotNil(Localization.bundle.path(forResource: language, ofType: "lproj"))
         }
-        XCTAssertEqual(Localization.string(.libraryOpen, language: "en"), "Open Wallpaper Library")
+        XCTAssertEqual(Localization.string(.libraryOpen, language: "en"), "Open Wupsy")
         XCTAssertEqual(
-            Localization.string(.libraryOpen, language: "de"), "Hintergrundbild-Mediathek öffnen")
+            Localization.string(.libraryOpen, language: "de"), "Wupsy öffnen")
     }
 
     func testMissingTranslationAndUnknownLanguageUseEnglish() throws {
@@ -28,7 +28,7 @@ final class LocalizationFoundationTests: XCTestCase {
                 "English fallback")
         }
         XCTAssertEqual(
-            Localization.string(.libraryOpen, language: "zz"), "Open Wallpaper Library")
+            Localization.string(.libraryOpen, language: "zz"), "Open Wupsy")
     }
 
     func testNoResourceExposesAKey() {
@@ -58,7 +58,7 @@ final class LocalizationFoundationTests: XCTestCase {
 
     func testProductionAuditExercisesAllLookupsWithoutRuntime() throws {
         let report = try LocalizationAudit.run(expectedLanguage: nil)
-        XCTAssertTrue(report.contains("Hintergrundbild-Mediathek"))
+        XCTAssertTrue(report.contains("Wupsy öffnen"))
         XCTAssertTrue(report.contains("Wupsy_Wupsy.bundle"))
     }
 }

@@ -105,6 +105,20 @@ import XCTest
         }
     }
 
+    func testEditingCanStartWithTheMainWindowClosed() async throws {
+        try await withWidgets { widgets in
+            let window = window()
+            window.orderFront(nil)
+            window.close()
+            widgets.setEditing(true)
+            XCTAssertTrue(widgets.editing)
+            XCTAssertFalse(window.isVisible)
+            widgets.setEditing(false)
+            XCTAssertFalse(widgets.editing)
+            XCTAssertFalse(window.isVisible)
+        }
+    }
+
     func testClosedWindowIsNotReopenedAtEndOfEditing() async throws {
         try await withWidgets { widgets in
             let window = window()

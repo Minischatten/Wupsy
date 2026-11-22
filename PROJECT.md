@@ -54,6 +54,18 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Settings and quick actions
+
+Open Settings from the menu bar extra or the Library’s three-dot menu.
+Appearance contains interface sizing. Playback contains All Displays, Pause on
+Battery and Power Saving. Library opens the existing backup and restore flows.
+General contains Launch at Login and automatic update checks.
+
+The menu bar extra shows playback status and offers Open Wupsy, manual pause
+or resume, desktop widget editing, Settings, a manual update check, About and
+Quit. Picture quality, scene resolution, frame rate and Stop remain in the
+Library window.
+
 ## Interface size
 
 The Settings window offers 100%, 125% and 150% under Appearance. Open it

@@ -2064,13 +2064,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Check for updates now …"
+            "value": "Check for updates now"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jetzt nach Updates suchen …"
+            "value": "Jetzt nach Updates suchen"
           }
         }
       }
@@ -2388,13 +2388,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open Wallpaper Library"
+            "value": "Open Wupsy"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hintergrundbild-Mediathek öffnen"
+            "value": "Wupsy öffnen"
           }
         }
       }
@@ -2442,13 +2442,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backup Wallpaper Library…"
+            "value": "Back Up Library…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hintergrundbild-Mediathek sichern …"
+            "value": "Mediathek sichern …"
           }
         }
       }
@@ -2477,13 +2477,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restore Wallpaper Library…"
+            "value": "Restore Library…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hintergrundbild-Mediathek wiederherstellen …"
+            "value": "Mediathek wiederherstellen …"
           }
         }
       }
@@ -2520,6 +2520,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "Desktop-Widgets bearbeiten"
+          }
+        }
+      }
+    },
+    "core.settingsPlayback": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe"
+          }
+        }
+      }
+    },
+    "core.settingsLibrary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mediathek"
+          }
+        }
+      }
+    },
+    "core.settingsGeneral": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allgemein"
+          }
+        }
+      }
+    },
+    "core.resumeWallpapers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume Wallpapers"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundbilder fortsetzen"
           }
         }
       }

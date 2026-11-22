@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 import SwiftUI
 
 @MainActor final class WupsyDelegate: NSObject, NSApplicationDelegate {
@@ -170,13 +169,14 @@ struct WupsyApp: App {
         }
         Settings {
             WupsyAppearanceScope(appearance) {
-                WupsyAppearanceSettings(appearance: appearance)
+                WupsySettings(
+                    appearance: appearance, library: library, widgets: widgets,
+                    playlist: playlist, editors: editors, backup: backup, restore: restore,
+                    updates: updates, maintenance: maintenance)
             }
         }
         MenuBarExtra {
-            WupsyMenu().environmentObject(library).environmentObject(widgets).environmentObject(
-                playlist
-            ).environmentObject(editors).environmentObject(backup).environmentObject(restore)
+            WupsyMenu().environmentObject(library).environmentObject(widgets)
                 .environmentObject(updates)
         } label: {
             Image(nsImage: MenuBarIcon.image).renderingMode(.template)
@@ -189,16 +189,14 @@ struct WupsyApp: App {
 struct WupsyMenu: View {
     @EnvironmentObject private var updates: UpdateCheckCoordinator
     @ObservedObject private var maintenance = MaintenanceCoordinator.shared
-    @EnvironmentObject private var backup: LibraryBackupCoordinator
-    @EnvironmentObject private var restore: LibraryRestoreUI
-    @EnvironmentObject private var editors: WSSEditorCoordinator
-    @EnvironmentObject private var playlist: WallpaperPlaylist
-    @Environment(\.dismissWindow) private var dismissWindow
     @EnvironmentObject private var widgets: DesktopWidgets
     @EnvironmentObject private var library: Library
     @Environment(\.openWindow) private var openWindow
-    @State private var loginStatus = SMAppService.mainApp.status
-    @State private var loginError: String?
+
+    static func playbackAction(manuallyPaused: Bool) -> ProductText {
+        manuallyPaused ? .resumeWallpapers : .pauseWallpapers
+    }
+
     var body: some View {
         Text(library.status)
         Button(Localization.string(.libraryOpen)) {
@@ -206,74 +204,23 @@ struct WupsyMenu: View {
             openWindow(id: "library")
             NSApp.activate(ignoringOtherApps: true)
         }.disabled(!maintenance.allowsNewOperations)
-        Divider()
-        Button(ProductText.menuBackup.text) { backup.start(library: library) }
-            .disabled(maintenance.state != .normal)
-        Button(ProductText.menuRestore.text) {
-            restore.start(library: library, playlist: playlist, widgets: widgets, editors: editors)
-            {
-                dismissWindow(id: "library")
-            }
-        }.disabled(maintenance.state != .normal)
-        Divider()
-        Group {
-            Button(widgets.editing ? ProductText.widgetsFinish.text : ProductText.widgetsEdit.text)
-            {
-                widgets.setEditing(!widgets.editing)
-            }
-            Toggle(ProductText.pauseWallpapers.text, isOn: $library.manuallyPaused).disabled(
-                library.active == nil)
-            Picker(ProductText.quality.text, selection: $library.profile) {
-                ForEach(QualityProfile.allCases) { Text($0.title).tag($0) }
-            }
-            Toggle(ProductText.pauseBatteryMenu.text, isOn: $library.pauseOnBattery).help(
-                ProductText.pauseBatteryHelp.text)
-            Button(ProductText.stopWallpapers.text) { library.stop() }.disabled(
-                library.active == nil)
-            Divider()
-            Toggle(
-                ProductText.launchLogin.text,
-                isOn: Binding(
-                    get: { loginStatus == .enabled || loginStatus == .requiresApproval },
-                    set: { enabled in
-                        do {
-                            if enabled {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                            loginError = nil
-                        } catch { loginError = ProductText.loginError.text }
-                        loginStatus = SMAppService.mainApp.status
-                    }))
-            if loginStatus == .requiresApproval {
-                Button(ProductText.approveLogin.text) {
-                    SMAppService.openSystemSettingsLoginItems()
-                }
-            }
-            if let loginError { Text(loginError) }
+        Button(Self.playbackAction(manuallyPaused: library.manuallyPaused).text) {
+            library.manuallyPaused.toggle()
+        }.disabled(library.active == nil || !maintenance.allowsNewOperations)
+        Button(widgets.editing ? ProductText.widgetsFinish.text : ProductText.widgetsEdit.text) {
+            widgets.setEditing(!widgets.editing)
         }.disabled(!maintenance.allowsNewOperations)
         Divider()
-        Toggle(
-            UpdateText.automatic.text(),
-            isOn: Binding(
-                get: { updates.automaticEnabled }, set: { updates.setAutomatic($0) })
-        )
-        .disabled(maintenance.state != .normal)
+        SettingsLink { Text(ProductText.openSettings.text) }
         Button(UpdateText.checkNow.text()) { updates.checkNow() }
             .disabled(maintenance.state != .normal)
         Divider()
-        SettingsLink { Text(ProductText.openSettings.text) }
         Button(AboutText.title.text()) { AboutPresentation.shared.show() }
-        Divider()
         Button(ProductText.quit.text) {
             NSApp.terminate(nil)
         }.keyboardShortcut("q")
-        Text(
-            maintenance.state == .restartRequired
-                ? Localization.string(.libraryRestartHint)
-                : ProductText.quitHint.text
-        )
-        .onAppear { loginStatus = SMAppService.mainApp.status }
+        if maintenance.state == .restartRequired {
+            Text(Localization.string(.libraryRestartHint))
+        }
     }
 }

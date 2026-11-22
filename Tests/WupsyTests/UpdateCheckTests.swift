@@ -443,7 +443,7 @@ private actor UpdateFakeClient: ReleaseChecking {
             XCTAssertEqual(resource.text(language: "zz"), resource.text(language: "en"))
         }
         XCTAssertEqual(UpdateText.automatic.text(language: "de"), "Automatisch nach Updates suchen")
-        XCTAssertEqual(UpdateText.checkNow.text(language: "de"), "Jetzt nach Updates suchen …")
+        XCTAssertEqual(UpdateText.checkNow.text(language: "de"), "Jetzt nach Updates suchen")
         let result = UpdateCheckResult.available(
             installed: try ReleaseVersion("0.5.0"), release: try release(), skipped: false)
         let message = UpdateCheckMessage(result, language: "de")

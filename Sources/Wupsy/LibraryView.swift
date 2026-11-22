@@ -548,16 +548,6 @@ struct LibraryView: View {
                     ).overlay(
                         RoundedRectangle(cornerRadius: 12).stroke(WupsyTheme.accent.opacity(0.14))
                     )
-                    VStack(alignment: .leading, spacing: 13) {
-                        Eyebrow(text: ProductText.smartPlayback.text)
-                        Toggle(ProductText.allDisplays.text, isOn: $library.allDisplays).help(
-                            ProductText.allDisplaysHelp.text)
-                        Toggle(ProductText.pauseBattery.text, isOn: $library.pauseOnBattery).help(
-                            ProductText.pauseBatteryHelp.text)
-                        Toggle(ProductText.powerSaving.text, isOn: $library.conserve).help(
-                            ProductText.powerSavingHelp.text
-                        )
-                    }.wupsyFont(size: 11).toggleStyle(.switch).wupsyControlSize(.mini)
                     Spacer(minLength: 12)
                     nowPlaying
                     HStack {
