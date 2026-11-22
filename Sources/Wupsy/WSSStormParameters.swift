@@ -78,7 +78,7 @@ enum WSSStormText {
         let key: String
         switch kind {
         case .move: key = "move"
-        case .scale: key = "scale"
+        case .scale, .scaleEdge: key = "scale"
         case .rotate: key = "rotate"
         }
         return Localization.string(key: "editor.storm." + key)

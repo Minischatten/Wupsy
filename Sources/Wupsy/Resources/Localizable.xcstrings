@@ -698,6 +698,992 @@
         }
       }
     },
+    "editor.musicNotes.staffTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Staff"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notenlinien"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffEnabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show staff lines"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notenlinien anzeigen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffSpacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line spacing"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linienabstand"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffWidth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line thickness"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linienstärke"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffColor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linienfarbe"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffOpacity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line opacity"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liniendeckkraft"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffWidthLessThanSpacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line thickness must be smaller than line spacing."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Linienstärke muss kleiner als der Linienabstand sein."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.staffTightTurns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Staff lines may overlap on tight curves."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei engen Kurven können sich Notenlinien überschneiden."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.gentleMotion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gentle motion"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sanfte Bewegung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.hoverStrength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hover strength"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schwebestärke"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.hoverFrequency": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hover frequency"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schwebegeschwindigkeit"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.rotationMode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation mode"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drehmodus"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.rotationNone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No rotation"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Drehung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.rotationContinuous": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate continuously"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontinuierlich drehen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.spinPeriod": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seconds per revolution"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sekunden pro Umdrehung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.spinDirection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation direction"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drehrichtung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.clockwise": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clockwise"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Uhrzeigersinn"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.counterclockwise": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Counterclockwise"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gegen den Uhrzeigersinn"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.spinAxis": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation axis"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drehachse"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.imagePlane": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image plane (2D)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildebene (2D)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.vertical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical axis (2.5D)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertikale Achse (2,5D)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depth changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiefenwechsel"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthAppliesTo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply depth changes to"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiefenwechsel anwenden auf"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthNotesOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes only"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur Noten"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthNotesAndStaff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes and staff lines"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noten und Notenlinien"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthTarget": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foreground layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vordergrund-Layer"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthChoose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose image layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildlayer auswählen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthEnabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable depth changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiefenwechsel aktivieren"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthStart": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At path start"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Am Pfadanfang"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthAdd": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add change point"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wechselpunkt hinzufügen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthPosition": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path position (%)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadposition (%)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthSection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After this point"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach diesem Punkt"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthRemove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove change point"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wechselpunkt entfernen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.behind": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Behind image layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinter dem Bildlayer"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.inFront": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In front of image layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vor dem Bildlayer"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.depthUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an available image layer to apply depth changes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen verfügbaren Bildlayer aus, um Tiefenwechsel anzuwenden."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspective"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspektive"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveStart": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size at path start (%)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe am Anfang (%)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveEnd": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size at path end (%)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe am Ende (%)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveSwap": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap start and end"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anfang und Ende tauschen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveClosed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspective is available on open paths. On a closed path, different sizes would jump at the join. Your settings are kept."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspektive ist auf offenen Pfaden verfügbar. Bei einem geschlossenen Pfad könnten unterschiedliche Größen an der Naht springen. Deine Einstellungen bleiben erhalten."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.perspectiveNeedsPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Path to use perspective."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle „Pfad“, um Perspektive zu verwenden."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.rotationStrength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rocking strength"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaukelstärke"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.rotationFrequency": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rocking frequency"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaukelgeschwindigkeit"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.placement": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placement"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platzierung"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.animatedPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Animate along route"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entlang der Strecke bewegen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.freeSingle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place freely"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frei platzieren"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.anchoredSingle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach to path"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Am Pfad befestigen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.singleSymbol": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Symbol"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Symbol"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.positionX": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "X (canvas)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "X (Canvas)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.positionY": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y (canvas)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y (Canvas)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.anchorPosition": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path position (%)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadposition (%)"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.alignToPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Align with path tangent"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An Pfadtangente ausrichten"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.anchorNeedsPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Linear mode the symbol stays at the center of the movement frame. Enable Path to set its path position."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im linearen Modus bleibt das Symbol in der Mitte des Bewegungsrahmens. Aktiviere „Pfad“, um die Pfadposition einzustellen."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.freeDragHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the symbol to move it."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziehe das Symbol zum Verschieben."
+          }
+        }
+      }
+    },
+    "editor.musicNotes.pathTemplates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path templates"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfadvorlagen"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.straightPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Straight line"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade Linie"
+          }
+        }
+      }
+    },
+    "editor.musicNotes.ellipsePath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ellipse"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ellipse"
+          }
+        }
+      }
+    },
     "editor.musicNotes.pathHelp": {
       "extractionState": "manual",
       "localizations": {
@@ -902,6 +1888,23 @@
         }
       }
     },
+    "editor.musicNotes.trebleClef": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Treble clef"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Violinschlüssel"
+          }
+        }
+      }
+    },
     "editor.musicNotes.quarter": {
       "extractionState": "manual",
       "localizations": {
@@ -925,13 +1928,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag the frame to move it. Drag a corner to resize it."
+            "value": "Drag inside the frame to move it. Drag a side to resize one dimension or a corner to resize both."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ziehe den Rahmen zum Verschieben und eine Ecke zum Skalieren."
+            "value": "Ziehe innerhalb des Rahmens zum Verschieben, an einer Seite zum Ändern einer Dimension oder an einer Ecke zum Ändern beider Dimensionen."
           }
         }
       }
@@ -942,13 +1945,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Slow rotation"
+            "value": "Gentle rocking"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Langsame Drehung"
+            "value": "Sanftes Schaukeln"
           }
         }
       }

@@ -29,6 +29,7 @@ struct WSSImageLayer {
     var visible = true
     var composition: Composition = .sourceOver
     var effects: [WSSImageEffect] = []
+    var depthID: UUID?
 }
 enum WSSSceneLayer {
     case image(WSSImageLayer)
@@ -103,6 +104,10 @@ struct WSSScene {
             ((allowEmpty ? 0 : 1)...128).contains(layers.count), (0...1).contains(background.x),
             (0...1).contains(background.y), (0...1).contains(background.z)
         else { throw WSSSceneError.invalid("canvas, background or layer count") }
+        let depthIDs = imageLayers.compactMap(\.depthID)
+        guard Set(depthIDs).count == depthIDs.count else {
+            throw WSSSceneError.invalid("duplicate depth target ID")
+        }
         var effectPasses = 0
         for layer in imageLayers {
             effectPasses += try WSSImageEffectPlan.validateBudget(layer.effects)
@@ -142,7 +147,7 @@ struct WSSScene {
                 throw WSSSceneError.invalid("musicNotes scene budget")
             }
             try layer.validate()
-            noteCount += layer.notes.count
+            noteCount += max(layer.notes.count, layer.singleSymbol == nil ? 0 : 1)
             guard noteCount <= WSSMusicNotesLayer.maximumPerScene else {
                 throw WSSSceneError.invalid("musicNotes scene budget")
             }

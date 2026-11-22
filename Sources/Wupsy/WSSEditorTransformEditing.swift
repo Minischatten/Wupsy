@@ -17,7 +17,10 @@ extension WSSEditorDocument {
     }
     func transformHelp(for target: WSSEditorSelection) -> String? {
         guard case .layer(let id) = target, canTransform(id) else { return nil }
-        if musicNotesLayer(id) != nil { return WSSMusicNotesText.text("regionHelp") }
+        if let notes = musicNotesLayer(id) {
+            return WSSMusicNotesText.text(
+                notes.placementMode == .freeSingle ? "freeDragHelp" : "regionHelp")
+        }
         if starfieldLayer(id) != nil { return WSSStarfieldText.text("help") }
         return stormLayer(id) == nil ? EditorText.transformHint.text : WSSStormText.transformHelp
     }
@@ -75,6 +78,10 @@ extension WSSEditorDocument {
             state.workingModel.layers[index].canvasTransform != nil,
             kind != .rotate || workingScene.layers[index].allowsCanvasRotation
         else { return false }
+        if workingScene.layers[index].isFreeMusicSymbol && kind != .move { return false }
+        if case .scaleEdge = kind, !workingScene.layers[index].allowsCanvasEdgeScaling {
+            return false
+        }
         canvasTransform = WSSCanvasTransformTransaction(
             layer: layer, kind: kind, model: state.workingModel, identity: identity,
             selection: selection)
@@ -91,6 +98,11 @@ extension WSSEditorDocument {
             image.transform = transform
             model.layers[index].content = .image(image)
         case .musicNotes(var layer):
+            if layer.placementMode == .freeSingle {
+                layer.freePosition = SIMD2(transform.center[0], transform.center[1])
+                model.layers[index].content = .musicNotes(layer)
+                break
+            }
             let width = transform.size[0] * transform.scale[0]
             let height = transform.size[1] * transform.scale[1]
             layer.region = .init(
@@ -140,7 +152,7 @@ extension WSSEditorDocument {
             let name: String
             switch transaction.kind {
             case .move: name = EditorText.moveImage.text
-            case .scale: name = EditorText.scaleImage.text
+            case .scale, .scaleEdge: name = EditorText.scaleImage.text
             case .rotate: name = EditorText.rotateImage.text
             }
             let undoName =

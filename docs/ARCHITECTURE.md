@@ -39,6 +39,14 @@ Preview and desktop share native rendering; the static editing canvas deliberate
 omits effects/Rain/Trail. Pause/resume uses an explicit elapsed playback clock;
 transient Trail simulation belongs to the player, not the saved document.
 
+The managed WSS detail preview in the Library is live; Library tiles,
+playlist rows and compact artwork previews use a bounded thumbnail rendered
+at time zero. During a desktop transition, the still image provides coverage
+until a Metal drawable actually presents. The presentation callback retires
+the still and reports readiness. WSS animation starts its normal draw loop
+and elapsed clock independently of that callback, including on an occluded
+desktop where GPU frames can complete without a presentation acknowledgment.
+
 ### Apply outcomes
 
 Library.apply starts an external WallpaperApplyRequest, whose outcome resolves exactly once. accepted means preparation and synchronous renderer startup completed for every current target display and ownership was handed to runtime; it does not promise a first visible frame or continued media health. failed covers preparation/validation/no-display/startup errors and stops partial renderer sets. superseded covers a newer apply, Stop, shutdown or caller cancellation; obsolete callbacks cannot affect successors.

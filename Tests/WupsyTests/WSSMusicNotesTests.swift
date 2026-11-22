@@ -6,19 +6,13 @@ import XCTest
 final class WSSMusicNotesTests: XCTestCase {
     private let region = WSSSceneDocumentV1.Region(x: 8, y: 8, width: 48, height: 48)
 
-    private func model(_ layer: WSSMusicNotesLayer) throws -> WSSSceneDocumentV1 {
-        let config = try JSONSerialization.jsonObject(with: JSONEncoder().encode(layer.notes))
-        let region = try JSONSerialization.jsonObject(with: JSONEncoder().encode(layer.region))
+    private func model(_ layer: WSSMusicNotesLayer, canvas: Int = 64) throws -> WSSSceneDocumentV1 {
+        let node = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(WSSSceneDocumentV1.Layer(content: .musicNotes(layer))))
         return try WSSSceneDocumentV1.decode(
             data: JSONSerialization.data(withJSONObject: [
                 "format": "wss-scene", "version": 1, "title": "Synthetic notes",
-                "canvas": ["width": 64, "height": 64],
-                "layers": [
-                    [
-                        "type": "musicNotes", "visible": layer.visible, "region": region,
-                        "musicNotes": config,
-                    ]
-                ],
+                "canvas": ["width": canvas, "height": canvas], "layers": [node],
             ]))
     }
 
@@ -45,6 +39,7 @@ final class WSSMusicNotesTests: XCTestCase {
     func testDefaultsBoundsAndStrictRoundTrip() throws {
         var layer = WSSMusicNotesLayer(region: region)
         XCTAssertEqual(layer.notes.count, 12)
+        XCTAssertEqual(layer.notes.size, 48)
         XCTAssertEqual(layer.notes.symbols, [.quarter, .eighth, .double])
         XCTAssertTrue(layer.isAnimated)
         layer.visible = false
@@ -65,7 +60,7 @@ final class WSSMusicNotesTests: XCTestCase {
         let layers = try XCTUnwrap(obj["layers"] as? [[String: Any]])
         let config = try XCTUnwrap(layers[0]["musicNotes"] as? [String: Any])
         for (key, value): (String, Any) in [
-            ("count", -1), ("count", 129), ("count", 1.5), ("size", 3), ("size", 193),
+            ("count", -1), ("count", 129), ("count", 1.5), ("size", 3), ("size", 513),
             ("opacity", 1.01), ("direction", 361), ("speed", -1), ("speed", 257),
             ("seed", -1), ("hover", NSNull()), ("future", 0), ("symbols", [] as [String]),
             ("symbols", ["quarter", "quarter"]), ("symbols", ["unknown"]),
@@ -88,6 +83,550 @@ final class WSSMusicNotesTests: XCTestCase {
         layer.region = region
         layer.notes.size = .nan
         XCTAssertThrowsError(try layer.validate())
+    }
+
+    func testSpinPeriodDirectionAndLegacyFallback() throws {
+        var symbol = WSSMusicNotesLayer.SingleSymbol()
+        XCTAssertEqual(symbol.effectiveRotationMode(legacyRocking: true), .rocking)
+        XCTAssertEqual(symbol.effectiveRotationMode(legacyRocking: false), .none)
+        XCTAssertEqual(symbol.spinPhase(at: 15), -0.25)
+        symbol.rotationMode = .continuous
+        for period in [5.0, 60, 120, 300] {
+            symbol.spinPeriod = period
+            for direction in WSSMusicNotesLayer.SpinDirection.allCases {
+                symbol.spinDirection = direction
+                let quarter: Float = direction == .clockwise ? -0.25 : 0.25
+                XCTAssertEqual(symbol.spinPhase(at: period / 4), quarter)
+                XCTAssertEqual(symbol.spinPhase(at: period / 2), quarter * 2)
+                XCTAssertEqual(symbol.spinPhase(at: period), 0)
+                XCTAssertEqual(symbol.spinPhase(at: period * 1e9 + period / 4), quarter)
+            }
+        }
+        let decoded = try JSONDecoder().decode(
+            WSSMusicNotesLayer.SingleSymbol.self, from: JSONEncoder().encode(symbol))
+        XCTAssertEqual(decoded, symbol)
+        for invalid in [4.99, 300.01, .infinity, .nan] {
+            symbol.spinPeriod = invalid
+            XCTAssertThrowsError(try symbol.validate())
+        }
+
+        let json = """
+            {"symbol":"quarter","size":48,"color":{"red":1,"green":1,"blue":1},"opacity":1,
+             "rotationMode":"continuous","spinPeriod":60,"spinDirection":"clockwise","spinAxis":"vertical"}
+            """
+        for (old, invalid) in [
+            (#""continuous""#, #""unknown""#), (#""clockwise""#, #""unknown""#),
+            ("60", "null"), ("60", "301"), ("60", "1e999"),
+            (#""vertical""#, #""horizontal""#), (#""vertical""#, "null"),
+        ] {
+            XCTAssertThrowsError(
+                try JSONDecoder().decode(
+                    WSSMusicNotesLayer.SingleSymbol.self,
+                    from: Data(json.replacingOccurrences(of: old, with: invalid).utf8)))
+        }
+    }
+
+    func testGPUSingleSpinOrientationsAndLegacyRocking() throws {
+        let device = try WSSStaticTests().device()
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 512, height: 512))
+        layer.notes.rotation = true
+        let a = SIMD2<Double>(0.5, 0.2)
+        let b = SIMD2<Double>(0.5, 0.8)
+        layer.path = .init(
+            enabled: true, closed: false, direction: .forward,
+            anchors: [
+                .init(position: a, incoming: a, outgoing: a),
+                .init(position: b, incoming: b, outgoing: b),
+            ])
+        var symbol = WSSMusicNotesLayer.SingleSymbol()
+        symbol.size = 160
+        symbol.opacity = 1
+
+        func render(_ layer: WSSMusicNotesLayer, _ time: Double) throws -> Data {
+            let resources = try WSSStaticResources(
+                scene: model(layer, canvas: 512).scene(),
+                assets: WSSStaticTests.Assets(values: [:]), device: device)
+            return try WSSStormLightingRenderTests().render(
+                resources, time: time, width: 256, height: 256
+            ).0
+        }
+
+        func centroid(_ pixels: Data) -> SIMD2<Double> {
+            var sum = SIMD2<Double>.zero
+            var weight = 0.0
+            for i in stride(from: 2, to: pixels.count, by: 4) {
+                let red = Double(pixels[i])
+                sum += SIMD2(Double(i / 4 % 256) - 127.5, Double(i / 4 / 256) - 127.5) * red
+                weight += red
+            }
+            return sum / weight
+        }
+
+        for placement in [WSSMusicNotesLayer.Placement.freeSingle, .anchoredSingle] {
+            layer.placement = placement
+            layer.alignToPath = true
+            let free = placement == .freeSingle
+            func updated(_ symbol: WSSMusicNotesLayer.SingleSymbol) -> WSSMusicNotesLayer {
+                var value = layer
+                if free { value.freeSymbol = symbol } else { value.anchoredSymbol = symbol }
+                return value
+            }
+            symbol.rotationMode = nil
+            let legacy = try render(updated(symbol), 0.75)
+            symbol.rotationMode = .rocking
+            XCTAssertEqual(try render(updated(symbol), 0.75), legacy)
+            symbol.rotationMode = WSSMusicNotesLayer.SingleRotationMode.none
+            let still = updated(symbol)
+            XCTAssertFalse(still.isAnimated)
+            XCTAssertEqual(try render(still, 0.75), try render(still, 5))
+            symbol.rotationMode = .continuous
+            symbol.spinDirection = .clockwise
+            let spinning = updated(symbol)
+            XCTAssertTrue(spinning.isAnimated)
+            let zeroFrame = try render(spinning, 0)
+            XCTAssertEqual(zeroFrame, try render(still, 0))
+            XCTAssertEqual(zeroFrame, try render(spinning, 60))
+            let zero = centroid(zeroFrame)
+            let quarter = try centroid(render(spinning, 15))
+            let half = try centroid(render(spinning, 30))
+            XCTAssertEqual(quarter.x, -zero.y, accuracy: 0.05)
+            XCTAssertEqual(quarter.y, zero.x, accuracy: 0.05)
+            XCTAssertEqual(half.x, -zero.x, accuracy: 0.05)
+            XCTAssertEqual(half.y, -zero.y, accuracy: 0.05)
+
+            symbol.spinDirection = .counterclockwise
+            let reverse = updated(symbol)
+            XCTAssertEqual(try render(reverse, 15), try render(spinning, 45))
+            var floating = reverse
+            floating.notes.hover = true
+            XCTAssertNotEqual(try render(floating, 15), try render(reverse, 15))
+            let neutral = WSSStaticComposition.model(try model(floating, canvas: 512))
+            XCTAssertFalse(try WSSStaticComposition.scene(neutral).isAnimated)
+        }
+    }
+
+    func testGPUVerticalSpinPreservesPivotAndProjectsBothFaces() throws {
+        let device = try WSSStaticTests().device()
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 512, height: 512))
+        let a = SIMD2<Double>(0.5, 0.2)
+        let b = SIMD2<Double>(0.5, 0.8)
+        layer.path = .init(
+            enabled: true, closed: false, direction: .forward,
+            anchors: [
+                .init(position: a, incoming: a, outgoing: a),
+                .init(position: b, incoming: b, outgoing: b),
+            ])
+        var symbol = WSSMusicNotesLayer.SingleSymbol()
+        symbol.symbol = .trebleClef
+        symbol.size = 200
+        symbol.opacity = 1
+        symbol.rotationMode = .continuous
+
+        func render(_ value: WSSMusicNotesLayer, _ time: Double) throws -> Data {
+            let model = try model(value, canvas: 512)
+            XCTAssertEqual(try WSSSceneDocumentV1.decode(data: model.encoded()), model)
+            let resources = try WSSStaticResources(
+                scene: model.scene(), assets: WSSStaticTests.Assets(values: [:]), device: device)
+            return try WSSStormLightingRenderTests().render(
+                resources, time: time, width: 256, height: 256
+            ).0
+        }
+
+        for (index, placement) in [WSSMusicNotesLayer.Placement.freeSingle, .anchoredSingle]
+            .enumerated()
+        {
+            layer.placement = placement
+            layer.alignToPath = true
+            let free = placement == .freeSingle
+            func updated(_ symbol: WSSMusicNotesLayer.SingleSymbol) -> WSSMusicNotesLayer {
+                var value = layer
+                if free { value.freeSymbol = symbol } else { value.anchoredSymbol = symbol }
+                return value
+            }
+            symbol.spinPeriod = index == 0 ? 60 : 120
+            let period = try XCTUnwrap(symbol.spinPeriod)
+            symbol.spinAxis = nil
+            let legacyQuarter = try render(updated(symbol), period / 4)
+            symbol.spinAxis = .imagePlane
+            XCTAssertEqual(try render(updated(symbol), period / 4), legacyQuarter)
+            symbol.spinAxis = .vertical
+            symbol.spinDirection = .clockwise
+            let value = updated(symbol)
+            let front = try render(value, 0)
+            let side = try render(value, period / 4)
+            let back = try render(value, period / 2)
+            let otherSide = try render(value, period * 0.75)
+            XCTAssertEqual(front, try render(value, period))
+            XCTAssertEqual(front, try render(value, period * 1e9))
+            XCTAssertEqual(side, otherSide)
+            let lit = (0..<256 * 256).filter { front[$0 * 4 + 2] > 16 }
+            XCTAssertFalse(lit.isEmpty)
+            XCTAssertTrue(stride(from: 2, to: side.count, by: 4).allSatisfy { side[$0] == 0 })
+            var mismatches = 0
+            for y in 0..<256 {
+                for x in 0..<256 {
+                    let reflected = free ? (y * 256 + 255 - x) : ((255 - y) * 256 + x)
+                    if abs(Int(front[(y * 256 + x) * 4 + 2]) - Int(back[reflected * 4 + 2])) > 2 {
+                        mismatches += 1
+                    }
+                }
+            }
+            XCTAssertLessThan(mismatches, 8)
+            func extents(_ frame: Data) -> SIMD2<Int> {
+                let pixels = (0..<256 * 256).filter { frame[$0 * 4 + 2] > 16 }
+                let xs = pixels.map { $0 % 256 }
+                let ys = pixels.map { $0 / 256 }
+                return SIMD2(xs.max()! - xs.min()!, ys.max()! - ys.min()!)
+            }
+            let frontExtent = extents(front)
+            let reduced = try render(value, period / 6)
+            let reducedExtent = extents(reduced)
+            XCTAssertLessThan(reducedExtent[index], frontExtent[index])
+            XCTAssertEqual(
+                Double(reducedExtent[1 - index]), Double(frontExtent[1 - index]), accuracy: 1)
+            symbol.spinDirection = .counterclockwise
+            XCTAssertEqual(try render(updated(symbol), period / 6), reduced)
+            var floating = value
+            floating.notes.hover = true
+            XCTAssertNotEqual(try render(floating, period / 6), reduced)
+        }
+    }
+
+    func testSinglePlacementPersistenceValidationAndQuietPlayback() throws {
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 20, height: 20))
+        var single = WSSMusicNotesLayer.SingleSymbol()
+        single.size = 512
+        single.symbol = .trebleClef
+        layer.freeSymbol = single
+        layer.freePosition = SIMD2(500, 300)
+        layer.anchorPosition = 100
+        layer.alignToPath = true
+        for mode in WSSMusicNotesLayer.Placement.allCases {
+            layer.placement = mode
+            let doc = try model(layer, canvas: 1024)
+            XCTAssertEqual(try WSSSceneDocumentV1.decode(data: doc.encoded()), doc)
+        }
+        layer.placement = .freeSingle
+        XCTAssertEqual(layer.drawnSingleSize, 512)
+        XCTAssertFalse(layer.isAnimated)
+        layer.notes.hover = true
+        layer.notes.hoverStrength = 0
+        XCTAssertFalse(layer.isAnimated)
+        layer.notes.hoverStrength = 12
+        XCTAssertTrue(layer.isAnimated)
+        layer.notes.hover = false
+        layer.freePosition = SIMD2(Float.infinity, 300)
+        XCTAssertThrowsError(try layer.validate())
+        layer.freePosition = SIMD2(500, 300)
+        layer.anchorPosition = 101
+        XCTAssertThrowsError(try model(layer, canvas: 1024))
+        layer.anchorPosition = 100
+        let valid = String(decoding: try model(layer, canvas: 1024).encoded(), as: UTF8.self)
+        for (old, invalid) in [
+            (#""placement":"freeSingle""#, #""placement":null"#),
+            (#""placement":"freeSingle""#, #""placement":"invalid""#),
+            (#""symbol":"trebleClef""#, #""symbol":"trebleClef","extra":1"#),
+            (#""freePosition":[500,300]"#, #""freePosition":[500]"#),
+        ] {
+            XCTAssertTrue(valid.contains(old))
+            XCTAssertThrowsError(
+                try WSSSceneDocumentV1.decode(
+                    data: Data(valid.replacingOccurrences(of: old, with: invalid).utf8)))
+        }
+    }
+
+    func testFixedSymbolsRenderAtEndpointsAndIgnoreTravel() throws {
+        let device = try WSSStaticTests().device()
+        var layer = WSSMusicNotesLayer(region: .init(x: 64, y: 64, width: 896, height: 896))
+        layer.notes.count = 0
+        layer.notes.opacity = 0
+        layer.placement = .anchoredSingle
+        let anchors = [SIMD2<Double>(0.25, 0.25), SIMD2(0.75, 0.25), SIMD2(0.5, 0.75)].map {
+            WSSMusicNotesPath.Anchor(position: $0, incoming: $0, outgoing: $0)
+        }
+        var staff = WSSMusicNotesStaff()
+        staff.enabled = true
+        layer.staff = staff
+
+        func frame(_ layers: [WSSMusicNotesLayer], time: Double = 0) throws -> Data {
+            var scene = try model(layers[0], canvas: 1024).scene()
+            scene.layers = layers.map { .musicNotes($0) }
+            let resources = try WSSStaticResources(
+                scene: scene, assets: WSSStaticTests.Assets(values: [:]), device: device)
+            XCTAssertTrue(resources.musicNotesStaffs.isEmpty)
+            return try WSSStormLightingRenderTests().render(
+                resources, time: time, width: 256, height: 256
+            ).0
+        }
+
+        for closed in [false, true] {
+            layer.path = .init(enabled: true, closed: closed, direction: .reverse, anchors: anchors)
+            layer.anchorPosition = 0
+            let start = try frame([layer])
+            layer.anchorPosition = 50
+            let middle = try frame([layer])
+            XCTAssertNotEqual(middle, start)
+            XCTAssertEqual(try frame([layer], time: 23), middle)
+            layer.anchorPosition = 100
+            let end = try frame([layer])
+            if closed { XCTAssertEqual(end, start) } else { XCTAssertNotEqual(end, start) }
+
+            layer.anchorPosition = 0
+            var moved = anchors[0]
+            moved.position.x += 0.03
+            moved.incoming.x += 0.03
+            moved.outgoing.x += 0.03
+            layer.path?.anchors[0] = moved
+            XCTAssertNotEqual(try frame([layer]), start)
+
+            layer.notes.hover = true
+            layer.notes.rotation = true
+            XCTAssertNotEqual(try frame([layer]), try frame([layer], time: 0.91))
+            layer.notes.hover = false
+            layer.notes.rotation = false
+        }
+
+        layer.placement = .freeSingle
+        layer.region = .init(x: 0, y: 0, width: 1, height: 1)
+        layer.path = nil
+        layer.freePosition = SIMD2(512, 512)
+        var symbol = WSSMusicNotesLayer.SingleSymbol()
+        symbol.opacity = 1
+        for choice in WSSMusicNoteSymbol.allCases {
+            symbol.symbol = choice
+            symbol.size = 4
+            layer.freeSymbol = symbol
+            let small = try frame([layer])
+            symbol.size = 512
+            layer.freeSymbol = symbol
+            let large = try frame([layer])
+            XCTAssertGreaterThan(
+                large.filter { $0 == 255 }.count, small.filter { $0 == 255 }.count + 500)
+        }
+        symbol.symbol = .quarter
+        symbol.color = .init(red: 1, green: 0, blue: 0)
+        layer.freeSymbol = symbol
+        var covering = layer
+        covering.freeSymbol?.color = .init(red: 0, green: 0, blue: 1)
+        let blue = try frame([covering])
+        let center = try XCTUnwrap(stride(from: 0, to: blue.count, by: 4).first { blue[$0] == 255 })
+        let overlapped = try frame([layer, covering])
+        XCTAssertEqual(overlapped[center], 255)
+        XCTAssertEqual(overlapped[center + 2], 0)
+        let reversed = try frame([covering, layer])
+        XCTAssertEqual(reversed[center], 0)
+        XCTAssertEqual(reversed[center + 2], 255)
+        covering.visible = false
+        XCTAssertEqual(try frame([layer, covering]), try frame([layer]))
+    }
+
+    func testTrebleClefRoundTripRenderingAndProportions() throws {
+        XCTAssertEqual(WSSMusicNoteSymbol.trebleClef.atlasIndex, 3)
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 1200, height: 1200))
+        layer.notes.count = 1
+        // Keep a single linear sprite away from the periodic seam for the silhouette measurement.
+        layer.notes.seed = try XCTUnwrap(
+            (0..<UInt32(128)).first { seed in
+                let instance = WSSMusicNotesLayer.instances(seed: seed)[0]
+                return (0.25...0.75).contains(instance.x) && (0.3...0.7).contains(instance.y)
+            })
+        layer.notes.speed = 0
+        layer.notes.symbols = [.trebleClef]
+        let anchors = [SIMD2<Double>(0.25, 0.45), SIMD2(0.75, 0.45), SIMD2(0.5, 0.65)].map {
+            WSSMusicNotesPath.Anchor(position: $0, incoming: $0, outgoing: $0)
+        }
+        let paths = [false, true].map {
+            WSSMusicNotesPath(enabled: true, closed: $0, direction: .reverse, anchors: anchors)
+        }
+        func frame(_ layer: WSSMusicNotesLayer, time: Double = 0) throws -> Data {
+            let scene = try model(layer, canvas: 1200)
+            XCTAssertEqual(try WSSSceneDocumentV1.decode(data: scene.encoded()), scene)
+            return try WSSStormLightingRenderTests().render(
+                resources(scene), time: time, width: 600, height: 600
+            ).0
+        }
+        for path in [nil, paths[0], paths[1]] {
+            layer.path = path
+            var previousHeight = 0
+            for size: Float in [48, 192, 512] {
+                layer.notes.size = size
+                let pixels = try frame(layer)
+                var minX = 600
+                var maxX = -1
+                var minY = 600
+                var maxY = -1
+                for index in stride(from: 2, to: pixels.count, by: 4) where pixels[index] > 45 {
+                    let x = index / 4 % 600
+                    let y = index / 4 / 600
+                    minX = min(minX, x)
+                    maxX = max(maxX, x)
+                    minY = min(minY, y)
+                    maxY = max(maxY, y)
+                }
+                let width = maxX - minX + 1
+                let height = maxY - minY + 1
+                XCTAssertGreaterThan(height, previousHeight)
+                XCTAssertGreaterThan(width, 0)
+                XCTAssertEqual(Double(height) / Double(width), 2.4, accuracy: 0.35)
+                previousHeight = height
+            }
+            var moving = layer
+            moving.notes.speed = 40
+            moving.notes.hover = true
+            moving.notes.rotation = true
+            XCTAssertNotEqual(try frame(moving), try frame(moving, time: 0.64))
+        }
+        layer.notes.symbols = WSSMusicNoteSymbol.allCases
+        layer.notes.count = 16
+        let mixed = try frame(layer)
+        layer.notes.symbols.removeLast()
+        XCTAssertNotEqual(try frame(layer), mixed)
+        layer.notes.symbols = [.trebleClef, .trebleClef]
+        XCTAssertThrowsError(try model(layer, canvas: 1200))
+    }
+
+    func testGentleMotionLegacyDefaultsAndStrictOptionalFields() throws {
+        var layer = WSSMusicNotesLayer(region: region)
+        layer.notes.hover = true
+        layer.notes.rotation = true
+        let legacy = try model(layer)
+        let encoded = try legacy.encoded()
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let layers = try XCTUnwrap(root["layers"] as? [[String: Any]])
+        let config = try XCTUnwrap(layers[0]["musicNotes"] as? [String: Any])
+        for parameter in WSSMusicNotesLayer.MotionParameter.allCases {
+            XCTAssertNil(config[parameter.rawValue])
+            for bad: Any in [
+                NSNull(), "0.5", parameter.range.lowerBound - 1, parameter.range.upperBound + 1,
+            ] {
+                var invalid = config
+                invalid[parameter.rawValue] = bad
+                var node = layers[0]
+                node["musicNotes"] = invalid
+                var scene = root
+                scene["layers"] = [node]
+                XCTAssertThrowsError(
+                    try WSSSceneDocumentV1.decode(
+                        data: JSONSerialization.data(withJSONObject: scene)))
+            }
+        }
+        XCTAssertEqual(layer.notes.hoverAmount, 0.12)
+        XCTAssertEqual(layer.notes.rotationAmount * 0.32, 0.32)
+        for time in [0.0, 0.25, 3.73, 1e12] {
+            func legacyPhase(_ rate: Double) -> Float {
+                Float(time.truncatingRemainder(dividingBy: 1 / rate) * rate)
+            }
+            XCTAssertEqual(
+                layer.oscillationPhases(at: time), SIMD2(legacyPhase(0.23), legacyPhase(0.13)))
+        }
+
+        layer.notes.speed = 0
+        layer.notes.hoverStrength = 0
+        layer.notes.rotationStrength = 0
+        XCTAssertFalse(layer.isAnimated)
+        XCTAssertEqual(layer.oscillationPhases(at: 0.25), .zero)
+        layer.notes.hoverFrequency = .infinity
+        XCTAssertThrowsError(try layer.validate())
+        layer.notes.hoverFrequency = .nan
+        XCTAssertThrowsError(try layer.validate())
+    }
+
+    func testGPUDefaultAndCustomGentleMotionInAllPathModes() throws {
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 1200, height: 1200))
+        layer.notes.hover = true
+        layer.notes.rotation = true
+        layer.notes.size = 512
+        layer.notes.speed = 24
+        layer.notes.count = 1
+        layer.notes.seed = 29
+        var staff = WSSMusicNotesStaff()
+        staff.enabled = true
+        layer.staff = staff
+        let anchors = [SIMD2<Double>(0.25, 0.45), SIMD2(0.75, 0.45), SIMD2(0.5, 0.65)].map {
+            WSSMusicNotesPath.Anchor(position: $0, incoming: $0, outgoing: $0)
+        }
+        let paths = [false, true].map {
+            WSSMusicNotesPath(enabled: true, closed: $0, direction: .reverse, anchors: anchors)
+        }
+        func rendered(_ layer: WSSMusicNotesLayer, time: Double = 0.73) throws -> Data {
+            let model = try model(layer, canvas: 1200)
+            XCTAssertEqual(try WSSSceneDocumentV1.decode(data: model.encoded()), model)
+            return try WSSStormLightingRenderTests().render(
+                resources(model), time: time, width: 384, height: 384
+            ).0
+        }
+        for path in [nil, paths[0], paths[1]] {
+            layer.path = path
+            let legacyFrame = try rendered(layer)
+            var adjusted = layer
+            adjusted.notes.hoverStrength = 12
+            adjusted.notes.rotationStrength = 100
+            adjusted.notes.hoverFrequency = 0.23
+            adjusted.notes.rotationFrequency = 0.13
+            XCTAssertEqual(try rendered(adjusted), legacyFrame)
+            adjusted.notes.hoverStrength = 25
+            adjusted.notes.hoverFrequency = 0.75
+            XCTAssertNotEqual(try rendered(adjusted), legacyFrame)
+            let hoverOnly = try rendered(adjusted)
+            adjusted.notes.rotationStrength = 200
+            adjusted.notes.rotationFrequency = 0.59
+            XCTAssertNotEqual(try rendered(adjusted), hoverOnly)
+            XCTAssertEqual(try adjusted.preparedStaff(), try layer.preparedStaff())
+            XCTAssertEqual(
+                try adjusted.path?.prepare(in: adjusted.region),
+                try layer.path?.prepare(in: layer.region))
+            adjusted.notes.hoverStrength = 0
+            adjusted.notes.rotationStrength = 0
+            var disabled = adjusted
+            disabled.notes.hover = false
+            disabled.notes.rotation = false
+            XCTAssertEqual(try rendered(adjusted), try rendered(disabled))
+        }
+    }
+
+    func testLargeSymbolsRoundTripAndGrowInEveryMotionMode() throws {
+        let device = try WSSStaticTests().device()
+        var layer = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 1200, height: 1200))
+        layer.notes.count = 1
+        layer.notes.symbols = [.quarter]
+        layer.notes.seed = 29
+        layer.notes.speed = 24
+        let paths = [false, true].map { closed in
+            WSSMusicNotesPath(
+                enabled: true, closed: closed, direction: .forward,
+                anchors: [SIMD2<Double>(0.25, 0.45), SIMD2(0.75, 0.45), SIMD2(0.5, 0.65)].map {
+                    .init(position: $0, incoming: $0, outgoing: $0)
+                })
+        }
+        var staff = WSSMusicNotesStaff()
+        staff.enabled = true
+        layer.staff = staff
+        let phases = layer.phases(at: 0.25)
+        for path in [nil, paths[0], paths[1]] {
+            layer.path = path
+            var previousArea = 0
+            let geometry = try layer.preparedStaff()
+            for size: Float in [48, 192, 256, 384, 512] {
+                layer.notes.size = size
+                XCTAssertEqual(try layer.preparedStaff(), geometry)
+                XCTAssertEqual(layer.phases(at: 0.25), phases)
+                let model = try model(layer, canvas: 1200)
+                let reloaded = try WSSSceneDocumentV1.decode(data: model.encoded())
+                XCTAssertEqual(reloaded, model)
+                var scene = try reloaded.scene()
+                var notesOnly = layer
+                notesOnly.staff = nil
+                scene.layers = [.musicNotes(notesOnly)]
+                let resources = try WSSStaticResources(
+                    scene: scene, assets: WSSStaticTests.Assets(values: [:]), device: device)
+                let frame = try WSSStormLightingRenderTests().render(
+                    resources, time: 0.25, width: 600, height: 600
+                ).0
+                let area = stride(from: 2, to: frame.count, by: 4).count { frame[$0] > 24 }
+                XCTAssertGreaterThan(area, previousArea)
+                previousArea = area
+            }
+        }
     }
 
     func testDeterministicPopulationAndBudgetsIncludingHiddenLayers() throws {

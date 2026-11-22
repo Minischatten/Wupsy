@@ -21,6 +21,10 @@ final class WSSStaticResources: @unchecked Sendable {
     let starfield: WSSStarfieldRenderer?
     let fog: WSSFogRenderer?
     let musicNotes: WSSMusicNotesRenderer?
+    let musicNotesStaffRenderer: WSSMusicNotesStaffRenderer?
+    let musicNotesStaffs: [Int: WSSMusicNotesStaffRenderer.Prepared]
+    private let musicNotesDepthPlan: [Int: [Int]]
+    private let musicNotesDepthSources: Set<Int>
     let musicNotesPaths: [Int: WSSMusicNotesRenderer.PreparedPath]
     let storm: WSSStormRenderer?
     let stormLighting: WSSStormLightingRenderer?
@@ -41,7 +45,10 @@ final class WSSStaticResources: @unchecked Sendable {
     private let sourceOver: MTLRenderPipelineState
     private var directionPreviewBytes = 0
     var bufferBytes: Int {
-        musicNotesPaths.values.reduce((rain?.bufferBytes ?? 0) + (musicNotes?.bufferBytes ?? 0)) {
+        musicNotesPaths.values.reduce(
+            (rain?.bufferBytes ?? 0) + (musicNotes?.bufferBytes ?? 0)
+                + musicNotesStaffs.values.reduce(0) { $0 + $1.bufferBytes }
+        ) {
             $0 + $1.buffer.length
         }
     }
@@ -63,6 +70,9 @@ final class WSSStaticResources: @unchecked Sendable {
         try scene.validate(allowEmpty: staticCanvas)
         family = NSObject()
         self.scene = scene
+        let depthPlan = WSSMusicNotesDepth.plan(for: scene)
+        musicNotesDepthPlan = depthPlan
+        musicNotesDepthSources = Set(depthPlan.values.joined())
         self.device = device
         guard let queue = device.makeCommandQueue() else {
             throw WSSSceneError.invalid("Metal queue")
@@ -155,6 +165,9 @@ final class WSSStaticResources: @unchecked Sendable {
                 return false
             } ? WSSMusicNotesRenderer(scene: scene, device: device) : nil
         musicNotesPaths = try WSSMusicNotesRenderer.preparePaths(scene: scene, device: device)
+        musicNotesStaffs = try WSSMusicNotesStaffRenderer.prepare(scene: scene, device: device)
+        musicNotesStaffRenderer =
+            musicNotesStaffs.isEmpty ? nil : try WSSMusicNotesStaffRenderer(device: device)
         fog =
             try scene.layers.contains {
                 if case .fog = $0 { return true }
@@ -261,9 +274,14 @@ final class WSSStaticResources: @unchecked Sendable {
         flowOverride: WSSFlowResources? = nil,
         lightingOverride: WSSStormLightingRenderer? = nil,
         milkyWayOverride: WSSMilkyWayRenderer? = nil,
-        musicNotesPaths: [Int: WSSMusicNotesRenderer.PreparedPath]? = nil
+        musicNotesPaths: [Int: WSSMusicNotesRenderer.PreparedPath]? = nil,
+        staffRenderer: WSSMusicNotesStaffRenderer? = nil,
+        staffs: [Int: WSSMusicNotesStaffRenderer.Prepared]? = nil
     ) {
         self.scene = scene
+        let depthPlan = WSSMusicNotesDepth.plan(for: scene)
+        musicNotesDepthPlan = depthPlan
+        musicNotesDepthSources = Set(depthPlan.values.joined())
         family = original.family
         device = original.device
         queue = original.queue
@@ -274,6 +292,8 @@ final class WSSStaticResources: @unchecked Sendable {
         fog = original.fog
         musicNotes = original.musicNotes
         self.musicNotesPaths = musicNotesPaths ?? original.musicNotesPaths
+        musicNotesStaffRenderer = staffRenderer ?? original.musicNotesStaffRenderer
+        musicNotesStaffs = staffs ?? original.musicNotesStaffs
         storm = original.storm
         stormLighting = lightingOverride ?? original.stormLighting
         rain = original.rain
@@ -421,9 +441,14 @@ final class WSSStaticResources: @unchecked Sendable {
             ? try WSSMilkyWayRenderer(device: device) : milkyWay
         let paths = try WSSMusicNotesRenderer.preparePaths(
             scene: updated, device: device, previous: self)
+        let staffs = try WSSMusicNotesStaffRenderer.prepare(
+            scene: updated, device: device, previous: self)
+        let staffRenderer =
+            staffs.isEmpty
+            ? nil : try musicNotesStaffRenderer ?? WSSMusicNotesStaffRenderer(device: device)
         return WSSStaticResources(
             scene: updated, sharing: self, lightingOverride: lighting, milkyWayOverride: galaxy,
-            musicNotesPaths: paths)
+            musicNotesPaths: paths, staffRenderer: staffRenderer, staffs: staffs)
     }
     private static func upload(_ asset: WSSImageAsset, device: MTLDevice, queue: MTLCommandQueue)
         throws -> MTLTexture
@@ -661,13 +686,53 @@ final class WSSStaticResources: @unchecked Sendable {
                 }
             }
         }
+        let canvas = SIMD2(Float(scene.width), Float(scene.height))
+        let outputSize = SIMD2(output.width, output.height)
+        var staffMasks: [Int: WSSMusicNotesStaffRenderer.Mask] = [:]
+        if let musicNotesStaffRenderer {
+            for (index, mesh) in musicNotesStaffs {
+                guard case .musicNotes(let layer) = scene.layers[index], layer.drawsStaff,
+                    let staff = layer.staff, staff.enabled, staff.opacity > 0
+                else { continue }
+                let origin = mesh.origin + SIMD2(Double(layer.region.x), Double(layer.region.y))
+                let projection = WSSMusicNotesStaffRenderer.Projection(
+                    outputSize: outputSize, canvas: canvas, crop: crop, origin: origin)
+                staffMasks[index] = try musicNotesStaffRenderer.prepareMask(
+                    mesh, projection: projection, command: command,
+                    depth: musicNotesDepthSources.contains(index)
+                        && layer.depth?.includesStaff == true
+                        ? layer.depth : nil)
+            }
+        }
         guard let encoder = command.makeRenderCommandEncoder(descriptor: descriptor) else {
             throw WSSSceneError.invalid("image encoder")
         }
         encoder.setCullMode(.none)
         let storms = stormContext ?? WSSStormRenderContext()
+        func drawDepthNotes(_ sources: [Int], side: WSSMusicNotesDepth.Side) {
+            for source in sources {
+                guard case .musicNotes(let layer) = scene.layers[source] else { continue }
+                if layer.depth?.includesStaff == true,
+                    let mask = staffMasks[source], let staff = layer.staff
+                {
+                    musicNotesStaffRenderer?.encode(
+                        mask, staff: staff, outputSize: outputSize, encoder: encoder,
+                        depthSide: side)
+                }
+                musicNotes?.encode(
+                    layer, path: musicNotesPaths[source], canvas: canvas, crop: crop,
+                    time: time, encoder: encoder, depthSide: side)
+            }
+        }
         for (index, node) in scene.layers.enumerated() where node.visible {
             if case .musicNotes(let layer) = node {
+                if let mask = staffMasks[index], let staff = layer.staff,
+                    !musicNotesDepthSources.contains(index) || layer.depth?.includesStaff != true
+                {
+                    musicNotesStaffRenderer?.encode(
+                        mask, staff: staff, outputSize: outputSize, encoder: encoder)
+                }
+                guard !musicNotesDepthSources.contains(index) else { continue }
                 musicNotes?.encode(
                     layer, path: musicNotesPaths[index],
                     canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
@@ -757,9 +822,15 @@ final class WSSStaticResources: @unchecked Sendable {
                 } else {
                     input = image
                 }
+                if let sources = musicNotesDepthPlan[index] {
+                    drawDepthNotes(sources, side: .behind)
+                }
                 try encodeImageStage(
                     plan.activeStages.last, input: input, layer: layer,
                     mode: .composition(crop: crop), time: time, encoder: encoder)
+                if let sources = musicNotesDepthPlan[index] {
+                    drawDepthNotes(sources, side: .inFront)
+                }
             } catch {
                 encoder.endEncoding()
                 throw error

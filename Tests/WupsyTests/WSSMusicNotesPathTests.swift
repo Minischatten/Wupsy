@@ -32,6 +32,64 @@ final class WSSMusicNotesPathTests: XCTestCase {
                 """.utf8))
     }
 
+    func testClosingDefaultPathAcrossRegionShapes() throws {
+        for width in [1, 2, 8, 24, 75, 120, 400, 640, 1000, 1920, 3000, 3840, 5000, 8192] {
+            for height in [1, 2, 8, 24, 75, 120, 400, 640, 1000, 1920, 3000, 3840, 5000, 8192]
+            where width * height <= 32 * 1024 * 1024 {
+                let frame = region(Float(width), Float(height))
+                var path = Path.editorDefault
+                guard (try? path.prepare(in: frame)) != nil else { continue }
+                XCTAssertNoThrow(try path.setClosed(true, in: frame), "\(width) × \(height)")
+            }
+        }
+    }
+
+    func testEllipseTemplateHasFourSmoothQuadrants() throws {
+        for (width, height) in [(640, 360), (1920, 1080), (3840, 2160), (1200, 200), (200, 1200)] {
+            let frame = region(Float(width), Float(height))
+            let ellipse = Path.EditorTemplate.ellipsePath.makePath(direction: .reverse)
+            XCTAssertTrue(ellipse.closed)
+            XCTAssertEqual(ellipse.anchors.count, 4)
+            let table = try ellipse.prepare(in: frame)
+            XCTAssertEqual(table.samples.first, table.samples.last)
+            for i in ellipse.anchors.indices {
+                let anchor = ellipse.anchors[i]
+                XCTAssertLessThan(
+                    simd_distance(
+                        anchor.outgoing - anchor.position, anchor.position - anchor.incoming), 1e-12
+                )
+                let segment = ellipse.editorSegment(i)
+                for step in 1..<10 {
+                    let point = segment.point(at: Double(step) / 10)
+                    XCTAssertEqual(point.x > 0.5, i == 0 || i == 3)
+                    XCTAssertEqual(point.y > 0.5, i < 2)
+                }
+            }
+        }
+    }
+
+    func testPreservesExistingGripsWhenClosingAndReopening() throws {
+        let frame = region(3840, 1920)
+        var path = Path(
+            enabled: true, closed: false, direction: .forward,
+            anchors: [
+                .init(
+                    position: .init(0.15, 0.3), incoming: .init(0.11, 0.26),
+                    outgoing: .init(0.28, 0.43)),
+                .init(
+                    position: .init(0.5, 0.55), incoming: .init(0.37, 0.55),
+                    outgoing: .init(0.63, 0.55)),
+                .init(
+                    position: .init(0.85, 0.7), incoming: .init(0.72, 0.57),
+                    outgoing: .init(0.89, 0.74)),
+            ])
+        let before = path
+        try path.setClosed(true, in: frame)
+        XCTAssertEqual(path.anchors, before.anchors)
+        try path.setClosed(false, in: frame)
+        XCTAssertEqual(path, before)
+    }
+
     func testLegacyAndPathRoundTripWithoutChangingLinearPlaybackState() throws {
         var doc = try document()
         guard case .musicNotes(var layer) = doc.layers[0].content else {
@@ -99,7 +157,7 @@ final class WSSMusicNotesPathTests: XCTestCase {
     func testAnchorLimitsDegenerateSegmentsAndFiniteValues() throws {
         XCTAssertThrowsError(try path([anchor(0, 0)]).prepare(in: region()))
         let two = [anchor(0, 0), anchor(1, 1)]
-        XCTAssertThrowsError(try path(two, closed: true).prepare(in: region()))
+        XCTAssertNoThrow(try path(two, closed: true).prepare(in: region()))
         let sixteen = (0..<16).map { anchor(Double($0) / 15, 0) }
         XCTAssertEqual(try path(sixteen).prepare(in: region()).length, 100, accuracy: 1e-10)
         XCTAssertThrowsError(try path(sixteen + [anchor(1, 1)]).prepare(in: region()))

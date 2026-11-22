@@ -234,7 +234,54 @@ is also defined in the Starfield contract.
 ## Music Notes
 
 The sortable `musicNotes` layer uses built-in symbol artwork and has no scene
-asset dependency. Stage 2.1 adds an optional layer-level `path` field. Omission
-preserves the original WSS-v1 spelling, and explicit null is invalid.
+asset dependency. Its `musicNotes.size` accepts 4…512 logical canvas units
+(default 48). The renderer caps the drawn size at 48% of the smaller region
+side without changing the saved value. Stage 2.1 adds an optional layer-level
+`path` field. Omission preserves the original WSS-v1 spelling, and explicit null
+is invalid. Stage 3.1
+adds the optional layer-level `staff` object with required `enabled`, `spacing`,
+`width`, `color` and `opacity` fields when present. Omission keeps the staff off.
+Explicit null, unknown fields and invalid values are rejected even for hidden
+layers and disabled staff. The object configures five static lines rendered behind the notes. It adds no
+asset references and keeps format version 1.
+Both open and closed Music Notes paths accept 2…16 anchors. Earlier
+readers that require at least three anchors for a closed path reject a
+closed two-anchor path. The path fields and encoding are otherwise unchanged.
+The ordered `musicNotes.symbols` array accepts `quarter`, `eighth`, `double`
+and `trebleClef`. Entries must be unique and at least one is required. The
+clef is optional in the editor and earlier readers reject its ID.
+The `musicNotes` configuration also accepts four optional numeric fields for
+gentle motion. `hoverStrength` is 0…25 percent (default 12) and
+`rotationStrength` is 0…200 percent (default 100). `hoverFrequency` and
+`rotationFrequency` accept 0.05…1 Hz, defaulting to 0.23 and 0.13 respectively.
+The existing Boolean switches are unchanged. Invalid values and explicit nulls
+are rejected. Older strict readers reject manifests containing these overrides.
+Optional layer-level `placement` values are `animatedPath` (default),
+`freeSingle` and `anchoredSingle`. The latter two can store separate styles in
+`freeSymbol` and `anchoredSymbol` (`symbol`, `size`, `color`, `opacity`).
+`freePosition` stores a pair of Canvas coordinates, `anchorPosition` a percent
+along the stored path and `alignToPath` optional tangent alignment. These fields
+do not change the default rendering when omitted. Free symbols use the saved
+size without the region cap. The single modes render without staff lines.
+Each single-symbol style also supports optional `rotationMode` (`none`,
+`rocking` or `continuous`), `spinPeriod` (5…300 seconds, default 60), and
+`spinDirection` (`clockwise` or `counterclockwise`, default `clockwise`). Optional
+`spinAxis` accepts `imagePlane` (default) or `vertical` and applies only to
+continuous rotation.
+Without `rotationMode`, the existing `musicNotes.rotation` Boolean determines
+whether the symbol rocks. Invalid values, unknown keys and nulls are rejected.
+An optional Music Notes `depth` object accepts `enabled`, a target image
+UUID in `target`, the initial side in `start`, and up to eight `changes` of
+`position` and `side`. Positions are percentages strictly increasing within
+(0, 100), and sides are `inFront` or `behind`. Image layers can carry the
+optional scene-unique UUID `depthID`. Missing or unavailable targets fall
+back to the ordinary layer order and preserve settings. Unknown fields and
+explicit nulls are rejected.
+Optional Boolean `depth.includesStaff` uses the same depth sections for the
+five staff lines. Omission or false preserves note-only depth routing.
+Optional layer-level `perspective` contains Boolean `enabled` and numeric
+`start` and `end` (10…200 percent). It defaults to off, with 100 and 30 as
+the Inspector's starting values. It applies only to animated notes and
+staff on active open paths. Inactive settings remain stored.
 See the [Music Notes contract](docs/effects/MUSIC-NOTES.md) for fields, bounds,
 playback status and older-reader compatibility.

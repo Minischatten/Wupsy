@@ -65,10 +65,20 @@ Canvas coordinates, zoom and wallpaper rendering use their existing units.
 ## Native music notes, stage 1
 
 WSS v1 supports sortable Music Notes layers with seeded activity in an editable
-rectangle, three selectable note symbols, color, opacity, speed and direction.
+rectangle, three note symbols and an optional treble clef, color, opacity, speed
+and direction.
+Symbol sizes are 4…512 logical canvas units, subject to the existing draw-time
+region cap.
 Optional hover oscillates perpendicular to travel and uses a vertical axis at
-rest. The inspector also offers rotation and Reset to Defaults. See the
+rest. The inspector offers independent strength and frequency for hover and
+rocking, plus Reset to Defaults. See the
 [Music Notes contract](docs/effects/MUSIC-NOTES.md).
+
+Music Notes layers also support one freely placed symbol or one symbol fixed
+at a percentage of the Bézier path. Single symbols can also rotate continuously
+in either direction, in the image plane or about the local vertical axis.
+Both reuse the note renderer. See
+[single-symbol placement](docs/effects/MUSIC-NOTES.md#single-symbol-placement).
 
 ### Music Notes paths
 
@@ -82,6 +92,27 @@ rest. The inspector also offers rotation and Reset to Defaults. See the
 - **Stage 2.3** adds inspector path controls and Canvas Bézier editing with
   coalesced Undo and throttled Live Preview updates. See the
   [authoring contract](docs/effects/MUSIC-NOTES.md#stage-23-path-authoring).
+
+New paths start as a horizontal line. The inspector also offers an explicit
+ellipse template. Switching Open/Closed toggles the closing segment and
+preserves the authored anchor and grip coordinates.
+
+Animated Music Notes can opt into per-note depth changes relative to a
+selected source-over image layer. The five staff lines keep their layer
+position by default and can opt into the same depth sections. See [depth changes](docs/effects/MUSIC-NOTES.md#depth-changes).
+
+### Music Notes staff
+
+Stage 3.1 adds optional WSS staff settings and bounded CPU geometry for five
+static lines sharing the layer's movement frame and active curve. See the
+[staff contract](docs/effects/MUSIC-NOTES.md#stage-31-staff-data-and-geometry).
+Stage 3.2 composites the antialiased staff behind its notes in the same layer.
+Stage 3.3 adds the staff Inspector and a passive preview for the selected layer
+in the editing Canvas, using the same path and movement frame.
+
+Open animated paths can optionally use an authored perspective taper for
+both symbols and staff lines. See
+[perspective along the path](docs/effects/MUSIC-NOTES.md#perspective-along-the-path).
 
 ## Native fog
 

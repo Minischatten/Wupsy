@@ -146,6 +146,27 @@ import simd
         XCTAssertThrowsError(try g.transform(at: anchor - n.axisX - n.axisY))
         XCTAssertThrowsError(try g.transform(at: anchor))
     }
+    func testEachEdgeOnlyResizesItsAxisAndKeepsTheOppositeEdge() throws {
+        let transform = WSSSceneDocumentV1.Transform(center: [300, 180], size: [400, 240])
+        let original = try transform.native()
+        for (index, edge) in WSSCanvasInteractionGeometry.edges.enumerated() {
+            let start = original.point(edge)
+            let opposite = original.point(-edge)
+            var gesture = WSSCanvasGesture(
+                kind: .scaleEdge(index), transform: transform, start: start)
+            let pointer =
+                edge.x == 0
+                ? SIMD2(start.x + 82, start.y - edge.y * 400)
+                : SIMD2(start.x - edge.x * 760, start.y + 55)
+            let resized = try gesture.transform(at: pointer).native()
+            XCTAssertEqual(simd_length(resized.axisX), edge.x == 0 ? 400 : 20, accuracy: 0.001)
+            XCTAssertEqual(simd_length(resized.axisY), edge.y == 0 ? 240 : 40, accuracy: 0.001)
+            XCTAssertEqual(resized.point(-edge).x, opposite.x, accuracy: 0.001)
+            XCTAssertEqual(resized.point(-edge).y, opposite.y, accuracy: 0.001)
+            XCTAssertThrowsError(try gesture.transform(at: opposite - edge))
+        }
+    }
+
     func testRotationUnwrapsPiAndKeepsCenterSizeScale() throws {
         let t = try transform()
         let c = SIMD2(t.center[0], t.center[1])

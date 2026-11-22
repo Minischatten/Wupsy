@@ -20,7 +20,7 @@ import MetalKit
     private let onError: (String) -> Void
     private let onDiagnostic: ((RuntimeDiagnostic) -> Void)?
     private var onFirstFramePresented: (@MainActor () -> Void)?
-    private var startingWithStill = false
+    private var transitionStillPending = false
     private var transitionDrawRetries = 2
     var elapsed: Double { clock.time(now: ProcessInfo.processInfo.systemUptime) }
     var diagnostics: ScenePlaybackDiagnostics {
@@ -124,14 +124,17 @@ import MetalKit
         guard !stopped else { return }
         paused = false
         trailContext.reset()
-        if !startingWithStill { clock.play(now: ProcessInfo.processInfo.systemUptime) }
-        let onDemand = startingWithStill || !resources.scene.isAnimated
+        clock.play(now: ProcessInfo.processInfo.systemUptime)
+        let onDemand = !resources.scene.isAnimated
         view.enableSetNeedsDisplay = onDemand
         view.isPaused = onDemand
         view.needsDisplay = true
     }
     func playFromStill() {
-        startingWithStill = true
+        // The still protects the first visible frame. An occluded desktop
+        // drawable may never report presentation even after GPU completion.
+        // Presentation must not hold the animation clock or draw loop.
+        transitionStillPending = true
         play()
     }
     func pause() {
@@ -212,9 +215,9 @@ import MetalKit
             try frameResources.encode(
                 command: command, descriptor: pass, size: view.drawableSize, time: elapsed,
                 rippleContext: rippleContext, trailContext: trailContext,
-                pointer: resources.trail == nil || paused || startingWithStill
+                pointer: resources.trail == nil || paused
                     ? nil : currentPointer(),
-                projection: projection, advanceTrail: !paused && !startingWithStill,
+                projection: projection, advanceTrail: !paused,
                 stormContext: stormContext,
                 lightingContext: lightingContext)
         } catch {
@@ -225,7 +228,8 @@ import MetalKit
         }
         let semaphore = inFlight
         let metrics = metrics
-        let retryTransitionFrame = startingWithStill && transitionDrawRetries > 0
+        let retryTransitionFrame =
+            transitionStillPending && !resources.scene.isAnimated && transitionDrawRetries > 0
         if retryTransitionFrame { transitionDrawRetries -= 1 }
         command.addCompletedHandler { [weak self, frameResources] buffer in
             _ = frameResources  // Retain the immutable scene/resources through GPU completion.
@@ -242,7 +246,7 @@ import MetalKit
                 }
             } else if retryTransitionFrame {
                 Task { @MainActor in
-                    guard let self, !self.stopped, self.startingWithStill else { return }
+                    guard let self, !self.stopped, self.transitionStillPending else { return }
                     self.view.draw()
                 }
             }
@@ -255,14 +259,7 @@ import MetalKit
                     guard let self, !self.stopped else { return }
                     let callback = self.onFirstFramePresented
                     self.onFirstFramePresented = nil
-                    if self.startingWithStill {
-                        self.startingWithStill = false
-                        if !self.paused && self.resources.scene.isAnimated {
-                            self.clock.play(now: ProcessInfo.processInfo.systemUptime)
-                            self.view.enableSetNeedsDisplay = false
-                            self.view.isPaused = false
-                        }
-                    }
+                    self.transitionStillPending = false
                     callback?()
                 }
             }

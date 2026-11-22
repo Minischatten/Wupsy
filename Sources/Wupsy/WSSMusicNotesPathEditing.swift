@@ -2,24 +2,43 @@ import Foundation
 import simd
 
 extension WSSMusicNotesPath {
-    static var editorDefault: Self {
-        .init(
-            enabled: true, closed: false, direction: .forward,
-            anchors: [
-                .init(
-                    position: .init(0.15, 0.3), incoming: .init(0.11, 0.26),
-                    outgoing: .init(0.28, 0.43)),
-                .init(
-                    position: .init(0.50, 0.55), incoming: .init(0.37, 0.55),
-                    outgoing: .init(0.63, 0.55)),
-                .init(
-                    position: .init(0.85, 0.7), incoming: .init(0.72, 0.57),
-                    outgoing: .init(0.89, 0.74)),
-            ])
+    enum EditorTemplate: String, CaseIterable {
+        case straightPath, ellipsePath
+
+        func makePath(direction: Direction) -> WSSMusicNotesPath {
+            switch self {
+            case .straightPath:
+                return .init(
+                    enabled: true, closed: false, direction: direction,
+                    anchors: [
+                        .init(
+                            position: .init(0.15, 0.5), incoming: .init(0.15, 0.5),
+                            outgoing: .init(0.38, 0.5)),
+                        .init(
+                            position: .init(0.85, 0.5), incoming: .init(0.62, 0.5),
+                            outgoing: .init(0.85, 0.5)),
+                    ])
+            case .ellipsePath:
+                let k = 4 * (sqrt(2.0) - 1) / 3
+                let directions: [SIMD2<Double>] = [
+                    .init(1, 0), .init(0, 1), .init(-1, 0), .init(0, -1),
+                ]
+                let radii = SIMD2(0.35, 0.32)
+                let anchors: [Anchor] = directions.map { radial in
+                    let point = SIMD2<Double>(repeating: 0.5) + radial * radii
+                    let tangent = SIMD2(-radial.y, radial.x) * radii * k
+                    return .init(
+                        position: point, incoming: point - tangent, outgoing: point + tangent)
+                }
+                return .init(enabled: true, closed: true, direction: direction, anchors: anchors)
+            }
+        }
     }
 
+    static var editorDefault: Self { EditorTemplate.straightPath.makePath(direction: .forward) }
+
     var segmentCount: Int { closed ? anchors.count : anchors.count - 1 }
-    var canRemoveAnchor: Bool { anchors.count > (closed ? 3 : 2) }
+    var canRemoveAnchor: Bool { anchors.count > Self.minimumAnchors }
 
     struct EditorSegment {
         let start, outgoing, incoming, end: SIMD2<Double>
@@ -67,60 +86,10 @@ extension WSSMusicNotesPath {
 
     mutating func setClosed(_ value: Bool, in region: WSSSceneDocumentV1.Region) throws {
         guard value != closed else { return }
-        guard value else {
-            closed = false
-            return
-        }
-
         var candidate = self
-        if anchors.count == 2 { try candidate.insertAnchor(in: 0, at: 0.5) }
-        candidate.closed = true
-        let lastIndex = candidate.anchors.count - 1
-        let first = candidate.anchors[0]
-        let last = candidate.anchors[lastIndex]
-        let arriving =
-            first.incoming == first.position
-            ? Self.reflectedGrip(at: first.position, opposite: first.outgoing) : first.incoming
-        let departing =
-            last.outgoing == last.position
-            ? Self.reflectedGrip(at: last.position, opposite: last.incoming) : last.outgoing
-        // Some rectangles leave no room to extend the endpoint tangents. Try
-        // bounded alternatives for the new join, preserving all open segments.
-        let chord = first.position - last.position
-        let length = simd_length(chord)
-        guard length > 0 else { throw WSSSceneError.invalid("musicNotes path closing geometry") }
-        let direction = chord / length
-        let normal = SIMD2(-direction.y, direction.x)
-        let from = last.position + chord / 3
-        let to = first.position - chord / 3
-        let grips = [
-            (departing, arriving), (last.position, first.position), (from, to),
-            (from + normal * 0.3, to + normal * 0.3),
-            (from - normal * 0.3, to - normal * 0.3),
-            (from + normal * 0.3, to - normal * 0.3),
-            (from - normal * 0.3, to + normal * 0.3),
-        ]
-        for (outgoing, incoming) in grips {
-            candidate.anchors[0].incoming = Self.clamp(incoming)
-            candidate.anchors[lastIndex].outgoing = Self.clamp(outgoing)
-            if (try? candidate.prepare(in: region)) != nil {
-                self = candidate
-                return
-            }
-        }
-        throw WSSSceneError.invalid("musicNotes path closing geometry")
-    }
-
-    private static func reflectedGrip(at point: SIMD2<Double>, opposite: SIMD2<Double>) -> SIMD2<
-        Double
-    > {
-        let delta = point - opposite
-        var fraction = 1.0
-        for axis in 0..<2 where delta[axis] != 0 {
-            let limit = delta[axis] > 0 ? 1 - point[axis] : point[axis]
-            fraction = min(fraction, limit / abs(delta[axis]))
-        }
-        return clamp(point + delta * fraction)
+        candidate.closed = value
+        _ = try candidate.prepare(in: region)
+        self = candidate
     }
 
     enum Handle: Equatable {
@@ -207,9 +176,18 @@ extension WSSEditorDocument {
         }
     }
 
+    func applyMusicNotesPathTemplate(
+        _ template: WSSMusicNotesPath.EditorTemplate, layer id: WSSLayerID
+    ) throws {
+        try changeMusicNotesPath(id, name: WSSMusicNotesText.text(template.rawValue)) {
+            $0 = template.makePath(direction: $0?.direction ?? .forward)
+        }
+        if musicNotesPathEditLayer == id { musicNotesPathAnchor = nil }
+    }
+
     func beginMusicNotesPathEditing(_ id: WSSLayerID) {
         guard permitsStructureEditing, finishEditing(), selection == .layer(id),
-            let layer = musicNotesLayer(id), layer.visible, layer.path?.enabled == true
+            let layer = musicNotesLayer(id), layer.visible, layer.usesActivePath
         else { return }
         directionCanvas.setEnabled(false)
         maskCanvas.setBrush(false)
@@ -229,7 +207,7 @@ extension WSSEditorDocument {
     func reconcileMusicNotesPathEditing() {
         guard let id = musicNotesPathEditLayer else { return }
         if selection != .layer(id) || musicNotesLayer(id)?.visible != true
-            || musicNotesLayer(id)?.path?.enabled != true
+            || musicNotesLayer(id)?.usesActivePath != true
         {
             leaveMusicNotesPathEditing(restoreTransform: true)
         } else if let selected = musicNotesPathAnchor,

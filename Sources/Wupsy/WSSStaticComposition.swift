@@ -5,6 +5,13 @@ enum WSSStaticComposition {
     static func model(_ model: WSSSceneDocumentV1) -> WSSSceneDocumentV1 {
         var result = model
         result.layers = model.layers.compactMap { layer in
+            if case .musicNotes(var notes) = layer.content, notes.placementMode != .animatedPath {
+                notes.notes.hover = false
+                notes.notes.rotation = false
+                notes.freeSymbol?.rotationMode = WSSMusicNotesLayer.SingleRotationMode.none
+                notes.anchoredSymbol?.rotationMode = WSSMusicNotesLayer.SingleRotationMode.none
+                return .init(content: .musicNotes(notes))
+            }
             guard case .image(var image) = layer.content else { return nil }
             image.effects = []
             var node = layer

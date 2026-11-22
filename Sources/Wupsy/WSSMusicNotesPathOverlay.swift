@@ -12,26 +12,90 @@ import simd
         return radius * radius
     }
     var imageOrigin = CGPoint.zero
+    var imageBounds = CGRect.zero
     var sceneHeight: CGFloat = 0
     var zoom: CGFloat = 1
 
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    private var staffKey: WSSMusicNotesStaff.GeometryKey?
+    private var staffOrigin: SIMD2<Double>?
+    private var staffPath: CGPath?
+    private var staffColor: NSColor?
+
+    var showsStaff: Bool { staffPath != nil && staffColor != nil }
+
     func viewport(_ point: SIMD2<Double>) -> SIMD2<Double> {
         guard let region else { return .zero }
-        return SIMD2(
-            Double(imageOrigin.x) + Double(zoom)
-                * (Double(region.x) + point.x * Double(region.width)),
-            Double(imageOrigin.y) + Double(zoom)
-                * (Double(sceneHeight) - Double(region.y) - point.y * Double(region.height)))
+        return viewport(regionPoint: point * SIMD2(Double(region.width), Double(region.height)))
     }
 
-    func normalizedDelta(from start: CGPoint, to end: CGPoint) -> SIMD2<Double> {
-        guard let region, zoom > 0 else { return .zero }
+    func viewport(regionPoint: SIMD2<Double>) -> SIMD2<Double> {
+        guard let region else { return .zero }
         return SIMD2(
-            Double((end.x - start.x) / zoom) / Double(region.width),
-            Double((start.y - end.y) / zoom) / Double(region.height))
+            Double(imageOrigin.x) + Double(zoom) * (Double(region.x) + regionPoint.x),
+            Double(imageOrigin.y)
+                + Double(zoom) * (Double(sceneHeight) - Double(region.y) - regionPoint.y))
+    }
+
+    func updateStaff(_ layer: WSSMusicNotesLayer?, draft: WSSMusicNotesPath?) {
+        guard var layer, layer.drawsStaff, let staff = layer.staff, staff.enabled, staff.opacity > 0
+        else {
+            staffKey = nil
+            staffOrigin = nil
+            staffPath = nil
+            staffColor = nil
+            return
+        }
+        staffColor = NSColor(
+            srgbRed: CGFloat(staff.color.red), green: CGFloat(staff.color.green),
+            blue: CGFloat(staff.color.blue), alpha: CGFloat(staff.opacity))
+        let committed = layer
+        if let draft { layer.path = draft }
+        let key = WSSMusicNotesStaff.GeometryKey(layer: layer, staff: staff)
+        guard staffKey != key else { return }
+        guard let geometry = try? layer.preparedStaff() else {
+            // The curve overlay can show a transient invalid draft. Hold the
+            // committed staff until the draft has usable geometry again.
+            updateStaff(draft == nil ? nil : committed, draft: nil)
+            return
+        }
+        let triangles = CGMutablePath()
+        for index in stride(from: 0, to: geometry.vertices.count, by: 3) {
+            let a = geometry.vertices[index]
+            let b = geometry.vertices[index + 1]
+            let c = geometry.vertices[index + 2]
+            triangles.move(to: CGPoint(x: CGFloat(a.x), y: CGFloat(a.y)))
+            triangles.addLine(to: CGPoint(x: CGFloat(b.x), y: CGFloat(b.y)))
+            triangles.addLine(to: CGPoint(x: CGFloat(c.x), y: CGFloat(c.y)))
+            triangles.closeSubpath()
+        }
+        staffPath = triangles
+        staffOrigin = geometry.origin
+        staffKey = key
+    }
+
+    var staffViewportOrigin: CGPoint? {
+        staffOrigin.map {
+            let origin = viewport(regionPoint: $0)
+            return CGPoint(x: origin.x, y: origin.y)
+        }
+    }
+
+    private func drawStaff() {
+        guard let staffPath, let staffColor, let origin = staffViewportOrigin,
+            let context = NSGraphicsContext.current?.cgContext
+        else { return }
+        context.saveGState()
+        context.clip(to: imageBounds)
+        context.translateBy(x: origin.x, y: origin.y)
+        context.scaleBy(x: zoom, y: -zoom)
+        context.setFillColor(staffColor.cgColor)
+        // Fill all consistently wound triangles together, including overlaps.
+        context.addPath(staffPath)
+        context.fillPath()
+        context.restoreGState()
     }
 
     private func grips(at index: Int, path: WSSMusicNotesPath) -> [(
@@ -51,8 +115,9 @@ import simd
         func knob(_ grip: SIMD2<Double>, fallback: SIMD2<Double>) -> SIMD2<Double> {
             let delta = viewport(grip) - center
             let length = simd_length(delta)
-            return length >= 12
-                ? center + delta : center + (length > 1 ? delta / length : fallback) * 12
+            // Ease the collapsed handle outward without switching direction
+            // abruptly when the authored grip crosses the anchor.
+            return center + delta + fallback * max(0, 12 - length)
         }
         var result: [(WSSMusicNotesPath.Handle, SIMD2<Double>)] = []
         if hasIncoming { result.append((.incoming(index), knob(anchor.incoming, fallback: -axis))) }
@@ -127,6 +192,7 @@ import simd
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        drawStaff()
         guard let path, let first = path.anchors.first else { return }
         func point(_ value: SIMD2<Double>) -> CGPoint { CGPoint(x: value.x, y: value.y) }
         let curve = NSBezierPath()

@@ -37,7 +37,7 @@ struct WSSCanvasView: NSViewRepresentable {
     private weak var document: WSSEditorDocument?
     private var pending:
         (gesture: WSSCanvasGesture, layer: WSSLayerID, start: CGPoint, active: Bool)?
-    private var pathDragStart: CGPoint?
+    private var pathDragStart: (point: CGPoint, scale: SIMD2<Double>)?
     private var focusObservers: [NSObjectProtocol] = []
     enum InteractionPhase {
         case idle, pendingTransform, moving, scaling, rotating, panning, painting
@@ -49,7 +49,7 @@ struct WSSCanvasView: NSViewRepresentable {
         guard pending.active else { return .pendingTransform }
         switch pending.gesture.kind {
         case .move: return .moving
-        case .scale: return .scaling
+        case .scale, .scaleEdge: return .scaling
         case .rotate: return .rotating
         }
     }
@@ -290,7 +290,13 @@ struct WSSCanvasView: NSViewRepresentable {
             } else if let handle = overlay.handle(at: point),
                 document.beginMusicNotesPathGesture(handle)
             {
-                pathDragStart = point
+                if let gesture = document.musicNotesPathGesture {
+                    pathDragStart = (
+                        event.locationInWindow,
+                        Double(currentZoom)
+                            * SIMD2(Double(gesture.region.width), Double(gesture.region.height))
+                    )
+                }
             } else {
                 document.musicNotesPathAnchor = nil
             }
@@ -316,6 +322,9 @@ struct WSSCanvasView: NSViewRepresentable {
         }
         document.select(.layer(hit.layer))
         if event.clickCount >= 2 { document.activateTransformMode(hit.layer) }
+        if document.musicNotesLayer(hit.layer)?.placementMode == .freeSingle {
+            document.activateTransformMode(hit.layer)
+        }
         surface.update(document)
         guard document.transformModeLayer == hit.layer else { return }
         guard document.selection == .layer(hit.layer),
@@ -326,7 +335,11 @@ struct WSSCanvasView: NSViewRepresentable {
         switch hit {
         case .image: kind = .move
         case .corner(_, let index):
-            kind = .scale(index, independent: event.modifierFlags.contains(.shift))
+            kind = .scale(
+                index,
+                independent: document.musicNotesLayer(hit.layer) != nil
+                    || event.modifierFlags.contains(.shift))
+        case .edge(_, let index): kind = .scaleEdge(index)
         case .rotation: kind = .rotate
         }
         let scene = WSSCanvasGeometry.scenePoint(
@@ -343,9 +356,9 @@ struct WSSCanvasView: NSViewRepresentable {
             return
         }
         if let document, let start = pathDragStart, document.musicNotesPathGesture != nil {
-            let point = surface.convert(event.locationInWindow, from: nil)
-            document.dragMusicNotesPath(
-                by: surface.musicNotesPathOverlay.normalizedDelta(from: start, to: point))
+            let point = event.locationInWindow
+            let delta = SIMD2(Double(point.x - start.point.x), Double(point.y - start.point.y))
+            document.dragMusicNotesPath(by: delta / start.scale)
             surface.updateMusicNotesPath(document)
             return
         }
@@ -435,7 +448,7 @@ struct WSSCanvasView: NSViewRepresentable {
             } else {
                 NSCursor.arrow.set()
             }
-        case .corner: NSCursor.crosshair.set()
+        case .corner, .edge: NSCursor.crosshair.set()
         case .rotation: NSCursor.crosshair.set()
         case nil: NSCursor.arrow.set()
         }
@@ -675,15 +688,17 @@ struct WSSCanvasView: NSViewRepresentable {
     func updateMusicNotesPath(_ document: WSSEditorDocument) {
         var layer: WSSMusicNotesLayer?
         if case .layer(let id) = document.selection,
-            let selected = document.musicNotesLayer(id), selected.visible,
-            selected.path?.enabled == true
+            let selected = document.musicNotesLayer(id), selected.visible
         {
             layer = selected
         }
-        let editing = layer != nil && document.musicNotesPathEditLayer == document.selection?.layer
+        let activePath = layer?.usesActivePath == true ? layer?.path : nil
+        let editing =
+            activePath != nil && document.musicNotesPathEditLayer == document.selection?.layer
+        let draft = editing ? document.musicNotesPathGesture?.draft : nil
         musicNotesPathOverlay.isEditing = editing
-        musicNotesPathOverlay.path =
-            (editing ? document.musicNotesPathGesture?.draft : nil) ?? layer?.path
+        musicNotesPathOverlay.path = draft ?? activePath
+        musicNotesPathOverlay.updateStaff(layer, draft: draft)
         musicNotesPathOverlay.region = layer?.region
         musicNotesPathOverlay.selected = editing ? document.musicNotesPathAnchor : nil
         musicNotesPathOverlay.needsDisplay = true
@@ -698,8 +713,11 @@ struct WSSCanvasView: NSViewRepresentable {
             modeLayer != nil && modeLayer == document.selection?.layer
             && scene.layers.indices.contains(selected)
         outline.transform = hasOutline ? scene.layers[selected].canvasTransform : nil
-        outline.showsHandles = document.musicNotesPathEditLayer == nil
+        outline.showsHandles =
+            document.musicNotesPathEditLayer == nil
+            && (!hasOutline || !scene.layers[selected].isFreeMusicSymbol)
         outline.allowsRotation = !hasOutline || scene.layers[selected].allowsCanvasRotation
+        outline.allowsEdgeScaling = hasOutline && scene.layers[selected].allowsCanvasEdgeScaling
         outline.needsDisplay = true
         let candidate = document.canvasModel
         guard model != candidate, !stopped else { return }
@@ -762,6 +780,7 @@ struct WSSCanvasView: NSViewRepresentable {
             width: imageSize.width, height: imageSize.height)
         musicNotesPathOverlay.frame = CGRect(origin: .zero, size: size)
         musicNotesPathOverlay.imageOrigin = rect.origin
+        musicNotesPathOverlay.imageBounds = rect
         musicNotesPathOverlay.zoom = rect.width / sceneSize.width
         musicNotesPathOverlay.needsDisplay = true
         directionOutline.frame = CGRect(origin: .zero, size: size)
@@ -884,6 +903,7 @@ struct WSSCanvasView: NSViewRepresentable {
     var metrics = WupsyMetrics()
     var showsHandles = true
     var allowsRotation = true
+    var allowsEdgeScaling = false
     var sceneSize = CGSize.zero
     var imageOrigin = CGPoint.zero
     var zoom: CGFloat = 1
@@ -911,7 +931,7 @@ struct WSSCanvasView: NSViewRepresentable {
         guard showsHandles else { return }
         let handles = WSSCanvasInteractionGeometry.handles(
             transform: transform, origin: imageOrigin, zoom: zoom, height: sceneSize.height,
-            allowsRotation: allowsRotation)
+            allowsRotation: allowsRotation, allowsEdgeScaling: allowsEdgeScaling)
         if allowsRotation {
             let stem = NSBezierPath()
             stem.move(
@@ -924,7 +944,8 @@ struct WSSCanvasView: NSViewRepresentable {
         for (index, point) in handles.enumerated() {
             let rect = CGRect(
                 x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
-            let handle = index == 4 ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+            let handle =
+                allowsRotation && index == 4 ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
             NSColor.windowBackgroundColor.setFill()
             handle.fill()
             NSColor.controlAccentColor.setStroke()

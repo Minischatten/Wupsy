@@ -398,6 +398,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         var visible: Bool
         var composition: String
         var effects: [Effect]
+        var depthID: UUID?
     }
     struct RainLayer: Equatable {
         var region: Region
@@ -435,18 +436,37 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm, starfield, fog, musicNotes, preset, path
+                trail, mask, storm, starfield, fog, musicNotes, preset, path, staff, placement,
+                freeSymbol, anchoredSymbol, freePosition,
+                anchorPosition, alignToPath, depth, depthID, perspective
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
             if type == "musicNotes" {
-                try decoder.fields(["type", "visible", "region", "musicNotes", "path"])
+                try decoder.fields([
+                    "type", "visible", "region", "musicNotes", "path", "staff", "placement",
+                    "freeSymbol", "anchoredSymbol", "freePosition", "anchorPosition", "alignToPath",
+                    "depth", "perspective",
+                ])
                 let layer = WSSMusicNotesLayer(
                     visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
                     region: try c.decode(Region.self, forKey: .region),
                     notes: try c.decode(WSSMusicNotesLayer.Configuration.self, forKey: .musicNotes),
-                    path: try c.decodeIfPresent(WSSMusicNotesPath.self, forKey: .path))
+                    path: try c.decodeIfPresent(WSSMusicNotesPath.self, forKey: .path),
+                    staff: try c.decodeIfPresent(WSSMusicNotesStaff.self, forKey: .staff),
+                    placement: try c.decodeIfPresent(
+                        WSSMusicNotesLayer.Placement.self, forKey: .placement),
+                    freeSymbol: try c.decodeIfPresent(
+                        WSSMusicNotesLayer.SingleSymbol.self, forKey: .freeSymbol),
+                    anchoredSymbol: try c.decodeIfPresent(
+                        WSSMusicNotesLayer.SingleSymbol.self, forKey: .anchoredSymbol),
+                    freePosition: try c.decodeIfPresent(SIMD2<Float>.self, forKey: .freePosition),
+                    anchorPosition: try c.decodeIfPresent(Float.self, forKey: .anchorPosition),
+                    alignToPath: try c.decodeIfPresent(Bool.self, forKey: .alignToPath),
+                    depth: try c.decodeIfPresent(WSSMusicNotesDepth.self, forKey: .depth),
+                    perspective: try c.decodeIfPresent(
+                        WSSMusicNotesPerspective.self, forKey: .perspective))
                 try WSSMusicNotesLayer.validateRegion(layer.region)
                 content = .musicNotes(layer)
             } else if type == "fog" {
@@ -495,7 +515,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             } else if type == "image" {
                 try decoder.fields([
                     "type", "name", "image", "transform", "opacity", "visible", "composition",
-                    "effects",
+                    "effects", "depthID",
                 ])
                 let name = try c.decodeIfPresent(String.self, forKey: .name)
                 if let name { _ = try WallpaperTitle.normalized(name) }
@@ -522,7 +542,8 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         opacity: try c.decodeIfPresent(Float.self, forKey: .opacity) ?? 1,
                         visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
                         composition: composition,
-                        effects: try c.decodeIfPresent([Effect].self, forKey: .effects) ?? []))
+                        effects: try c.decodeIfPresent([Effect].self, forKey: .effects) ?? [],
+                        depthID: try c.decodeIfPresent(UUID.self, forKey: .depthID)))
                 _ = try makeNative()
             } else {
                 throw WSSDocumentError.invalid("unknown layer type " + type)
@@ -537,7 +558,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         transform: try image.transform.native(), opacity: image.opacity,
                         visible: image.visible,
                         composition: image.composition == "replace" ? .replace : .sourceOver,
-                        effects: image.effects.map(\.native)))
+                        effects: image.effects.map(\.native), depthID: image.depthID))
             case .rain(let layer):
                 let r = layer.region
                 return .rain(

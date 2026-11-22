@@ -1,8 +1,8 @@
 import MetalKit
 
 final class WSSMusicNotesRenderer {
-    private static let atlasWidth = 192
-    private static let atlasHeight = 64
+    private static let atlasWidth = 256
+    private static let atlasHeight = 256
     private let atlas: MTLTexture
     private let pipeline: MTLRenderPipelineState
     private let pathPipeline: MTLRenderPipelineState
@@ -52,7 +52,7 @@ final class WSSMusicNotesRenderer {
                 layer.region.width == old.region.width, layer.region.height == old.region.height
             {
                 result[index] = prepared
-            } else if path.enabled {
+            } else if layer.usesActivePath {
                 result[index] = try PreparedPath(path.prepare(in: layer.region), device: device)
             }
         }
@@ -109,39 +109,86 @@ final class WSSMusicNotesRenderer {
     private struct Uniforms {
         var projection, region, phase, color, shape: SIMD4<Float>
         var symbols: SIMD4<UInt32>
+        var motion: SIMD4<Float>
+        var perspective: SIMD4<Float>
     }
 
     func encode(
         _ layer: WSSMusicNotesLayer, path prepared: PreparedPath?, canvas: SIMD2<Float>,
         crop: SIMD2<Float>, time: Double,
-        encoder: MTLRenderCommandEncoder
+        encoder: MTLRenderCommandEncoder, depthSide: WSSMusicNotesDepth.Side? = nil
     ) {
         let notes = layer.notes
-        guard notes.count > 0, notes.opacity > 0, let buffer = instances[notes.seed] else { return }
+        let single = layer.singleSymbol
+        guard let buffer = instances[notes.seed],
+            single.map({ $0.opacity > 0 }) ?? (notes.count > 0 && notes.opacity > 0)
+        else { return }
         let region = layer.region
-        let size = min(notes.size, min(region.width, region.height) * 0.48)
-        var symbols = SIMD4<UInt32>(0, 0, 0, UInt32(notes.symbols.count))
-        for (index, symbol) in notes.symbols.enumerated() {
-            symbols[index] = symbol.atlasIndex
+        let size =
+            single != nil
+            ? layer.drawnSingleSize : min(notes.size, min(region.width, region.height) * 0.48)
+        var symbols = SIMD4<UInt32>.zero
+        if let single {
+            symbols.x = single.symbol.atlasIndex
+        } else {
+            for (index, symbol) in notes.symbols.enumerated() {
+                symbols[index] = symbol.atlasIndex
+            }
         }
-        let path = layer.path.flatMap { $0.enabled ? $0 : nil }
-        let hoverAxis = path == nil && notes.hover ? layer.hoverAxis : .zero
+        let path = layer.usesActivePath ? layer.path : nil
+        let hoverAxis = path == nil && notes.hoverAmount > 0 ? layer.hoverAxis : .zero
         var uniforms = Uniforms(
             projection: .init(canvas.x, canvas.y, crop.x, crop.y),
             region: .init(region.x, region.y, region.width, region.height),
             phase: path == nil ? layer.phases(at: time) : .zero,
             color: .init(notes.color.red, notes.color.green, notes.color.blue, notes.opacity),
-            shape: .init(size, hoverAxis.x, notes.rotation ? 1 : 0, hoverAxis.y),
-            symbols: symbols)
+            shape: .init(size, hoverAxis.x, notes.rotationAmount, hoverAxis.y),
+            symbols: symbols, motion: .init(notes.hoverAmount, Float(notes.symbols.count), 0, 0),
+            perspective: .zero)
         var instanceCount = notes.count * 4
-        if let path, let prepared {
+        if let single {
+            let rocking = layer.rockingAmount(for: single)
+            let mode = single.effectiveRotationMode(legacyRocking: notes.rotation)
+            let oscillation = layer.oscillationPhases(at: time, rockingAmount: rocking)
+            uniforms.shape.y = mode == .continuous ? single.spinPhase(at: time) : 0
+            uniforms.shape.z = rocking
+            uniforms.shape.w = mode == .continuous && single.spinAxis == .vertical ? 1 : 0
+            uniforms.phase = .init(
+                (layer.anchorPosition ?? 50) / 100, 0, oscillation.x, oscillation.y)
+            uniforms.color = .init(
+                single.color.red, single.color.green, single.color.blue, single.opacity)
+            uniforms.motion.y = 1
+            uniforms.motion.z = 1  // Fixed position and no edge fade.
+            uniforms.motion.w = layer.alignToPath == true ? 1 : 0
+            let table = path == nil ? nil : prepared
+            if let table {
+                uniforms.region.z = table.origin.x
+                uniforms.region.w = table.origin.y
+            } else {
+                let center =
+                    layer.placementMode == .freeSingle ? layer.singleCenter : layer.regionCenter
+                uniforms.region = .init(center.x, center.y, 0, 0)
+            }
+            var counts = SIMD2(UInt32(1), UInt32(table.map { $0.sampleCount - 1 } ?? 0))
+            encoder.setRenderPipelineState(pathPipeline)
+            // With zero table intervals the shader never reads this binding.
+            encoder.setVertexBuffer(table?.buffer ?? buffer, offset: 0, index: 2)
+            encoder.setVertexBytes(&counts, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 3)
+            instanceCount = 1
+        } else if let path, let prepared {
+            if let perspective = layer.activePerspective {
+                let factors = perspective.factors
+                let limit = min(
+                    WSSMusicNotesLayer.sizeRange.upperBound, min(region.width, region.height) * 0.48
+                )
+                uniforms.perspective = .init(factors.x, factors.y, limit, 1)
+            }
             let timing = PreparedPath.timing(
                 length: prepared.length, speed: notes.speed, time: time, closed: path.closed)
             let oscillation = layer.oscillationPhases(at: time)
             uniforms.phase = .init(timing.x, timing.y, oscillation.x, oscillation.y)
             uniforms.region.z = prepared.origin.x
             uniforms.region.w = prepared.origin.y
-            uniforms.shape.y = notes.hover ? 1 : 0
             uniforms.shape.w = path.direction == .reverse ? 1 : 0
             var counts = SIMD2(UInt32(notes.count), UInt32(prepared.sampleCount - 1))
             encoder.setRenderPipelineState(pathPipeline)
@@ -152,6 +199,12 @@ final class WSSMusicNotesRenderer {
             // All active paths are prepared before the snapshot is published.
             assert(path == nil)
             encoder.setRenderPipelineState(pipeline)
+        }
+        if single != nil || prepared != nil && path != nil {
+            var depth = WSSMusicNotesDepth.Uniforms(
+                layer.depth, side: depthSide, closed: path?.closed == true)
+            encoder.setVertexBytes(
+                &depth, length: MemoryLayout<WSSMusicNotesDepth.Uniforms>.stride, index: 4)
         }
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
         encoder.setVertexBuffer(buffer, offset: 0, index: 1)
@@ -170,7 +223,23 @@ final class WSSMusicNotesRenderer {
         struct NotesUniforms {
             float4 projection, region, phase, color, shape;
             uint4 symbols;
+            float4 motion, perspective;
         };
+
+        uint musicSymbol(float selection, constant NotesUniforms &u) {
+            uint count = uint(u.motion.y);
+            return u.symbols[min(uint(selection * float(count)), count - 1)];
+        }
+
+        // Original 64-square tiles stay in the top row. The clef uses a
+        // padded 96-by-192 tile with its long axis matching the logical size.
+        float2 musicSymbolUV(uint symbol, float2 corner) {
+            float2 uv = float2(corner.x, 1.0 - corner.y);
+            if (symbol == 3) {
+                return (float2(0, 64) + uv * float2(96, 192)) / 256.0;
+            }
+            return (float2(symbol * 64, 0) + uv * 64.0) / 256.0;
+        }
 
         struct NoteVertex {
             float4 position [[position]];
@@ -188,7 +257,7 @@ final class WSSMusicNotesRenderer {
             float2 span = u.region.zw;
             float size = u.shape.x;
             float2 position = note.xy + u.phase.xy;
-            position += u.shape.yw * size * 0.12
+            position += u.shape.yw * size * u.motion.x
                 * sin(turn * (note.w + u.phase.z)) / span;
             float2 center = fract(position) * span;
             float2 alternate = select(span, -span, center >= span * 0.5);
@@ -199,13 +268,14 @@ final class WSSMusicNotesRenderer {
             }
 
             float2 corner = float2(vertexID & 1, vertexID >> 1);
+            uint symbol = musicSymbol(note.z, u);
             float2 offset = (corner - 0.5) * size;
+            if (symbol == 3) offset.x *= 0.5;
             float angle = u.shape.z * 0.32 * sin(turn * (note.w + u.phase.w));
             float c = cos(angle), s = sin(angle);
             float2 local = center + float2(c * offset.x - s * offset.y, s * offset.x + c * offset.y);
             float2 clip = ((local + u.region.xy) / u.projection.xy * 2.0 - 1.0) / u.projection.zw;
-            uint symbol = u.symbols[min(uint(note.z * float(u.symbols.w)), u.symbols.w - 1)];
-            float2 uv = float2((float(symbol) + corner.x) / 3.0, 1.0 - corner.y);
+            float2 uv = musicSymbolUV(symbol, corner);
             return {float4(clip, 0, 1), uv, local};
         }
 
@@ -226,44 +296,91 @@ final class WSSMusicNotesRenderer {
             float fade [[flat]];
         };
 
+        struct NoteDepth {
+            float4 first, second;
+            uint4 section;
+        };
+
         vertex PathVertex musicNotePathQuad(
             uint vertexID [[vertex_id]], uint instanceID [[instance_id]],
             constant NotesUniforms &u [[buffer(0)]],
             device const float4 *instances [[buffer(1)]],
             device const float4 *samples [[buffer(2)]],
-            constant uint2 &counts [[buffer(3)]]
+            constant uint2 &counts [[buffer(3)]],
+            constant NoteDepth &depth [[buffer(4)]]
         ) {
             constexpr float turn = 6.28318530718;
             float4 note = instances[instanceID];
-            float travel = fract(u.phase.x + (float(instanceID) + 0.5) / float(counts.x));
-            float progress = u.shape.w > 0 ? 1.0 - travel : travel;
-            float index = progress * float(counts.y);
-            uint lower = min(uint(index), counts.y - 1);
-            float fraction = index - float(lower);
-            float4 a = samples[lower], b = samples[lower + 1];
-            float2 center = mix(a.xy, b.xy, fraction);
+            bool fixedPosition = u.motion.z > 0;
+            float travel = fixedPosition ? u.phase.x
+                : fract(u.phase.x + (float(instanceID) + 0.5) / float(counts.x));
+            float2 center = float2(0);
+            float size = u.shape.x;
+            float2 tangent = float2(1, 0);
+            float squared = 1.0;
+            if (counts.y > 0) {
+                float progress = !fixedPosition && u.shape.w > 0 ? 1.0 - travel : travel;
+                if (depth.section.z > 0) {
+                    float depthProgress = depth.section.w > 0 && progress == 1.0 ? 0.0 : progress;
+                    uint section = 0;
+                    for (uint j = 0; j < depth.section.x; ++j) {
+                        float boundary = j < 4 ? depth.first[j] : depth.second[j - 4];
+                        section += uint(depthProgress >= boundary);
+                    }
+                    uint side = 1 + ((depth.section.y >> section) & 1);
+                    if (side != depth.section.z) {
+                        return {float4(2, 2, 0, 1), float2(0), 0.0};
+                    }
+                }
+                if (u.perspective.w > 0) {
+                    float scale = u.perspective.x + (u.perspective.y - u.perspective.x) * progress;
+                    size = min(size * scale, u.perspective.z);
+                }
+                float index = progress * float(counts.y);
+                uint lower = min(uint(index), counts.y - 1);
+                float fraction = index - float(lower);
+                float4 a = samples[lower], b = samples[lower + 1];
+                center = mix(a.xy, b.xy, fraction);
 
-            if (u.shape.y > 0) {
-                // Use the authored tangent regardless of the travel direction.
-                // Taper hover through a cancellation at a sharp reversal.
-                float2 tangent = mix(a.zw, b.zw, fraction);
-                float squared = dot(tangent, tangent);
-                float2 unit = squared > 1e-6 ? tangent * rsqrt(max(squared, 1e-6))
-                    : (fraction < 0.5 ? a.zw : b.zw);
-                float2 normal = float2(-unit.y, unit.x);
-                center += normal * (u.shape.x * 0.12 * smoothstep(1e-6, 0.04, squared)
+                if (u.motion.x > 0 || (fixedPosition && u.motion.w > 0)) {
+                    // Authored orientation is independent of playback direction.
+                    float2 blended = mix(a.zw, b.zw, fraction);
+                    squared = dot(blended, blended);
+                    tangent = squared > 1e-6 ? blended * rsqrt(max(squared, 1e-6))
+                        : (fraction < 0.5 ? a.zw : b.zw);
+                }
+            }
+
+            if (u.motion.x > 0) {
+                float2 normal = float2(-tangent.y, tangent.x);
+                center += normal * (size * u.motion.x * smoothstep(1e-6, 0.04, squared)
                     * sin(turn * (note.w + u.phase.z)));
             }
 
             float2 corner = float2(vertexID & 1, vertexID >> 1);
-            float2 offset = (corner - 0.5) * u.shape.x;
+            uint symbol = musicSymbol(note.z, u);
+            float2 offset = (corner - 0.5) * size;
+            if (symbol == 3) offset.x *= 0.5;
             float angle = u.shape.z * 0.32 * sin(turn * (note.w + u.phase.w));
+            if (fixedPosition && u.shape.y != 0.0) {
+                float spin = turn * u.shape.y;
+                if (u.shape.w > 0) {
+                    // A signed width projects both faces with unchanged UVs.
+                    // The composition encoder disables back-face culling.
+                    float phase = abs(u.shape.y);
+                    offset.x *= phase == 0.25 || phase == 0.75 ? 0.0 : cos(spin);
+                } else {
+                    angle += spin;
+                }
+            }
+            if (fixedPosition && u.motion.w > 0 && counts.y > 0) {
+                angle += atan2(tangent.y, tangent.x);
+            }
             float c = cos(angle), s = sin(angle);
             float2 local = center + float2(c * offset.x - s * offset.y, s * offset.x + c * offset.y);
             float2 clip = ((local + u.region.zw + u.region.xy) / u.projection.xy * 2.0 - 1.0)
                 / u.projection.zw;
-            uint symbol = u.symbols[min(uint(note.z * float(u.symbols.w)), u.symbols.w - 1)];
-            float2 uv = float2((float(symbol) + corner.x) / 3.0, 1.0 - corner.y);
+            float2 uv = musicSymbolUV(symbol, corner);
             float fade = u.phase.y > 0 ? smoothstep(0.0, max(u.phase.y, 1e-7), min(travel, 1.0 - travel)) : 1.0;
             return {float4(clip, 0, 1), uv, fade};
         }

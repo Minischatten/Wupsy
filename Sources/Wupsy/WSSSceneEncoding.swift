@@ -167,12 +167,22 @@ extension WSSSceneDocumentV1.Layer {
             try c.encode(image.visible, forKey: .visible)
             try c.encode(image.composition, forKey: .composition)
             try c.encode(image.effects, forKey: .effects)
+            try c.encodeIfPresent(image.depthID, forKey: .depthID)
         case .musicNotes(let layer):
             try c.encode("musicNotes", forKey: .type)
             if !layer.visible { try c.encode(false, forKey: .visible) }
             try c.encode(layer.region, forKey: .region)
             try c.encode(layer.notes, forKey: .musicNotes)
             try c.encodeIfPresent(layer.path, forKey: .path)
+            try c.encodeIfPresent(layer.staff, forKey: .staff)
+            try c.encodeIfPresent(layer.placement, forKey: .placement)
+            try c.encodeIfPresent(layer.freeSymbol, forKey: .freeSymbol)
+            try c.encodeIfPresent(layer.anchoredSymbol, forKey: .anchoredSymbol)
+            try c.encodeIfPresent(layer.freePosition, forKey: .freePosition)
+            try c.encodeIfPresent(layer.anchorPosition, forKey: .anchorPosition)
+            try c.encodeIfPresent(layer.alignToPath, forKey: .alignToPath)
+            try c.encodeIfPresent(layer.depth, forKey: .depth)
+            try c.encodeIfPresent(layer.perspective, forKey: .perspective)
         case .fog(let layer):
             try c.encode("fog", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)

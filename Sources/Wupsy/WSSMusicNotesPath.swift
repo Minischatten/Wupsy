@@ -2,12 +2,14 @@ import Foundation
 import simd
 
 struct WSSMusicNotesPath: Codable, Equatable {
+    static let minimumAnchors = 2
     static let maximumAnchors = 16
     static let maximumSubdivisionDepth = 16
     static let maximumFlattenedEdges = 4096
     static let minimumAnchorDistance = 0.01
     static let standardSampleCount = 257
     static let maximumSampleCount = 513
+    static let maximumClosedSampleCount = 2049
 
     enum Direction: String, Codable { case forward, reverse }
 
@@ -75,7 +77,7 @@ struct WSSMusicNotesPath: Codable, Equatable {
     }
 
     private func validateAnchors() throws {
-        guard ((closed ? 3 : 2)...Self.maximumAnchors).contains(anchors.count) else {
+        guard (Self.minimumAnchors...Self.maximumAnchors).contains(anchors.count) else {
             throw WSSSceneError.invalid("musicNotes path anchor count")
         }
         for anchor in anchors {
@@ -167,7 +169,9 @@ struct WSSMusicNotesPath: Codable, Equatable {
         return try preparation.table(for: key) { try makeTable(scale: scale) }
     }
 
-    private func makeTable(scale: SIMD2<Double>) throws -> Table {
+    private func flattened(scale: SIMD2<Double>) throws -> (
+        origin: SIMD2<Double>, vertices: [Vertex], joins: [Double]
+    ) {
         try validateAnchors()
         let origin = anchors[0].position * scale
         var vertices = [Vertex(position: .zero, distance: 0)]
@@ -187,14 +191,46 @@ struct WSSMusicNotesPath: Codable, Equatable {
             try Self.flatten(curve, tolerance: tolerance, depth: 0, into: &vertices)
             if index < segmentCount - 1 { joins.append(vertices[vertices.count - 1].distance) }
         }
+        return (origin, vertices, joins)
+    }
+
+    // Same adaptive subdivision and exact segment boundaries as playback.
+    func staffCenterline(scale: SIMD2<Double>) throws -> (
+        origin: SIMD2<Double>, points: [SIMD2<Double>], progress: [Float]
+    ) {
+        let geometry = try flattened(scale: scale)
+        let length = geometry.vertices.last!.distance
+        return (
+            geometry.origin, geometry.vertices.map(\.position),
+            geometry.vertices.map { Float($0.distance / length) }
+        )
+    }
+
+    private func makeTable(scale: SIMD2<Double>) throws -> Table {
+        let (origin, vertices, joins) = try flattened(scale: scale)
         let length = vertices[vertices.count - 1].distance
         let standard = Self.resample(vertices, length: length, count: Self.standardSampleCount)
         let fine: [SIMD2<Double>]
         if Self.fits(standard, vertices: vertices, length: length, joins: nil) {
             fine = standard
         } else {
-            fine = Self.resample(vertices, length: length, count: Self.maximumSampleCount)
-            guard Self.fits(fine, vertices: vertices, length: length, joins: joins) else {
+            let regular = Self.resample(vertices, length: length, count: Self.maximumSampleCount)
+            if Self.fits(regular, vertices: vertices, length: length, joins: joins) {
+                fine = regular
+            } else if closed,
+                let refined = [1025, Self.maximumClosedSampleCount].lazy.map({
+                    Self.resample(vertices, length: length, count: $0)
+                }).first(where: {
+                    Self.fits(
+                        $0, vertices: vertices, length: length, joins: joins,
+                        closingStart: joins.last
+                    )
+                })
+            {
+                // Refine only closures the old tables cannot describe. Existing
+                // valid tables keep their original positions and tangents.
+                fine = refined
+            } else {
                 throw WSSSceneError.invalid("musicNotes path sampling budget")
             }
         }
@@ -243,14 +279,19 @@ struct WSSMusicNotesPath: Codable, Equatable {
     }
 
     private static func fits(
-        _ points: [SIMD2<Double>], vertices: [Vertex], length: Double, joins: [Double]?
+        _ points: [SIMD2<Double>], vertices: [Vertex], length: Double, joins: [Double]?,
+        closingStart: Double? = nil
     ) -> Bool {
         let intervals = points.count - 1
         let step = length / Double(intervals)
         let joinIntervals = Set(
             (joins ?? []).map { min(intervals - 1, Int($0 / length * Double(intervals))) })
+        let closingIndex = closingStart.map { Int($0 / length * Double(intervals)) }
+        func canTurnSharply(_ index: Int) -> Bool {
+            joinIntervals.contains(index) || index >= (closingIndex ?? intervals)
+        }
         let minimumChord = (joins == nil ? 0.96 : 0.90) * step
-        for index in 0..<intervals where !joinIntervals.contains(index) {
+        for index in 0..<intervals where !canTurnSharply(index) {
             guard simd_distance(points[index], points[index + 1]) >= minimumChord else {
                 return false
             }
@@ -259,13 +300,15 @@ struct WSSMusicNotesPath: Codable, Equatable {
         // Both interpolants are linear between the union of their knots.
         // At table knots they agree, so flattened vertices bound the error.
         let tolerance = joins == nil ? min(0.25, step * 0.08) : min(1, step * 0.12)
-        let joinTolerance = min(2, step * 0.49)
+        // Arc-length interpolation across a reversal can deviate by half
+        // a sample interval. The fallback still caps error at two units.
+        let joinTolerance = min(2, step * (closingStart == nil ? 0.49 : 0.500001))
         return vertices.allSatisfy { vertex in
             let index = vertex.distance / length * Double(intervals)
             let lower = min(intervals - 1, Int(index))
             let position =
                 points[lower] + (points[lower + 1] - points[lower]) * (index - Double(lower))
-            let limit = joinIntervals.contains(lower) ? joinTolerance : tolerance
+            let limit = canTurnSharply(lower) ? joinTolerance : tolerance
             return simd_distance(vertex.position, position) <= limit
         }
     }

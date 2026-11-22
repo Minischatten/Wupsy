@@ -153,6 +153,11 @@ import SwiftUI
         }
     }
     @Published var canvasTransform: WSSCanvasTransformTransaction?
+    var musicNotesMotionDrag:
+        (
+            layer: WSSLayerID, parameter: WSSMusicNotesLayer.MotionParameter, original: Double?
+        )?
+    var musicNotesStaffOpacityDrag: (layer: WSSLayerID, opacity: Float)?
     var finishCanvasInteraction: (() -> Void)?
     private var previewModel: WSSSceneDocumentV1
     private let permitsResourceReuse: Bool
@@ -287,6 +292,17 @@ import SwiftUI
             {
                 return true
             }
+            if let drag = self.musicNotesMotionDrag,
+                let notes = self.musicNotesLayer(drag.layer)?.notes,
+                drag.parameter.stored(in: notes) != drag.original
+            {
+                return true
+            }
+            if let drag = self.musicNotesStaffOpacityDrag,
+                self.musicNotesLayer(drag.layer)?.staff?.opacity != drag.opacity
+            {
+                return true
+            }
             return self.canvasTransform.map { $0.model != self.state.workingModel } ?? false
         }
         undoManager.finishInteraction = { [weak self] in
@@ -297,6 +313,8 @@ import SwiftUI
             self?.endStormColorInteraction()
             self?.endStarfieldColorInteraction()
             self?.endFogSpeedSlider()
+            self?.endMusicNotesStaffOpacity()
+            self?.endMusicNotesMotion()
         }
         undoManager.permitsEditing = { [weak self] in
             self.map { !$0.closed && !$0.interactionLocked && !$0.hasActivePaintInteraction }
@@ -460,6 +478,8 @@ import SwiftUI
         endStormColorInteraction()
         endStarfieldColorInteraction()
         endFogSpeedSlider()
+        endMusicNotesStaffOpacity()
+        endMusicNotesMotion()
         return true
     }
     func setParameter(

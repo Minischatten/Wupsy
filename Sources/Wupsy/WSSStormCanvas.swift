@@ -38,6 +38,8 @@ enum WSSStormCanvas {
             let degrees = c.direction + Double(t.rotation - baseline.rotation) * 180 / .pi
             result.direction = (degrees.truncatingRemainder(dividingBy: 360) + 360)
                 .truncatingRemainder(dividingBy: 360)
+        case .scaleEdge:
+            throw WSSDocumentError.invalid("Storm edge scaling")
         case .scale:
             let fx = Double(t.size[0] * t.scale[0]) / Double(baseline.size[0] * baseline.scale[0])
             let fy = Double(t.size[1] * t.scale[1]) / Double(baseline.size[1] * baseline.scale[1])

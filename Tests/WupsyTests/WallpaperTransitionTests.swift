@@ -35,6 +35,14 @@ import XCTest
                 XCTAssertNotNil(current.scene)
                 XCTAssertTrue(current.hasTransitionStill)
                 XCTAssertNotNil(current.window.contentView)
+                if item.id == fixture.animatedScene.id {
+                    let player = try XCTUnwrap(current.scene)
+                    for _ in 0..<120 where player.metrics.snapshot().frames < 3 {
+                        try await Task.sleep(for: .milliseconds(20))
+                    }
+                    XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, 3)
+                    XCTAssertGreaterThan(player.elapsed, 0)
+                }
             } else {
                 XCTAssertNotNil((current.window.contentView as? NSImageView)?.image)
             }
@@ -42,6 +50,69 @@ import XCTest
         }
         library.stop()
         XCTAssertFalse(previous.hasLiveResources)
+    }
+
+    func testAnimatedDesktopTransitionClockDoesNotWaitForPresentation() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        var document = fixture.scenes.document()
+        var notes = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 64, height: 64))
+        notes.placement = .freeSingle
+        notes.freeSymbol = .init()
+        notes.freeSymbol?.rotationMode = .continuous
+        notes.freeSymbol?.spinAxis = .vertical
+        notes.freeSymbol?.spinPeriod = 5
+        let node = WSSSceneDocumentV1.Layer(content: .musicNotes(notes))
+        document["layers"] = [try JSONSerialization.jsonObject(with: JSONEncoder().encode(node))]
+        let item = try WallpaperImporter.resolve(
+            fixture.scenes.fixture(document, name: "Spinning Notes"))
+
+        // No presented drawable is possible in this detached view. The
+        // transition must still start the clock and arm the timed draw loop.
+        let prepared = try await ScenePlayback.prepare(for: item)
+        let detached = WSSStaticPlayer(
+            resources: prepared.resources, size: CGSize(width: 128, height: 128), scale: 1,
+            maxDimension: 128, fps: 30, resolution: .standard, offset: 0,
+            onFirstFramePresented: { XCTFail("Detached view cannot present") },
+            onError: { XCTFail($0) })
+        detached.playFromStill()
+        XCTAssertFalse(detached.view.isPaused)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(detached.metrics.snapshot().frames, 0)
+        XCTAssertGreaterThan(detached.elapsed, 0)
+        detached.stop()
+
+        try await accepted(library.apply(fixture.image))
+        try await accepted(library.apply(item))
+        let desktop = try XCTUnwrap(library.renderers.first?.scene as? WSSStaticPlayer)
+        guard case .musicNotes(let loaded) = desktop.resources.scene.layers.first else {
+            return XCTFail("Saved Music Notes layer missing from desktop resources")
+        }
+        XCTAssertEqual(loaded, notes)
+        for _ in 0..<120 where desktop.metrics.snapshot().frames < 3 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThanOrEqual(desktop.metrics.snapshot().frames, 3)
+        let time = desktop.elapsed
+        XCTAssertGreaterThan(time, 0)
+        XCTAssertFalse(desktop.view.isPaused)
+        let render = WSSStormLightingRenderTests()
+        let still = try render.render(desktop.resources, time: 0).0
+        let advanced = try render.render(desktop.resources, time: max(time, 0.3)).0
+        XCTAssertNotEqual(still, advanced)
+        desktop.pause()
+        let paused = desktop.elapsed
+        try await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(desktop.elapsed, paused)
+        let completed = desktop.metrics.snapshot().frames
+        desktop.play()
+        for _ in 0..<100 where desktop.metrics.snapshot().frames <= completed {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(desktop.elapsed, paused)
+        XCTAssertGreaterThan(desktop.metrics.snapshot().frames, completed)
     }
 
     func testFailureAndSupersessionKeepOldCoverageUntilNewestApply() async throws {

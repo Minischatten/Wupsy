@@ -327,6 +327,51 @@ import XCTest
         await owner.shutdownAndDrain()
     }
 
+    func testManagedMusicNotesHeroAdvancesFramesAndResumes() async throws {
+        let fixtures = WSSEditorLivePreviewTests()
+        try await fixtures.setUp()
+        addTeardownBlock { @MainActor in try await fixtures.tearDown() }
+        let project = try await fixtures.project("WSS-Music-Notes-Paths")
+        let owner = WSSLibraryPreviewOwner()
+        let preview = WSSLibraryLivePreview(
+            item: project.handle.wallpaper, fit: true,
+            policy: .library(profile: .balanced, resolution: .standard, fps: 30), owner: owner)
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 640, height: 360),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: preview)
+        window.orderFront(nil)
+        defer { window.close() }
+
+        for _ in 0..<150 where (owner.surface?.player?.metrics.snapshot().frames ?? 0) < 3 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(owner.state, .live)
+        let player = try XCTUnwrap(owner.surface?.player)
+        for index in project.document.layers.indices {
+            guard case .musicNotes(let expected) = project.document.layers[index].content,
+                case .musicNotes(let displayed) = player.resources.scene.layers[index]
+            else { return XCTFail("Missing preview Music Notes layer") }
+            XCTAssertEqual(displayed, expected)
+        }
+        XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, 3)
+        XCTAssertGreaterThan(player.elapsed, 0)
+        owner.setHidden(true)
+        XCTAssertTrue(player.view.isPaused)
+        let time = player.elapsed
+        try await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(player.elapsed, time)
+        let frames = player.metrics.snapshot().frames
+        owner.setHidden(false)
+        for _ in 0..<100 where player.metrics.snapshot().frames <= frames {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(player.metrics.snapshot().frames, frames)
+        XCTAssertGreaterThan(player.elapsed, time)
+        await owner.shutdownAndDrain()
+    }
+
     func testExistingDerivedProjectIsLiveWithoutSourceAndOtherKindsNeverLoad() async throws {
         var calls = 0
         let otherOwner = WSSLibraryPreviewOwner(load: { _ in

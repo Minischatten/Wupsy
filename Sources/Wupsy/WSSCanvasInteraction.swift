@@ -5,26 +5,49 @@ import simd
 enum WSSCanvasHit: Equatable {
     case image(WSSLayerID)
     case corner(WSSLayerID, Int)
+    case edge(WSSLayerID, Int)
     case rotation(WSSLayerID)
     var layer: WSSLayerID {
         switch self {
-        case .image(let id), .corner(let id, _), .rotation(let id): return id
+        case .image(let id), .corner(let id, _), .edge(let id, _), .rotation(let id): return id
         }
+    }
+}
+extension WSSSceneLayer {
+    var isFreeMusicSymbol: Bool {
+        if case .musicNotes(let layer) = self { return layer.placementMode == .freeSingle }
+        return false
+    }
+
+    var allowsCanvasEdgeScaling: Bool {
+        if case .musicNotes(let layer) = self { return layer.placementMode != .freeSingle }
+        return false
     }
 }
 enum WSSCanvasInteractionGeometry {
     static let corners: [SIMD2<Float>] = [
         SIMD2(-0.5, -0.5), SIMD2(0.5, -0.5), SIMD2(0.5, 0.5), SIMD2(-0.5, 0.5),
     ]
+    // Bottom, right, top, left in scene coordinates.
+    static let edges: [SIMD2<Float>] = [
+        SIMD2(0, -0.5), SIMD2(0.5, 0), SIMD2(0, 0.5), SIMD2(-0.5, 0),
+    ]
     static func handles(
         transform: WSSImageTransform, origin: CGPoint, zoom: CGFloat, height: CGFloat,
-        allowsRotation: Bool = true
+        allowsRotation: Bool = true, allowsEdgeScaling: Bool = false
     )
         -> [CGPoint]
     {
         let points = corners.map {
             WSSCanvasGeometry.viewportPoint(
                 transform.point($0), origin: origin, zoom: zoom, height: height)
+        }
+        if allowsEdgeScaling {
+            return points
+                + edges.map {
+                    WSSCanvasGeometry.viewportPoint(
+                        transform.point($0), origin: origin, zoom: zoom, height: height)
+                }
         }
         let top = CGPoint(x: (points[2].x + points[3].x) / 2, y: (points[2].y + points[3].y) / 2)
         let center = WSSCanvasGeometry.viewportPoint(
@@ -41,19 +64,23 @@ enum WSSCanvasInteractionGeometry {
     ) -> WSSCanvasHit? {
         guard zoom > 0 else { return nil }
         if let selected, let index = identity.layers.firstIndex(where: { $0.id == selected }),
-            scene.layers.indices.contains(index),
+            scene.layers.indices.contains(index), !scene.layers[index].isFreeMusicSymbol,
             let transform = scene.layers[index].canvasTransform
         {
+            let layer = scene.layers[index]
             let points = handles(
                 transform: transform, origin: origin, zoom: zoom,
                 height: CGFloat(scene.height),
-                allowsRotation: scene.layers[index].allowsCanvasRotation)
+                allowsRotation: layer.allowsCanvasRotation,
+                allowsEdgeScaling: layer.allowsCanvasEdgeScaling)
             // Nearest handle wins even when a very small quad makes hit zones overlap.
             if let index = points.indices.min(by: {
                 hypot(points[$0].x - point.x, points[$0].y - point.y)
                     < hypot(points[$1].x - point.x, points[$1].y - point.y)
             }), hypot(points[index].x - point.x, points[index].y - point.y) <= handleRadius {
-                return index == 4 ? .rotation(selected) : .corner(selected, index)
+                guard index >= corners.count else { return .corner(selected, index) }
+                return layer.allowsCanvasEdgeScaling
+                    ? .edge(selected, index - corners.count) : .rotation(selected)
             }
         }
         let p = WSSCanvasGeometry.scenePoint(
@@ -69,20 +96,27 @@ enum WSSCanvasInteractionGeometry {
         }
         for index in scene.layers.indices.reversed() {
             guard identity.layers.indices.contains(index),
-                case .image(let image) = scene.layers[index], image.visible,
-                let uv = WSSCanvasGeometry.uv(p, transform: image.transform),
+                let transform = imageOrFreeSymbolTransform(scene.layers[index]),
+                let uv = WSSCanvasGeometry.uv(p, transform: transform),
                 uv.x >= -0.00001, uv.x <= 1.00001, uv.y >= -0.00001, uv.y <= 1.00001
             else { continue }
             return .image(identity.layers[index].id)
         }
         return nil
     }
+    private static func imageOrFreeSymbolTransform(_ layer: WSSSceneLayer) -> WSSImageTransform? {
+        if layer.isFreeMusicSymbol { return layer.canvasTransform }
+        if case .image(let image) = layer, image.visible { return image.transform }
+        return nil
+    }
+
 }
 
 struct WSSCanvasGesture {
     enum Kind: Equatable {
         case move
         case scale(Int, independent: Bool)
+        case scaleEdge(Int)
         case rotate
     }
     let kind: Kind
@@ -103,18 +137,32 @@ struct WSSCanvasGesture {
         case .move:
             let center = native.center + point - start
             result.center = [center.x, center.y]
-        case .scale(let index, let independent):
-            guard WSSCanvasInteractionGeometry.corners.indices.contains(index) else {
-                return result
+        case .scale, .scaleEdge:
+            let coordinates: [SIMD2<Float>]
+            let index: Int
+            let independent: Bool
+            switch kind {
+            case .scale(let corner, let free):
+                coordinates = WSSCanvasInteractionGeometry.corners
+                index = corner
+                independent = free
+            case .scaleEdge(let edge):
+                coordinates = WSSCanvasInteractionGeometry.edges
+                index = edge
+                independent = true
+            default: return result
             }
-            let corner = WSSCanvasInteractionGeometry.corners[index]
+            guard coordinates.indices.contains(index) else { return result }
+            let corner = coordinates[index]
             let anchor = native.point(-corner)
             let diagonal = native.point(corner) - anchor
             let delta = native.point(corner) + point - start - anchor
             var factor: SIMD2<Float>
             if independent {
                 let local = simd_float2x2(columns: (native.axisX, native.axisY)).inverse * delta
-                factor = local / (corner * 2)
+                factor = SIMD2(
+                    corner.x == 0 ? 1 : local.x / (corner.x * 2),
+                    corner.y == 0 ? 1 : local.y / (corner.y * 2))
             } else {
                 factor = SIMD2(repeating: simd_dot(delta, diagonal) / simd_dot(diagonal, diagonal))
             }
