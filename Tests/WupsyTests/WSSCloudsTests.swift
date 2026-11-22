@@ -154,13 +154,11 @@ final class WSSCloudsTests: XCTestCase {
                 stride(from: 0, to: transparent.count, by: 4).allSatisfy {
                     transparent[$0] == 0 && transparent[$0 + 1] == 0 && transparent[$0 + 2] == 0
                 })
-            let half = try render(resources(e, alpha: 128, composition: composition, opacity: 0.5))
-                .0
-            if composition == .replace {
-                XCTAssertEqual(half[3], 64)
-            } else {
-                XCTAssertEqual(half[3], 255)
-            }
+            let half = try resources(masked, alpha: 128, composition: composition, opacity: 0.5)
+            let isolated = try render(half, clearAlpha: 0).0
+            XCTAssertEqual(isolated[3], 64)
+            let composite = try render(half).0
+            XCTAssertEqual(composite[3], composition == .replace ? 191 : 255)
         }
         var bad = e
         bad.mask = WSSImageMask(asset: WSSAssetID(value: "missing"))

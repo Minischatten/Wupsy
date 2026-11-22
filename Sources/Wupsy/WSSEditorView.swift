@@ -5,6 +5,7 @@ struct WSSEditorView: View {
     @ObservedObject var document: WSSEditorDocument
     @State private var zoom: CGFloat? = nil
     @State private var effectCreationError: String?
+    @State private var renameError: String?
     @FocusState private var structureFocused: Bool
     @FocusState private var canvasFocused: Bool
     init(document: WSSEditorDocument) {
@@ -74,6 +75,7 @@ struct WSSEditorView: View {
     }
     private var structure: some View {
         let rows = document.structureRows
+        let renamingLayer = document.renamingLayer
         let session = document.state.sessionID
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -148,15 +150,24 @@ struct WSSEditorView: View {
                 Text(effectCreationError).wupsyFont(.caption).foregroundStyle(.secondary)
                     .wupsyPadding(.horizontal, 10)
             }
+            if let renameError {
+                Text(renameError).wupsyFont(.caption).foregroundStyle(.secondary)
+                    .wupsyPadding(.horizontal, 10)
+            }
             Text(EditorText.layerOrderHint.text).wupsyFont(.caption).foregroundStyle(
                 .secondary
             ).wupsyPadding(.horizontal, 10)
             List(
                 selection: Binding(
                     get: { document.selection },
-                    set: { document.select($0) })
+                    set: {
+                        if document.renamingLayer == nil || $0 != document.selection {
+                            document.select($0)
+                        }
+                    })
             ) {
                 ForEach(rows) { row in
+                    let editing = row.id == renamingLayer.map { .layer($0) }
                     HStack(spacing: metrics.spacing(4)) {
                         if case .layer(let id) = row.id {
                             WSSLayerVisibilityButton(
@@ -185,13 +196,11 @@ struct WSSEditorView: View {
                         } else {
                             Image(systemName: row.symbol)
                         }
-                        Text(row.title)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                        structureTitle(row, editing: editing)
                     }
                     .padding(.leading, CGFloat(row.depth) * metrics.spacing(18))
                     .contentShape(Rectangle())
-                    .moveDisabled(!document.permitsStructureEditing)
+                    .moveDisabled(!document.permitsStructureEditing || editing)
                     .tag(row.id)
                 }
                 .onMove { sources, destination in
@@ -249,6 +258,44 @@ struct WSSEditorView: View {
             }.wupsyPadding(.all, 10).disabled(document.interactionLocked)
         }
     }
+    @ViewBuilder
+    private func structureTitle(_ row: WSSEditorStructureRow, editing: Bool) -> some View {
+        if case .layer(let id) = row.id,
+            let index = document.identity.layers.firstIndex(
+                where: { $0.id == id })
+        {
+            if editing {
+                WSSLayerNameField(initialName: document.layerDisplayName(at: index)) {
+                    name, keyboard in
+                    document.renamingLayer = nil
+                    if let name {
+                        do { try document.renameLayer(id, to: name) } catch {
+                            renameError = EditorText.invalidLayerName.text
+                        }
+                    }
+                    if keyboard { structureFocused = true }
+                }
+                .id(id)
+                .frame(maxWidth: .infinity)
+                .onAppear { renameError = nil }
+            } else {
+                structureLabel(row.title)
+                    .background(WSSLayerNameHitRegion(layer: id).allowsHitTesting(false))
+            }
+        } else {
+            structureLabel(row.title)
+        }
+    }
+
+    private func structureLabel(_ title: String) -> some View {
+        Text(title)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .help(title)
+    }
+
     private var livePreview: some View {
         VStack(spacing: 6) {
             HStack {
@@ -309,6 +356,10 @@ struct WSSEditorView: View {
             VStack(alignment: .leading, spacing: metrics.spacing(14)) {
                 Text(EditorText.inspector.text).wupsyFont(.headline)
                 if document.effectAddress == nil, let id = document.selection?.layer {
+                    Text(document.layerDisplayName(at: document.selectedLayer))
+                        .wupsyFont(.headline)
+                        .lineLimit(2)
+                        .help(document.layerDisplayName(at: document.selectedLayer))
                     Toggle(
                         EditorText.visible.text,
                         isOn: Binding(
@@ -321,27 +372,24 @@ struct WSSEditorView: View {
                             Task { await document.chooseImage(replacing: id) }
                         }
                         .disabled(document.interactionLocked || document.importingImage)
-                        ForEach(WSSImageProperty.allCases, id: \.self) { property in
+                        WSSImageOpacitySlider(
+                            opacity: image.opacity,
+                            update: {
+                                try? document.setImage(
+                                    .opacity, value: $0, layer: id,
+                                    undo: document.canvasImageDrag == nil)
+                            },
+                            editingChanged: { active in
+                                if active {
+                                    document.beginImageSlider(.opacity, layer: id)
+                                } else {
+                                    document.endImageSlider()
+                                }
+                            })
+                        ForEach(WSSImageProperty.allCases.filter { $0 != .opacity }, id: \.self) {
+                            property in
                             VStack(alignment: .leading) {
                                 Text(property.title).wupsyFont(.caption).foregroundStyle(.secondary)
-                                if property == .opacity {
-                                    Slider(
-                                        value: Binding(
-                                            get: { Double(image.opacity) },
-                                            set: {
-                                                try? document.setImage(
-                                                    .opacity, value: Float($0), layer: id,
-                                                    undo: document.canvasImageDrag == nil)
-                                            }), in: 0...1,
-                                        onEditingChanged: { active in
-                                            if active {
-                                                document.beginImageSlider(.opacity, layer: id)
-                                            } else {
-                                                document.endImageSlider()
-                                            }
-                                        }
-                                    ).accessibilityLabel(EditorText.imageOpacity.text)
-                                }
                                 WSSParameterTextField(
                                     value: property.value(image), range: property.range,
                                     title: property.title
@@ -411,6 +459,32 @@ struct WSSEditorView: View {
 }
 
 // A native button consumes its own mouse sequence independently of List row gestures.
+struct WSSImageOpacitySlider: View {
+    @Environment(\.wupsyMetrics) private var metrics
+    let opacity: Float
+    let update: (Float) -> Void
+    let editingChanged: (Bool) -> Void
+
+    var body: some View {
+        let percent = Double(opacity).formatted(.percent.precision(.fractionLength(0)))
+        HStack(spacing: metrics.spacing(8)) {
+            Slider(
+                value: Binding(get: { Double(opacity) * 100 }, set: { update(Float($0 / 100)) }),
+                in: 0...100, step: 1
+            ) {
+                Text(EditorText.opacity.text).wupsyFont(.caption)
+            } onEditingChanged: { active in
+                editingChanged(active)
+            }
+            .accessibilityLabel(EditorText.imageOpacity.text)
+            .accessibilityValue(percent)
+            .accessibilityIdentifier("wss.image.opacity")
+            Text(percent).wupsyFont(.caption).monospacedDigit().fixedSize()
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 struct WSSLayerVisibilityButton: NSViewRepresentable {
     @Environment(\.wupsyMetrics) private var metrics
     let symbol: String

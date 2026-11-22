@@ -418,7 +418,33 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             case trail(WSSTrailConfiguration, visible: Bool)
         }
         var content: Content
+        // Image, Storm and Starfield already store the same metadata in their payloads.
+        private var otherName: String?
         init(content: Content) { self.content = content }
+        var name: String? {
+            get {
+                switch content {
+                case .image(let layer): return layer.name
+                case .starfield(let layer): return layer.name
+                case .storm(let layer): return layer.name
+                default: return otherName
+                }
+            }
+            set {
+                switch content {
+                case .image(var layer):
+                    layer.name = newValue
+                    content = .image(layer)
+                case .starfield(var layer):
+                    layer.name = newValue
+                    content = .starfield(layer)
+                case .storm(var layer):
+                    layer.name = newValue
+                    content = .storm(layer)
+                default: otherName = newValue
+                }
+            }
+        }
         var imageDefinition: WSSNativeImageDefinition? {
             if case .image(let image) = content { return image.definition }
             return nil
@@ -443,9 +469,11 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
+            let name = try c.decodeIfPresent(String.self, forKey: .name)
+            if let name { _ = try WallpaperTitle.normalized(name) }
             if type == "musicNotes" {
                 try decoder.fields([
-                    "type", "visible", "region", "musicNotes", "path", "staff", "placement",
+                    "type", "name", "visible", "region", "musicNotes", "path", "staff", "placement",
                     "freeSymbol", "anchoredSymbol", "freePosition", "anchorPosition", "alignToPath",
                     "depth", "perspective",
                 ])
@@ -470,7 +498,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                 try WSSMusicNotesLayer.validateRegion(layer.region)
                 content = .musicNotes(layer)
             } else if type == "fog" {
-                try decoder.fields(["type", "visible", "fog", "preset"])
+                try decoder.fields(["type", "name", "visible", "fog", "preset"])
                 let fog = try c.decode(WSSFogConfiguration.self, forKey: .fog)
                 let preset = try c.decodeIfPresent(WSSFogPreset.self, forKey: .preset)
                 content = .fog(
@@ -480,7 +508,6 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             } else if type == "starfield" {
                 try decoder.fields(["type", "name", "visible", "starfield"])
                 let layer = WSSStarfieldLayer(
-                    name: try c.decodeIfPresent(String.self, forKey: .name),
                     visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
                     starfield: try c.decode(WSSStarfieldConfiguration.self, forKey: .starfield))
                 try layer.validate()
@@ -488,18 +515,19 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             } else if type == "storm" {
                 try decoder.fields(["type", "name", "visible", "storm"])
                 let layer = WSSStormLayer(
-                    name: try c.decodeIfPresent(String.self, forKey: .name),
                     visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
                     storm: try c.decode(WSSStormConfiguration.self, forKey: .storm))
                 try layer.validate()
                 content = .storm(layer)
             } else if type == "cursorTrail" {
-                try decoder.fields(["type", "trail", "visible"])
+                try decoder.fields(["type", "name", "trail", "visible"])
                 content = .trail(
                     try c.decode(WSSTrailConfiguration.self, forKey: .trail),
                     visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true)
             } else if type == "rain" {
-                try decoder.fields(["type", "region", "rain", "visible", "composition", "mask"])
+                try decoder.fields([
+                    "type", "name", "region", "rain", "visible", "composition", "mask",
+                ])
                 let composition =
                     try c.decodeIfPresent(String.self, forKey: .composition) ?? "sourceOver"
                 guard ["sourceOver", "additive"].contains(composition) else {
@@ -517,8 +545,6 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                     "type", "name", "image", "transform", "opacity", "visible", "composition",
                     "effects", "depthID",
                 ])
-                let name = try c.decodeIfPresent(String.self, forKey: .name)
-                if let name { _ = try WallpaperTitle.normalized(name) }
                 let asset: String
                 let definition: WSSNativeImageDefinition?
                 if let path = try? c.decode(String.self, forKey: .image) {
@@ -537,7 +563,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                 }
                 content = .image(
                     Image(
-                        name: name, asset: asset, definition: definition,
+                        asset: asset, definition: definition,
                         transform: try c.decode(Transform.self, forKey: .transform),
                         opacity: try c.decodeIfPresent(Float.self, forKey: .opacity) ?? 1,
                         visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
@@ -548,6 +574,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             } else {
                 throw WSSDocumentError.invalid("unknown layer type " + type)
             }
+            self.name = name
         }
         func makeNative() throws -> WSSSceneLayer {
             switch content {

@@ -87,12 +87,9 @@ final class WSSStaticResources: @unchecked Sendable {
         descriptor.fragmentFunction = library.makeFunction(name: "imageColor")
         let color = descriptor.colorAttachments[0]!
         color.pixelFormat = .bgra8Unorm
+        Self.configureImageBlend(color, composition: .replace)
         replace = try device.makeRenderPipelineState(descriptor: descriptor)
-        color.isBlendingEnabled = true
-        color.sourceRGBBlendFactor = .one
-        color.destinationRGBBlendFactor = .oneMinusSourceAlpha
-        color.sourceAlphaBlendFactor = .one
-        color.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        Self.configureImageBlend(color, composition: .sourceOver)
         sourceOver = try device.makeRenderPipelineState(descriptor: descriptor)
         if scene.imageLayers.contains(where: {
             $0.effects.contains {
@@ -103,11 +100,11 @@ final class WSSStaticResources: @unchecked Sendable {
             clouds = try WSSCloudsResources(scene: scene, assets: assets, device: device)
             descriptor.fragmentFunction = library.makeFunction(name: "cloudsColor")
             cloudsOver = try device.makeRenderPipelineState(descriptor: descriptor)
-            color.isBlendingEnabled = false
+            Self.configureImageBlend(color, composition: .replace)
             cloudsReplace = try device.makeRenderPipelineState(descriptor: descriptor)
             descriptor.fragmentFunction = library.makeFunction(name: "cloudsExtendedColor")
             cloudsExtendedReplace = try device.makeRenderPipelineState(descriptor: descriptor)
-            color.isBlendingEnabled = true
+            Self.configureImageBlend(color, composition: .sourceOver)
             cloudsExtendedOver = try device.makeRenderPipelineState(descriptor: descriptor)
             if scene.imageLayers.contains(where: { layer in
                 layer.effects.contains {
@@ -117,7 +114,7 @@ final class WSSStaticResources: @unchecked Sendable {
             }) {
                 descriptor.fragmentFunction = library.makeFunction(name: "cloudsSoftColor")
                 cloudsSoftOver = try device.makeRenderPipelineState(descriptor: descriptor)
-                color.isBlendingEnabled = false
+                Self.configureImageBlend(color, composition: .replace)
                 cloudsSoftReplace = try device.makeRenderPipelineState(descriptor: descriptor)
             } else {
                 cloudsSoftOver = nil
@@ -426,8 +423,10 @@ final class WSSStaticResources: @unchecked Sendable {
                     return nil
                 }
                 native.transform = try new.transform.native()
+                native.opacity = new.opacity
                 updated.layers[index] = .image(native)
                 new.transform = old.transform
+                new.opacity = old.opacity
                 normalized.layers[index].content = .image(new)
             }
         }
@@ -843,6 +842,21 @@ final class WSSStaticResources: @unchecked Sendable {
         }
     }
 
+    static func configureImageBlend(
+        _ attachment: MTLRenderPipelineColorAttachmentDescriptor,
+        composition: WSSImageLayer.Composition
+    ) {
+        attachment.isBlendingEnabled = true
+        // Replace interpolates toward the legacy replacement color by layer
+        // opacity. Its shader already applies layer opacity to the sampled alpha.
+        let replacing = composition == .replace
+        attachment.sourceRGBBlendFactor = replacing ? .blendAlpha : .one
+        attachment.destinationRGBBlendFactor =
+            replacing ? .oneMinusBlendAlpha : .oneMinusSourceAlpha
+        attachment.sourceAlphaBlendFactor = .one
+        attachment.destinationAlphaBlendFactor = attachment.destinationRGBBlendFactor
+    }
+
     enum ImageOutputMode {
         // Preserve the frozen neutral output: opacity one, transparent clear + over.
         case intermediate
@@ -872,6 +886,9 @@ final class WSSStaticResources: @unchecked Sendable {
                 sampling: SIMD4(
                     input.uvScale.x, input.uvScale.y, layer.opacity,
                     composition == .replace ? 1 : 0))
+            if composition == .replace {
+                encoder.setBlendColor(red: 0, green: 0, blue: 0, alpha: layer.opacity)
+            }
             u.horizontal.z -= Float(scene.width) / 2
             u.vertical.z -= Float(scene.height) / 2
         }

@@ -68,6 +68,61 @@ final class WSSMusicNotesDepthTests: XCTestCase {
         XCTAssertEqual(doc.musicNotesLayer(notes)?.depth, depth)
     }
 
+    @MainActor func testRenamedMusicNotesAndDepthTargetPersist() async throws {
+        let fixtures = WSSEditorWorkspaceTests()
+        try await fixtures.setUp()
+        addTeardownBlock { @MainActor in try await fixtures.tearDown() }
+        let project = try XCTUnwrap(fixtures.project)
+        let storage = fixtures.helper.root.appendingPathComponent("library.json")
+        try JSONEncoder().encode([project.handle.wallpaper]).write(to: storage)
+        let store = ManagedWallpaperStore(storage: storage)
+        let doc = WSSEditorDocument(
+            project: project,
+            save: { snapshot in
+                try await store.commitWSSManifest(
+                    WSSManifestSaveValidator().prepare(snapshot, handle: project.handle))
+            })
+        defer { doc.close() }
+        let image = doc.identity.layers[1].id
+        try doc.addMusicNotes()
+        let notes = try XCTUnwrap(doc.selection?.layer)
+        try doc.setMusicNotesPathEnabled(true, layer: notes)
+        try doc.setMusicNotesDepthTarget(image, for: notes)
+        let original = doc.state.workingModel
+        let ids = doc.identity
+        let depth = try XCTUnwrap(doc.musicNotesLayer(notes)?.depth)
+        doc.undoManager.removeAllActions()
+        XCTAssertNil(original.layers[2].name)
+        XCTAssertEqual(doc.layerDisplayName(at: 2), WSSMusicNotesText.title)
+        try doc.renameLayer(notes, to: doc.layerDisplayName(at: 2))
+        for name in ["", "   ", "a\nb", String(repeating: "A", count: 257)] {
+            XCTAssertThrowsError(try doc.renameLayer(notes, to: name))
+        }
+        XCTAssertFalse(doc.undoManager.canUndo)
+        XCTAssertEqual(doc.state.workingModel, original)
+        try doc.renameLayer(notes, to: "  Front notes  ")
+        try doc.renameLayer(image, to: "Actor")
+        let renamed = doc.state.workingModel
+        XCTAssertEqual(renamed.layers[2].name, "Front notes")
+        XCTAssertEqual(doc.identity, ids)
+        XCTAssertEqual(doc.musicNotesLayer(notes)?.depth, depth)
+        XCTAssertEqual(WSSMusicNotesDepth.plan(for: doc.workingScene), [1: [2]])
+        doc.undoManager.undo()
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, original)
+        XCTAssertEqual(doc.identity, ids)
+        XCTAssertFalse(doc.undoManager.canUndo)
+        doc.undoManager.redo()
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.state.workingModel, renamed)
+        XCTAssertEqual(doc.identity, ids)
+        let saved = await doc.save()
+        XCTAssertTrue(saved)
+        let reloaded = try await WSSEditorProjectLoader().load(doc.project.handle.wallpaper)
+        XCTAssertEqual(reloaded.document, renamed)
+        XCTAssertEqual(WSSMusicNotesDepth.plan(for: reloaded.scene), [1: [2]])
+    }
+
     func testGPUStaffDepthBlendsAndKeepsContinuousCoverage() throws {
         let device = try WSSStaticTests().device()
         let id = UUID()
@@ -87,9 +142,11 @@ final class WSSMusicNotesDepthTests: XCTestCase {
             asset: asset, transform: .init(center: SIMD2(128, 64), size: SIMD2(256, 128)),
             depthID: id)
 
-        func frame(alpha: UInt8) throws -> Data {
+        func frame(alpha: UInt8, opacity: Float = 1) throws -> Data {
+            var target = image
+            target.opacity = opacity
             let scene = WSSScene(
-                width: 256, height: 128, layers: [.musicNotes(notes), .image(image)])
+                width: 256, height: 128, layers: [.musicNotes(notes), .image(target)])
             let resources = try WSSStaticResources(
                 scene: scene,
                 assets: WSSStaticTests.Assets(values: [
@@ -112,6 +169,15 @@ final class WSSMusicNotesDepthTests: XCTestCase {
             notes.depth?.includesStaff = true
             let routed = try frame(alpha: 128)
             XCTAssertNotEqual(routed, notesOnly)
+            for (pixelAlpha, layerOpacity, effectiveAlpha): (UInt8, Float, UInt8) in [
+                (255, 0, 0), (255, 0.5, 128), (128, 0.5, 64),
+            ] {
+                let actual = try frame(alpha: pixelAlpha, opacity: layerOpacity)
+                let expected = try frame(alpha: effectiveAlpha)
+                XCTAssertEqual(actual.count, expected.count)
+                XCTAssertLessThanOrEqual(
+                    zip(actual, expected).map { abs(Int($0) - Int($1)) }.max()!, 1)
+            }
             let transparent = try frame(alpha: 0)
             let difference = stride(from: 2, to: reference.count, by: 4).map {
                 abs(Int(reference[$0]) - Int(transparent[$0]))
@@ -197,6 +263,16 @@ final class WSSMusicNotesDepthTests: XCTestCase {
         XCTAssertEqual(try frame(alpha: 0, image: image), reference)
         let opaque = try frame(alpha: 255, image: image)
         let half = try frame(alpha: 128, image: image)
+        for (pixelAlpha, layerOpacity, effectiveAlpha): (UInt8, Float, UInt8) in [
+            (255, 0, 0), (255, 0.5, 128), (128, 0.5, 64),
+        ] {
+            image.opacity = layerOpacity
+            let actual = try frame(alpha: pixelAlpha, image: image)
+            image.opacity = 1
+            let expected = try frame(alpha: effectiveAlpha, image: image)
+            XCTAssertLessThanOrEqual(
+                zip(actual, expected).map { abs(Int($0) - Int($1)) }.max()!, 1)
+        }
         for quarter in 0..<4 {
             func peak(_ data: Data) -> Int {
                 var value: UInt8 = 0

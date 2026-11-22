@@ -7462,7 +7462,7 @@
       }
     },
     "editor.imageOpacity": {
-      "comment": "Editor basic interface: imageOpacity. Presentation only; never a persisted identity.",
+      "comment": "Accessibility label for the image layer opacity slider.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -7565,6 +7565,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ebene einblenden"
+          }
+        }
+      }
+    },
+    "editor.renameLayer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ebene umbenennen"
+          }
+        }
+      }
+    },
+    "editor.invalidLayerName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a single-line layer name with 1 to 256 characters and no control characters."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib einen einzeiligen Ebenennamen mit 1 bis 256 Zeichen ohne Steuerzeichen ein."
           }
         }
       }
@@ -8242,13 +8276,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ — WSS Editor"
+            "value": "%@ — Wupsy Editor"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ — WSS-Editor"
+            "value": "%@ — Wupsy Editor"
           }
         }
       }

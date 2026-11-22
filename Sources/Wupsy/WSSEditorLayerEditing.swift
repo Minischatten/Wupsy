@@ -34,6 +34,27 @@ extension WSSEditorDocument {
             _ = activateTransformMode(id)
         }
     }
+    func beginLayerRename(_ id: WSSLayerID) -> Bool {
+        guard renamingLayer != id, permitsStructureEditing else { return false }
+        if selection != .layer(id) { select(.layer(id)) }
+        guard selection == .layer(id), finishEditing() else { return false }
+        renamingLayer = id
+        return true
+    }
+
+    func renameLayer(_ id: WSSLayerID, to input: String) throws {
+        guard permitsStructureEditing,
+            let index = identity.layers.firstIndex(where: { $0.id == id })
+        else { return }
+        let current = layerDisplayName(at: index)
+        guard input != current else { return }
+        let name = try WallpaperTitle.normalized(input)
+        guard name != current, finishParameterInteractions() else { return }
+        var model = state.workingModel
+        model.layers[index].name = name
+        try mutate(model, name: EditorText.renameLayer.text)
+    }
+
     func visibilityHelp(_ layer: WSSLayerID) -> String {
         guard let index = identity.layers.firstIndex(where: { $0.id == layer }) else { return "" }
         return workingScene.layers[index].visible
@@ -88,6 +109,13 @@ extension WSSEditorDocument {
         var model = state.workingModel
         model.layers[index].content = .image(image)
         try mutate(model, name: property.title, undo: undo)
+    }
+    var hasPendingImageSlider: Bool {
+        guard let (layer, property, original) = canvasImageDrag,
+            let index = identity.layers.firstIndex(where: { $0.id == layer }),
+            case .image(let image) = state.workingModel.layers[index].content
+        else { return false }
+        return property.value(image) != original
     }
     func beginImageSlider(_ property: WSSImageProperty, layer: WSSLayerID) {
         endImageSlider()

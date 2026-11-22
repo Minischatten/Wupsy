@@ -227,6 +227,7 @@ import SwiftUI
     var chooseImageFile: (() async -> URL?)?
     var chooseClose: (() async -> CloseChoice)?
     private var closeTask: Task<Bool, Never>?
+    @Published var renamingLayer: WSSLayerID?
     var finishInput: (() -> Bool)?
     var presentMessage: ((String, String) async -> Void)?
     private let saveService: Save?
@@ -275,6 +276,7 @@ import SwiftUI
         }
         undoManager.hasPendingInteraction = { [weak self] in
             guard let self else { return false }
+            if self.hasPendingImageSlider { return true }
             if let (_, original) = self.starfieldColorDrag, original != self.state.workingModel {
                 return true
             }
@@ -308,6 +310,7 @@ import SwiftUI
         undoManager.finishInteraction = { [weak self] in
             self?.finishCanvasInteraction?()
             self?.endCanvasTransform()
+            self?.endImageSlider()
             self?.finishMusicNotesPathGesture()
             self?.endTrailInteraction()
             self?.endStormColorInteraction()
@@ -835,27 +838,24 @@ import SwiftUI
         return result
     }
 
+    func layerDisplayName(at index: Int) -> String {
+        let layer = state.workingModel.layers[index]
+        if let name = layer.name { return name }
+        switch layer.content {
+        case .image(let image):
+            return EditorText.imageFilename.format(
+                URL(fileURLWithPath: image.asset).lastPathComponent)
+        case .starfield: return WSSStarfieldText.title
+        case .fog: return WSSFogText.text("title")
+        case .musicNotes: return WSSMusicNotesText.title
+        case .storm: return WSSStormText.title
+        case .rain: return EditorText.effectRain.text
+        case .trail: return EditorText.effectTrail.text
+        }
+    }
     var layerNames: [String] {
-        workingScene.layers.enumerated().map { index, node in
-            let name: String
-            switch node {
-            case .image(let image):
-                if case .image(let dto) = state.workingModel.layers[index].content,
-                    let displayName = dto.name
-                {
-                    name = displayName
-                } else {
-                    name = EditorText.imageFilename.format(
-                        URL(fileURLWithPath: image.asset.value).lastPathComponent)
-                }
-            case .starfield(let layer): name = layer.name ?? WSSStarfieldText.title
-            case .fog: name = WSSFogText.text("title")
-            case .musicNotes: name = WSSMusicNotesText.title
-            case .storm(let layer): name = layer.name ?? WSSStormText.title
-            case .rain: name = EditorText.effectRain.text
-            case .trail: name = EditorText.effectTrail.text
-            }
-            return EditorText.layerOrdinal.format(index + 1, name)
+        state.workingModel.layers.indices.map {
+            EditorText.layerOrdinal.format($0 + 1, layerDisplayName(at: $0))
         }
     }
     var inspection: [WSSInspectionSection] {

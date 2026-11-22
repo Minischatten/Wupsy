@@ -76,12 +76,9 @@ final class WSSFlowResources {
         p.fragmentFunction = library.makeFunction(name: "flowImage")
         let color = p.colorAttachments[0]!
         color.pixelFormat = .bgra8Unorm
+        WSSStaticResources.configureImageBlend(color, composition: .replace)
         replace = try device.makeRenderPipelineState(descriptor: p)
-        color.isBlendingEnabled = true
-        color.sourceRGBBlendFactor = .one
-        color.destinationRGBBlendFactor = .oneMinusSourceAlpha
-        color.sourceAlphaBlendFactor = .one
-        color.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        WSSStaticResources.configureImageBlend(color, composition: .sourceOver)
         over = try device.makeRenderPipelineState(descriptor: p)
         let ids = scene.imageLayers.flatMap { layer in
             layer.effects.compactMap { effect -> WSSAssetID? in

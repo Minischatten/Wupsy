@@ -135,6 +135,24 @@ import XCTest
 
         }
     }
+    func testRenamedLayersWithDuplicateNamesStillMoveByIdentity() throws {
+        let doc = try layersDocument()
+        defer { doc.close() }
+        let ids = doc.identity
+        let first = ids.layers[0].id
+        let trail = ids.layers[2].id
+        for id in [first, trail] { try doc.renameLayer(id, to: "Shared name") }
+        let renamed = doc.state.workingModel
+        XCTAssertEqual(renamed.layers[0].name, renamed.layers[2].name)
+        XCTAssertEqual(doc.identity, ids)
+        XCTAssertTrue(
+            try nativeMove(doc, source: .layer(trail), before: .layer(first)))
+        XCTAssertEqual(doc.identity.layers.map(\.id).first, trail)
+        XCTAssertEqual(doc.state.workingModel.layers.first, renamed.layers[2])
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.identity, ids)
+        XCTAssertEqual(doc.state.workingModel, renamed)
+    }
     func testRejectWrongKindCrossLayerSessionStaleAndInvalidNativeOffsets() throws {
         let doc = try layersDocument()
         defer { doc.close() }

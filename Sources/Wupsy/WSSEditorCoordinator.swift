@@ -1013,6 +1013,22 @@ final class WSSEditorNativeWindow: NSWindow {
     }
     override func sendEvent(_ event: NSEvent) {
         if handleCanvasZoom(event) { return }
+        if event.type == .keyDown, event.keyCode == 36, !event.isARepeat,
+            event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+            firstResponder is NSOutlineView, let document = editorDocument,
+            case .layer(let id) = document.selection, document.beginLayerRename(id)
+        {
+            return
+        }
+        if event.type == .leftMouseDown, event.clickCount == 2,
+            event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+            let contentView,
+            let id = WSSLayerNameHitRegion.Marker.layer(
+                at: event.locationInWindow, in: contentView),
+            editorDocument?.beginLayerRename(id) == true
+        {
+            return
+        }
         // Track Space without consuming text-field input. A subsequent Canvas down
         // must still pan when the Canvas did not own the preceding key-down.
         if event.type == .keyDown || event.type == .keyUp, event.keyCode == 49 {

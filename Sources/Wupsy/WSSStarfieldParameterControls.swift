@@ -163,10 +163,6 @@ struct WSSStarfieldParameterControls: View {
         } catch { self.error = EditorErrorPresentation.message(error) }
     }
     private func rename() {
-        perform {
-            try document.changeStarfield(layer, name: WSSStormText.rename) {
-                $0.name = try WallpaperTitle.normalized(name)
-            }
-        }
+        perform { try document.renameLayer(layer, to: name) }
     }
 }

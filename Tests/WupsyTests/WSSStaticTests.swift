@@ -140,6 +140,48 @@ final class WSSStaticTests: XCTestCase {
                 device: d))
     }
 
+    func testGPUOpacityStepsAndEffectiveAlphaInBothCompositionModes() throws {
+        let foreground = WSSAssetID(value: "foreground")
+        let background = WSSAssetID(value: "background")
+        let full = WSSImageTransform(center: SIMD2(4, 4), size: SIMD2(8, 8))
+        let back = WSSImageLayer(asset: background, transform: full, composition: .replace)
+        let device = try device()
+        for composition: WSSImageLayer.Composition in [.replace, .sourceOver] {
+            for alpha: UInt8 in [128, 255] {
+                let assets = Assets(values: [
+                    foreground: solid([0, 0, 255, alpha]),
+                    background: solid([255, 0, 0, 255]),
+                ])
+                for opacity: Float in [0, 0.25, 0.5, 0.75, 1] {
+                    let front = WSSImageLayer(
+                        asset: foreground, transform: full, opacity: opacity,
+                        composition: composition)
+                    let isolated = try WSSStaticResources(
+                        scene: WSSScene(width: 8, height: 8, layers: [front]),
+                        assets: assets, device: device)
+                    let transparent = try WSSCloudsTests().render(
+                        isolated, width: 8, height: 8, clearAlpha: 0
+                    ).0
+                    let effectiveAlpha = Double(alpha) * Double(opacity)
+                    let blue = composition == .replace ? 255 * Double(opacity) : effectiveAlpha
+                    let output = pixel(transparent, 4, 4)
+                    XCTAssertEqual(Double(output[0]), blue, accuracy: 1)
+                    XCTAssertEqual(Double(output[3]), effectiveAlpha, accuracy: 1)
+                    let layered = try WSSStaticResources(
+                        scene: WSSScene(width: 8, height: 8, layers: [back, front]),
+                        assets: assets, device: device)
+                    let composite = try pixel(render(layered), 4, 4)
+                    XCTAssertEqual(Double(composite[0]), blue, accuracy: 1)
+                    XCTAssertEqual(Double(composite[2]), 255 - blue, accuracy: 1)
+                    let outputAlpha =
+                        composition == .replace
+                        ? effectiveAlpha + (1 - Double(opacity)) * 255 : 255
+                    XCTAssertEqual(Double(composite[3]), outputAlpha, accuracy: 1)
+                }
+            }
+        }
+    }
+
     @MainActor func testStaticPlayerResolutionAndRendererPauseResume() async throws {
         let (root, original) = try ScenePlaybackTests().fixture()
         defer { try? FileManager.default.removeItem(at: root) }

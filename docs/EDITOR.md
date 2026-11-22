@@ -6,7 +6,19 @@
 
 Create a native wallpaper in Wupsy or import a project folder containing scene.wss.json. Open the native wallpaper in the editor. Images and masks are user content; Wupsy does not supply personal reference wallpapers or convert external engine projects. An invalid project is an error, not a request to reconstruct missing files.
 
-The layer list controls painter order. Add image, Rain or CursorTrail layers, reorder them, rename supported image layers, toggle visibility or delete layers while retaining a valid scene. Image transforms use logical canvas coordinates; image Add/Replace normalizes PNG/JPEG/HEIC/TIFF input to independently owned PNG data. Replacing an image preserves the layer's existing transform/effect semantics rather than automatically resampling its fields.
+The layer list controls painter order. Add image, Rain or CursorTrail layers, reorder them, toggle visibility or delete layers while retaining a valid scene. Image transforms use logical canvas coordinates; image Add/Replace normalizes PNG/JPEG/HEIC/TIFF input to independently owned PNG data. Replacing an image preserves the layer's existing transform/effect semantics rather than automatically resampling its fields.
+
+Select a layer and press Return, or double-click its name, to edit it in place.
+The current name is selected. Return or moving focus away accepts a valid name,
+and Escape cancels. Names can repeat and must fit on one line with 1 to 256
+characters after trimming leading and trailing spaces. Invalid input leaves the
+previous name in place. Each changed name is one Undo step. The inspector and
+layer pickers show the new name, and Save stores it with the scene.
+
+An image layer’s **Opacity** slider goes from 0% to 100% in 1% steps. The
+inspector displays the current percentage, and the Live Preview updates as you
+drag. A continuous drag is one Undo step. The setting affects both Live Preview
+sizes and the saved desktop wallpaper.
 
 ## Image effects
 

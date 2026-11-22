@@ -63,6 +63,50 @@ import XCTest
         }
     }
 
+    func testImageOpacityUndoSaveAndPreviewDesktopPixelParity() async throws {
+        let loaded = try await project("WSS-Ripple-v1")
+        let storage = helper.root.appendingPathComponent("library.json")
+        try JSONEncoder().encode([loaded.handle.wallpaper]).write(to: storage)
+        let store = ManagedWallpaperStore(storage: storage)
+        let document = WSSEditorDocument(
+            project: loaded,
+            save: { snapshot in
+                try await store.commitWSSManifest(
+                    WSSManifestSaveValidator().prepare(snapshot, handle: loaded.handle))
+            })
+        defer { document.close() }
+        let identity = document.identity
+        let id = try XCTUnwrap(identity.layers.first?.id)
+        let original = try frame(loaded.resources, time: 1, width: 160)
+        document.beginImageSlider(.opacity, layer: id)
+        for value: Float in [0.75, 0.5, 0.25] {
+            try document.setImage(.opacity, value: value, layer: id, undo: false)
+        }
+        XCTAssertTrue(document.undoManager.canUndo)
+        document.undoManager.undo()
+        XCTAssertEqual(document.state.workingModel, loaded.document)
+        XCTAssertFalse(document.undoManager.canUndo)
+        document.undoManager.redo()
+        await document.waitForPreview()
+        XCTAssertTrue(document.previewIsCurrent)
+        XCTAssertEqual(document.previewResources.scene.imageLayers.first?.opacity, 0.25)
+        XCTAssertEqual(document.identity, identity)
+        XCTAssertEqual(
+            document.state.workingModel.layers.first?.imageTransform,
+            loaded.document.layers.first?.imageTransform)
+        let saved = await document.save()
+        XCTAssertTrue(saved)
+        let reloaded = try await WSSEditorProjectLoader().load(loaded.handle.wallpaper)
+        XCTAssertEqual(reloaded.document, document.state.workingModel)
+        let desktop = try await ScenePlayback.prepare(for: loaded.handle.wallpaper)
+        let preview = try frame(document.previewResources, time: 1, width: 160)
+        XCTAssertNotEqual(preview, original)
+        XCTAssertEqual(try frame(desktop.resources, time: 1, width: 160), preview)
+        XCTAssertEqual(
+            try frame(desktop.resources, time: 1, width: 320),
+            try frame(document.previewResources, time: 1, width: 320))
+    }
+
     func frame(_ resources: WSSStaticResources, time: Double, width: Int) throws -> Data {
         let height = Int(
             Double(width) * Double(resources.scene.height) / Double(resources.scene.width))

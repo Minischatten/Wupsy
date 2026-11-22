@@ -32,7 +32,7 @@ struct WSSMusicNotesDepthControls: View {
         document.state.workingModel.layers.enumerated().compactMap { index, node in
             guard case .image(let image) = node.content, image.composition == "sourceOver"
             else { return nil }
-            let title = image.name ?? URL(fileURLWithPath: image.asset).lastPathComponent
+            let title = node.name ?? URL(fileURLWithPath: image.asset).lastPathComponent
             return (
                 document.identity.layers[index].id, image.depthID, "\(index + 1). \(title)",
                 image.visible

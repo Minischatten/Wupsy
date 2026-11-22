@@ -147,13 +147,13 @@ extension WSSSceneDocumentV1.Effect {
 extension WSSSceneDocumentV1.Layer {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        if let name {
+            _ = try WallpaperTitle.normalized(name)
+            try c.encode(name, forKey: .name)
+        }
         switch content {
         case .image(let image):
             try c.encode("image", forKey: .type)
-            if let name = image.name {
-                _ = try WallpaperTitle.normalized(name)
-                try c.encode(name, forKey: .name)
-            }
             if let definition = image.definition {
                 guard image.asset == definition.asset else {
                     throw WSSDocumentError.invalid("inconsistent image descriptor")
@@ -192,12 +192,10 @@ extension WSSSceneDocumentV1.Layer {
             }
         case .starfield(let layer):
             try c.encode("starfield", forKey: .type)
-            try c.encodeIfPresent(layer.name, forKey: .name)
             try c.encode(layer.visible, forKey: .visible)
             try c.encode(layer.starfield, forKey: .starfield)
         case .storm(let layer):
             try c.encode("storm", forKey: .type)
-            try c.encodeIfPresent(layer.name, forKey: .name)
             try c.encode(layer.visible, forKey: .visible)
             try c.encode(layer.storm, forKey: .storm)
         case .rain(let layer):

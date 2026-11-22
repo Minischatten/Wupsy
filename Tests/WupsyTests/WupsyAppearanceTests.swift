@@ -5,6 +5,33 @@ import XCTest
 @testable import Wupsy
 
 @MainActor final class WupsyAppearanceTests: XCTestCase {
+    func testImageOpacitySliderFitsAtEveryInterfaceScale() throws {
+        _ = NSApplication.shared
+        let (defaults, suite) = try isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appearance = WupsyAppearance(defaults: defaults)
+        var heights: [CGFloat] = []
+        for scale in WupsyInterfaceScale.allCases {
+            appearance.scale = scale
+            let metrics = WupsyMetrics(scale: scale)
+            let width = min(360, metrics.points(300)) - 2 * metrics.points(14)
+            let host = NSHostingView(
+                rootView: WupsyAppearanceScope(appearance) {
+                    WSSImageOpacitySlider(
+                        opacity: 1, update: { _ in XCTFail("Unexpected update") },
+                        editingChanged: { _ in XCTFail("Unexpected editing") }
+                    )
+                    .frame(width: width)
+                })
+            let size = host.fittingSize
+            XCTAssertEqual(size.width, width, accuracy: 1)
+            XCTAssertGreaterThan(size.height, 12)
+            XCTAssertLessThan(size.height, 50)
+            heights.append(size.height)
+        }
+        XCTAssertGreaterThan(try XCTUnwrap(heights.last), try XCTUnwrap(heights.first))
+    }
+
     private func isolatedDefaults() throws -> (UserDefaults, String) {
         let suite = "WupsyAppearanceTests." + UUID().uuidString
         return (try XCTUnwrap(UserDefaults(suiteName: suite)), suite)

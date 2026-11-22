@@ -20,7 +20,7 @@ import XCTest
         defaults = UserDefaults(suiteName: suite)!
         controller = WSSEditorWindowController(
             document: doc, onClose: {},
-            sizePreferences: .init(defaults: defaults))
+            sizePreferences: .init(defaults: defaults), appearance: .init(defaults: defaults))
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
         try await settle()
@@ -176,4 +176,128 @@ import XCTest
         XCTAssertEqual(centerX, 42)
         XCTAssertFalse(window.firstResponder === editor)
     }
+    private func renameField() -> NSTextField? {
+        func findField(in view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.identifier?.rawValue == "wss.layer.rename" {
+                return field
+            }
+            return view.subviews.lazy.compactMap(findField).first
+        }
+        return window.contentView.flatMap(findField)
+    }
+
+    private func pressKey(_ character: String, code: UInt16) throws {
+        window.sendEvent(
+            try XCTUnwrap(
+                NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                    windowNumber: window.windowNumber, context: nil, characters: character,
+                    charactersIgnoringModifiers: character, isARepeat: false, keyCode: code)))
+    }
+
+    private func renameEditor() async throws -> NSTextView {
+        XCTAssertNotNil(doc.renamingLayer, "The input event must start a rename")
+        for _ in 0..<20 {
+            try await settle()
+            if renameField()?.currentEditor() != nil { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let field = try XCTUnwrap(
+            renameField(),
+            "Active rename: \(String(describing: doc.renamingLayer)); selection: \(String(describing: doc.selection))"
+        )
+        let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+        XCTAssertIdentical(window.firstResponder, editor)
+        XCTAssertEqual(
+            editor.selectedRange(), NSRange(location: 0, length: editor.string.utf16.count))
+        return editor
+    }
+
+    func testReturnRenamesAtEveryInterfaceScaleAndEscapeCancels() async throws {
+        let outline = try XCTUnwrap(find(NSOutlineView.self, in: window.contentView!))
+        let original = doc.state.workingModel
+        let ids = doc.identity
+        for scale in WupsyInterfaceScale.allCases {
+            controller.appearance.scale = scale
+            try await settle()
+            doc.select(.layer(ids.layers[0].id))
+            XCTAssertTrue(window.makeFirstResponder(outline))
+            XCTAssertIdentical(window.firstResponder, outline)
+            XCTAssertTrue(doc.permitsStructureEditing)
+            XCTAssertEqual(doc.selection, .layer(ids.layers[0].id))
+            try pressKey("\r", code: 36)
+            let editor = try await renameEditor()
+            let field = try XCTUnwrap(renameField())
+            XCTAssertGreaterThan(field.frame.width, 40)
+            XCTAssertGreaterThan(field.frame.height, 12)
+            XCTAssertEqual(field.font?.pointSize, NSFont.systemFontSize * scale.factor)
+            let name = String(repeating: "W", count: 256)
+            editor.insertText(name, replacementRange: editor.selectedRange())
+            try pressKey("\r", code: 36)
+            try await settle()
+            XCTAssertNil(renameField())
+            XCTAssertEqual(doc.state.workingModel.layers[0].name, name)
+            XCTAssertEqual(doc.identity, ids)
+            doc.undoManager.undo()
+            XCTAssertEqual(doc.state.workingModel, original)
+            XCTAssertFalse(doc.undoManager.canUndo)
+            doc.undoManager.redo()
+            XCTAssertEqual(doc.state.workingModel.layers[0].name, name)
+            doc.undoManager.undo()
+
+            XCTAssertTrue(window.makeFirstResponder(outline))
+            try pressKey("\r", code: 36)
+            let cancelled = try await renameEditor()
+            cancelled.insertText("Discarded", replacementRange: cancelled.selectedRange())
+            try pressKey("\u{1B}", code: 53)
+            try await settle()
+            XCTAssertNil(renameField())
+            XCTAssertEqual(doc.state.workingModel, original)
+            XCTAssertFalse(doc.undoManager.canUndo)
+        }
+    }
+
+    func testDoubleClickTitleAndFocusLossCommitOneRename() async throws {
+        let outline = try XCTUnwrap(find(NSOutlineView.self, in: window.contentView!))
+        let before = doc.state.workingModel
+        let ids = doc.identity
+        let marker = try XCTUnwrap(
+            find(WSSLayerNameHitRegion.Marker.self, in: window.contentView!))
+        let point = marker.convert(NSPoint(x: marker.bounds.midX, y: marker.bounds.midY), to: nil)
+        XCTAssertEqual(
+            WSSLayerNameHitRegion.Marker.layer(at: point, in: window.contentView!), ids.layers[0].id
+        )
+        XCTAssertTrue(window.makeFirstResponder(outline))
+        for click in 1...2 {
+            func event(_ type: NSEvent.EventType) throws -> NSEvent {
+                try XCTUnwrap(
+                    NSEvent.mouseEvent(
+                        with: type, location: point, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: window.windowNumber, context: nil, eventNumber: click,
+                        clickCount: click, pressure: type == .leftMouseDown ? 1 : 0))
+            }
+            NSApp.postEvent(try event(.leftMouseUp), atStart: true)
+            window.sendEvent(try event(.leftMouseDown))
+            if let up = NSApp.nextEvent(
+                matching: .leftMouseUp, until: nil, inMode: .default, dequeue: true)
+            {
+                window.sendEvent(up)
+            }
+            try await settle()
+            if click == 1 { XCTAssertNil(renameField()) }
+        }
+        let editor = try await renameEditor()
+        editor.insertText("  Renamed on blur  ", replacementRange: editor.selectedRange())
+        let canvas = try XCTUnwrap(find(WSSCanvasScrollView.self, in: window.contentView!))
+        XCTAssertTrue(window.makeFirstResponder(canvas))
+        try await settle()
+        XCTAssertNil(renameField())
+        XCTAssertEqual(doc.state.workingModel.layers[0].name, "Renamed on blur")
+        XCTAssertEqual(doc.identity, ids)
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, before)
+        XCTAssertFalse(doc.undoManager.canUndo)
+    }
+
 }

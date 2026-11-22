@@ -30,6 +30,63 @@ final class WSSSceneCodecTests: XCTestCase {
         }
         return second
     }
+    func testLayerNameValidationAndLegacyDefaults() throws {
+        var document = helper.document(clouds: false)
+        let image = (document["layers"] as! [[String: Any]])[0]
+        let musicNotes = WSSMusicNotesLayer(region: .init(x: 0, y: 0, width: 32, height: 32))
+        let layers = [
+            try JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(
+                    WSSSceneDocumentV1.Layer(content: .musicNotes(musicNotes)))) as! [String: Any],
+            try JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(
+                    WSSSceneDocumentV1.Layer(
+                        content: .trail(WSSTrailTests().configuration(), visible: true))))
+                as! [String: Any],
+            image,
+        ]
+        for var layer in layers {
+            layer.removeValue(forKey: "name")
+            document["layers"] = [image, layer]
+            XCTAssertNil(try roundtrip(document).layers.last?.name)
+            let longName = String(repeating: "é", count: 256)
+            layer["name"] = longName
+            document["layers"] = [image, layer]
+            XCTAssertEqual(try roundtrip(document).layers.last?.name, longName)
+            for badName in [
+                NSNull(), false, 42, [], " ", "line\nbreak", String(repeating: "x", count: 257),
+            ]
+                as [Any]
+            {
+                layer["name"] = badName
+                document["layers"] = [image, layer]
+                XCTAssertThrowsError(
+                    try WSSSceneDocumentV1.decode(
+                        data: JSONSerialization.data(withJSONObject: document)))
+            }
+        }
+    }
+
+    func testImageOpacityDefaultsValidatesAndRoundTrips() throws {
+        var document = helper.document(clouds: false)
+        var layer = (document["layers"] as! [[String: Any]])[0]
+        layer.removeValue(forKey: "opacity")
+        document["layers"] = [layer]
+        XCTAssertEqual(try roundtrip(document).scene().imageLayers.first?.opacity, 1)
+        for value: Float in [0, 0.25, 0.5, 0.75, 1, 0.123456] {
+            layer["opacity"] = value
+            document["layers"] = [layer]
+            XCTAssertEqual(try roundtrip(document).scene().imageLayers.first?.opacity, value)
+        }
+        for invalid in [-0.01, 1.01, "0.5", true, NSNull()] as [Any] {
+            layer["opacity"] = invalid
+            document["layers"] = [layer]
+            XCTAssertThrowsError(
+                try WSSSceneDocumentV1.decode(
+                    data: JSONSerialization.data(withJSONObject: document)))
+        }
+    }
+
     func testCanonicalDefaultsNullCloudSpellingsAndOriginalTransforms() throws {
         var document = helper.document(clouds: true)
         let canonical = try roundtrip(document).encoded()

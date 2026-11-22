@@ -53,19 +53,28 @@ Canvas dimensions are positive integers, at most 8192 per axis and 32 Mi pixels
 in total. `title` is required, nonblank and at most 1024 UTF-8 bytes. Optional
 `background` is an RGB array in 0…1, default `[0,0,0]`.
 
-There are 1…128 ordered image, Rain, CursorTrail, Storm, Starfield, Fog or Music Notes layers, drawn from first to last. Existing image entries without `type` retain exactly their former meaning; `type: "image"` is also accepted. Each image layer has:
+There are 1…128 ordered image, Rain, CursorTrail, Storm, Starfield, Fog or Music Notes layers, drawn from first to last.
 
-- `name`: optional user-facing image-layer name (same single-line, non-empty,
-  at-most-256-character rules as wallpaper titles). Display metadata only; it is
-  independent of asset paths and stable editor layer identity. Absent names retain
-  the existing editor asset-label fallback; existing projects are not migrated.
+All layer types accept optional `name` display metadata. The string must be
+single-line, contain no control characters, and have 1…256 characters after
+trimming surrounding whitespace. Duplicate names are allowed. An omitted
+name uses the existing editor label for that layer. The name is independent
+of layer order, asset paths, and layer identifiers and references.
+
+Existing image entries without `type` retain exactly their former meaning.
+`type: "image"` is also accepted. Each image layer has:
+
 - `image`: required relative PNG path or explicit image descriptor (see asset boundary).
 - `transform.center`: required `[x,y]` in logical canvas units. Origin is at the
   lower left, positive x right, positive y up. The image quad is centered here.
 - `transform.size`: required positive `[width,height]`, each at most 8192.
 - `transform.scale`: optional positive `[x,y]`, default `[1,1]`, at most 100.
 - `transform.rotation`: optional radians, default 0, positive counterclockwise.
-- `opacity`: optional 0…1, default 1.
+- `opacity`: optional finite number in 0…1, default 1. Applied once after the
+  image effect stack, including its masks. With `sourceOver`, this scales both
+  premultiplied RGB and sampled alpha before blending. With `replace`, opacity
+  interpolates between the existing framebuffer and the legacy replacement.
+  Zero leaves the framebuffer intact and one gives full replacement.
 - `visible`: optional boolean, default true.
 - `composition`: optional `sourceOver` (default) or `replace`. These retain the
   renderer's existing premultiplied-alpha/source-over and replacement contracts.
@@ -170,8 +179,7 @@ preparation, checks the loaded manifest/asset fingerprints, and publishes the
 See [architecture](docs/ARCHITECTURE.md) for the save lifecycle and failure contract.
 
 The editor workspace also permits visibility, image opacity/numeric transforms,
-layer reorder and layer deletion (at least one layer remains). These use existing
-v1 fields only. Session layer/effect IDs, selection, edit targets, split positions
+layer reorder and layer deletion (at least one layer remains). Session layer/effect IDs, selection, edit targets, split positions
 and canvas navigation are never serialized. Resource inspection is read-only;
 manifest saves may change the referenced subset of known project assets without
 deleting assets. New images use exclusively installed immutable generation paths. Session undo retains access to unchanged old assets.

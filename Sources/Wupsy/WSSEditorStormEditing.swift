@@ -40,14 +40,8 @@ extension WSSEditorDocument {
         try mutate(model, name: parameter.title)
     }
     func renameStorm(_ id: WSSLayerID, name: String) throws {
-        guard permitsStructureEditing,
-            let index = identity.layers.firstIndex(where: { $0.id == id }),
-            case .storm(var layer) = state.workingModel.layers[index].content
-        else { return }
-        layer.name = try WallpaperTitle.normalized(name)
-        var model = state.workingModel
-        model.layers[index].content = .storm(layer)
-        try mutate(model, name: WSSStormText.rename)
+        guard stormLayer(id) != nil else { return }
+        try renameLayer(id, to: name)
     }
     func beginStormColorInteraction(_ layer: WSSLayerID, role: WSSStormColorRole = .bolt) {
         endStormColorInteraction()

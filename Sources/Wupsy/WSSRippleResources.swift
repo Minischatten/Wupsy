@@ -39,12 +39,9 @@ final class WSSRippleResources {
         pipeline.fragmentFunction = library.makeFunction(name: "rippleImage")
         let color = pipeline.colorAttachments[0]!
         color.pixelFormat = .bgra8Unorm
+        WSSStaticResources.configureImageBlend(color, composition: .replace)
         replace = try device.makeRenderPipelineState(descriptor: pipeline)
-        color.isBlendingEnabled = true
-        color.sourceRGBBlendFactor = .one
-        color.destinationRGBBlendFactor = .oneMinusSourceAlpha
-        color.sourceAlphaBlendFactor = .one
-        color.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        WSSStaticResources.configureImageBlend(color, composition: .sourceOver)
         over = try device.makeRenderPipelineState(descriptor: pipeline)
         func upload(_ asset: WSSMaskAsset) throws -> MTLTexture {
             guard (1...8192).contains(asset.width), (1...8192).contains(asset.height),
