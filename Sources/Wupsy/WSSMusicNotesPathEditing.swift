@@ -129,6 +129,68 @@ extension WSSMusicNotesPath {
         return Self(enabled: enabled, closed: closed, direction: direction, anchors: result.anchors)
     }
 
+    mutating func smoothAnchor(at index: Int, in region: WSSSceneDocumentV1.Region) {
+        guard anchors.count >= Self.minimumAnchors, anchors.indices.contains(index),
+            !closed || anchors.count > 2
+        else { return }
+        let scale = SIMD2(Double(region.width), Double(region.height))
+        guard scale.x.isFinite, scale.y.isFinite, scale.x > 0, scale.y > 0 else { return }
+
+        let original = anchors[index]
+        let previous = anchors[(index + anchors.count - 1) % anchors.count]
+        let next = anchors[(index + 1) % anchors.count]
+        let incoming = closed || index > 0 ? (original.position - previous.position) * scale : .zero
+        let outgoing =
+            closed || index < anchors.count - 1
+            ? (next.position - original.position) * scale : .zero
+        let incomingLength = simd_length(incoming)
+        let outgoingLength = simd_length(outgoing)
+        let hasIncoming = closed || index > 0
+        let hasOutgoing = closed || index < anchors.count - 1
+        guard !hasIncoming || incomingLength >= Self.minimumAnchorDistance,
+            !hasOutgoing || outgoingLength >= Self.minimumAnchorDistance
+        else { return }
+
+        let direction =
+            (hasIncoming ? incoming / incomingLength : .zero)
+            + (hasOutgoing ? outgoing / outgoingLength : .zero)
+        let magnitude = simd_length(direction)
+        // Near a reversal the bisector is unstable.
+        guard magnitude >= 0.1 else { return }
+        let axis = direction / magnitude / scale
+
+        func alignedGrip(_ grip: SIMD2<Double>, along ray: SIMD2<Double>, chord: Double)
+            -> SIMD2<Double>?
+        {
+            let existing = simd_length((grip - original.position) * scale)
+            var length = existing > 1e-8 ? min(existing, chord / 3) : chord / 3
+            for dimension in 0..<2 {
+                if ray[dimension] > 0 {
+                    length = min(length, (1 - original.position[dimension]) / ray[dimension])
+                } else if ray[dimension] < 0 {
+                    length = min(length, -original.position[dimension] / ray[dimension])
+                }
+            }
+            guard length > 1e-8 else { return nil }
+            // Clamp only residual rounding at the boundary after clipping the ray.
+            let result = Self.clamp(original.position + ray * length)
+            return simd_distance(result, grip) < 1e-12 ? grip : result
+        }
+
+        var smoothed = original
+        if hasIncoming {
+            guard let grip = alignedGrip(original.incoming, along: -axis, chord: incomingLength)
+            else { return }
+            smoothed.incoming = grip
+        }
+        if hasOutgoing {
+            guard let grip = alignedGrip(original.outgoing, along: axis, chord: outgoingLength)
+            else { return }
+            smoothed.outgoing = grip
+        }
+        anchors[index] = smoothed
+    }
+
     private static func clamp(_ point: SIMD2<Double>) -> SIMD2<Double> {
         simd_clamp(point, .zero, SIMD2(repeating: 1))
     }
@@ -301,6 +363,24 @@ extension WSSEditorDocument {
             inserted = try $0?.insertAnchor(in: segment, at: fraction)
         }
         if let inserted { musicNotesPathAnchor = inserted }
+    }
+
+    func canSmoothMusicNotesPathAnchor(on id: WSSLayerID) -> Bool {
+        guard permitsStructureEditing, musicNotesPathEditLayer == id, selection == .layer(id),
+            let index = musicNotesPathAnchor, let layer = musicNotesLayer(id),
+            layer.visible, layer.usesActivePath, let path = layer.path
+        else { return false }
+        return path.anchors.indices.contains(index)
+    }
+
+    func smoothMusicNotesPathAnchor(on id: WSSLayerID) throws {
+        guard canSmoothMusicNotesPathAnchor(on: id) else { return }
+        try changeMusicNotesPath(id, name: WSSMusicNotesText.text("smoothAnchor")) {
+            guard canSmoothMusicNotesPathAnchor(on: id),
+                let index = musicNotesPathAnchor, let region = musicNotesLayer(id)?.region
+            else { return }
+            $0?.smoothAnchor(at: index, in: region)
+        }
     }
 
     func removeMusicNotesPathAnchor() throws {

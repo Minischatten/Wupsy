@@ -604,6 +604,11 @@ struct WSSMusicNotesParameterControls: View {
                     }
                 }.disabled(!value.visible)
                 if editing {
+                    Button(WSSMusicNotesText.text("smoothAnchor")) {
+                        perform { try document.smoothMusicNotesPathAnchor(on: layer) }
+                    }
+                    .disabled(!document.canSmoothMusicNotesPathAnchor(on: layer))
+                    .accessibilityIdentifier("wss.musicNotes.smoothAnchor")
                     Text(WSSMusicNotesText.text("pathHelp"))
                         .wupsyFont(size: 14)
                         .fixedSize(horizontal: false, vertical: true)

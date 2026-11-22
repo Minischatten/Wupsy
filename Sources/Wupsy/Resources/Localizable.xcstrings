@@ -562,6 +562,23 @@
         }
       }
     },
+    "editor.musicNotes.smoothAnchor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smooth Anchor"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anker glätten"
+          }
+        }
+      }
+    },
     "editor.musicNotes.finishPath": {
       "extractionState": "manual",
       "localizations": {

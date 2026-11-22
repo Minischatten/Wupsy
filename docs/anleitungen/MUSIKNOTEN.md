@@ -37,6 +37,14 @@ Ein **Anker** ist ein Punkt, durch den die Kurve verläuft. Die **Griffe** am au
 
 > **Screenshot-Platzhalter – Kurve bearbeiten.** Zeige eine offene Kurve mit einem ausgewählten mittleren Anker und zwei sichtbaren Griffen. Beschrifte Anker, Griffe, Start, Ende und Richtungspfeil. Im Inspektor soll **Pfadbearbeitung beenden** sichtbar sein.
 
+
+Wenn eine Kurve an einem Punkt knickt, wähle in **Pfad bearbeiten** den
+betroffenen Anker aus und klicke auf **Anker glätten**. Wupsy richtet die
+wirksamen Griffe entlang einer gemeinsamen Linie aus und kürzt zu lange
+Griffe. Der Anker selbst bleibt an seinem Platz. Die Aktion ist freiwillig
+und lässt sich rückgängig machen. Wölbungen, die von Griffen der
+Nachbaranker ausgehen, können bestehen bleiben.
+
 ## Notenlinien, Schweben und Drehung
 
 ### Fünf Notenlinien gestalten

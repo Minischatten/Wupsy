@@ -107,7 +107,8 @@ Both reuse the note renderer. See
 
 New paths start as a horizontal line. The inspector also offers an explicit
 ellipse template. Switching Open/Closed toggles the closing segment and
-preserves the authored anchor and grip coordinates.
+preserves the authored anchor and grip coordinates. While editing a path,
+Smooth Anchor aligns the selected anchor’s grips on demand.
 
 Animated Music Notes can opt into per-note depth changes relative to a
 selected source-over image layer. The five staff lines keep their layer

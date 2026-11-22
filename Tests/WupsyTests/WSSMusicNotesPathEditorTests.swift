@@ -780,6 +780,95 @@ import simd
         XCTAssertEqual(doc.musicNotesLayer(id)?.path, expected)
     }
 
+    func testSmoothAnchorIsExplicitUndoableAndReopensWithUpdatedPreview() async throws {
+        let id = doc.identity.layers[0].id
+        let loadedModel = loaded.document
+        XCTAssertEqual(doc.state.workingModel, loadedModel)
+        XCTAssertFalse(doc.canSmoothMusicNotesPathAnchor(on: id))
+        let image = try await WSSEditorImageEditingTests().generation()
+        try await doc.installImage(image)
+        let target = try XCTUnwrap(doc.selection?.layer)
+        try doc.setMusicNotesDepthTarget(target, for: id)
+        try doc.changeMusicNotesPlacement(id, name: "Perspective and depth") {
+            var perspective = WSSMusicNotesPerspective()
+            perspective.enabled = true
+            perspective.start = 35
+            $0.perspective = perspective
+            $0.depth?.changes = [.init(position: 40, side: .behind)]
+            $0.depth?.includesStaff = true
+            var staff = WSSMusicNotesStaff()
+            staff.enabled = true
+            $0.staff = staff
+        }
+        let original = try XCTUnwrap(doc.musicNotesLayer(id)?.path)
+        doc.select(.layer(id))
+        doc.beginMusicNotesPathEditing(id)
+        XCTAssertFalse(doc.canSmoothMusicNotesPathAnchor(on: id))
+        XCTAssertTrue(doc.beginMusicNotesPathGesture(.outgoing(0)))
+        doc.dragMusicNotesPath(by: SIMD2(0, -0.07))
+        doc.finishMusicNotesPathGesture()
+        let dragged = try XCTUnwrap(doc.musicNotesLayer(id))
+        let draggedPath = try XCTUnwrap(dragged.path)
+        XCTAssertEqual(
+            draggedPath.anchors[0].outgoing, original.anchors[0].outgoing + SIMD2(0, -0.07))
+        XCTAssertEqual(draggedPath.anchors[0].incoming, original.anchors[0].incoming)
+        doc.undoManager.removeAllActions()
+        await doc.waitForPreview()
+        let previewBefore = try fixtures.frame(doc.previewResources, time: 0, width: 320)
+        doc.musicNotesPathAnchor = -1
+        XCTAssertFalse(doc.canSmoothMusicNotesPathAnchor(on: id))
+        try doc.smoothMusicNotesPathAnchor(on: id)
+        doc.musicNotesPathAnchor = 0
+        doc.interactionLocked = true
+        XCTAssertFalse(doc.canSmoothMusicNotesPathAnchor(on: id))
+        try doc.smoothMusicNotesPathAnchor(on: id)
+        doc.interactionLocked = false
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        XCTAssertTrue(doc.canSmoothMusicNotesPathAnchor(on: id))
+        try doc.smoothMusicNotesPathAnchor(on: id)
+        let smoothed = try XCTUnwrap(doc.musicNotesLayer(id))
+        XCTAssertNotEqual(smoothed.path, draggedPath)
+        XCTAssertEqual(smoothed.perspective, dragged.perspective)
+        XCTAssertEqual(smoothed.depth, dragged.depth)
+        XCTAssertEqual(smoothed.staff, dragged.staff)
+        XCTAssertEqual(smoothed.path?.direction, draggedPath.direction)
+        await doc.waitForPreview()
+        XCTAssertTrue(doc.previewIsCurrent)
+        XCTAssertEqual(WSSMusicNotesDepth.plan(for: doc.previewResources.scene), [2: [0]])
+        XCTAssertTrue(doc.previewResources.musicNotesStaffs.keys.contains(0))
+        XCTAssertNotEqual(
+            try fixtures.frame(doc.previewResources, time: 0, width: 320), previewBefore)
+        try doc.smoothMusicNotesPathAnchor(on: id)
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.musicNotesLayer(id), dragged)
+        XCTAssertFalse(doc.undoManager.canUndo)
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.musicNotesLayer(id), smoothed)
+
+        let saved = await doc.save()
+        XCTAssertTrue(saved)
+        let reopened = try await WSSEditorProjectLoader().load(doc.project.handle.wallpaper)
+        XCTAssertEqual(reopened.document, doc.state.workingModel)
+    }
+
+    func testSmoothClosedTwoAnchorPathCreatesNoUndo() throws {
+        let id = doc.identity.layers[0].id
+        try doc.applyMusicNotesPathTemplate(.straightPath, layer: id)
+        let region = try XCTUnwrap(doc.musicNotesLayer(id)?.region)
+        try doc.changeMusicNotesPath(id, name: "Close path") {
+            try $0?.setClosed(true, in: region)
+        }
+        let original = doc.state.workingModel
+        doc.undoManager.removeAllActions()
+        doc.beginMusicNotesPathEditing(id)
+        doc.musicNotesPathAnchor = 0
+        XCTAssertTrue(doc.canSmoothMusicNotesPathAnchor(on: id))
+        try doc.smoothMusicNotesPathAnchor(on: id)
+        XCTAssertEqual(doc.state.workingModel, original)
+        XCTAssertFalse(doc.undoManager.canUndo)
+    }
+
     func testPathCommandsResetTypeAndBounds() throws {
         let id = doc.identity.layers[0].id
         let original = try XCTUnwrap(doc.musicNotesLayer(id)?.path)

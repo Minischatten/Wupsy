@@ -37,6 +37,12 @@ An **anchor** is a point the curve passes through. The **grips** on the selected
 
 > **Screenshot placeholder – Editing a curve.** Show an open curve with a middle anchor selected and both grips visible. Label the anchor, grips, start, end, and direction arrow. Keep **Finish Path Editing** visible in the inspector.
 
+
+If the curve has a kink, select that anchor in **Edit Path** and click
+**Smooth Anchor**. Wupsy lines up the active grips and shortens any that are
+too long. The anchor stays in place. Smoothing is optional and you can undo
+it. Bulges caused by grips at neighboring anchors may remain.
+
 ## Staff lines, floating, and rotation
 
 ### Style the five staff lines

@@ -220,6 +220,19 @@ staff and depth-change percentages. Grip previews transition smoothly near
 a collapsed handle. An active drag uses the window-pointer displacement at
 its initial Canvas scale so a layout update alone cannot move a control point.
 
+
+In Edit Path, **Smooth Anchor** aligns the selected anchor’s active grips
+along the bisector of the incoming and outgoing chord directions in Canvas
+units. The action keeps shorter nonzero grip lengths and caps each grip at
+one third of its neighboring chord. Collapsed grips start at that cap.
+Frame bounds shorten the grips along the shared axis. Open endpoints use the
+single adjacent chord and preserve their unused grip. Closed paths wrap the
+neighbor lookup across the seam. Near reversals, closed two-anchor paths,
+or a frame edge that leaves no room for an active grip leave the curve as it
+was. A valid change is one Undo step. Ordinary dragging and insertion retain
+their existing behavior. Depth and perspective values retain their authored
+percentages along the resulting curve.
+
 The curve overlay redraws with the pointer. The existing Live Preview receives
 only valid drafts, at most about 30 times per second. It shares the playback
 clock, atlas and instance resources for compatible geometry updates. The large

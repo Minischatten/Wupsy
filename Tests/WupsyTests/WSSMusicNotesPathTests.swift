@@ -32,6 +32,75 @@ final class WSSMusicNotesPathTests: XCTestCase {
                 """.utf8))
     }
 
+    func testSmoothMiddleAnchorUsesCanvasBisectorAndCapsGripLengths() {
+        for frame in [region(20, 400), region(400, 20)] {
+            let scale = Point(Double(frame.width), Double(frame.height))
+            var curve = path([anchor(0.1, 0.3), anchor(0.5, 0.3), anchor(0.8, 0.7)])
+            curve.anchors[1].incoming = Point(0.5, 0.299)
+            curve.anchors[1].outgoing = Point(0, 0.99)
+            let before = curve
+            curve.smoothAnchor(at: 1, in: frame)
+            let pivot = curve.anchors[1]
+            let incoming = (pivot.position - pivot.incoming) * scale
+            let outgoing = (pivot.outgoing - pivot.position) * scale
+            let chord = (before.anchors[2].position - pivot.position) * scale
+            let expected = simd_normalize(Point(1, 0) + simd_normalize(chord))
+            XCTAssertLessThan(simd_distance(simd_normalize(incoming), expected), 1e-10)
+            XCTAssertLessThan(simd_distance(simd_normalize(outgoing), expected), 1e-10)
+            XCTAssertEqual(simd_length(incoming), 0.001 * scale.y, accuracy: 1e-10)
+            let frameLimit = 0.5 * scale.x / expected.x
+            XCTAssertEqual(
+                simd_length(outgoing), min(simd_length(chord) / 3, frameLimit), accuracy: 1e-10)
+            XCTAssertEqual(pivot.position, before.anchors[1].position)
+            XCTAssertEqual(curve.anchors[0], before.anchors[0])
+            XCTAssertEqual(curve.anchors[2], before.anchors[2])
+            let smoothed = curve
+            curve.smoothAnchor(at: 1, in: frame)
+            XCTAssertEqual(curve, smoothed)
+        }
+    }
+
+    func testSmoothOpenEndpointsPreservesUnusedGrips() {
+        var curve = path([anchor(0.2, 0.4), anchor(0.8, 0.4)])
+        curve.anchors[0].incoming = Point(0.1, 0.23)
+        curve.anchors[1].outgoing = Point(0.9, 0.72)
+        let before = curve
+        curve.smoothAnchor(at: 0, in: region())
+        curve.smoothAnchor(at: 1, in: region())
+        XCTAssertEqual(curve.anchors[0].incoming, before.anchors[0].incoming)
+        XCTAssertEqual(curve.anchors[1].outgoing, before.anchors[1].outgoing)
+        XCTAssertLessThan(simd_distance(curve.anchors[0].outgoing, Point(0.4, 0.4)), 1e-12)
+        XCTAssertLessThan(simd_distance(curve.anchors[1].incoming, Point(0.6, 0.4)), 1e-12)
+    }
+
+    func testSmoothClosedSeamClipsAlongTheSharedAxis() throws {
+        var curve = path([anchor(0.98, 0.5), anchor(0.94, 0.85), anchor(0.25, 0.25)], closed: true)
+        curve.direction = .reverse
+        let before = curve
+        curve.smoothAnchor(at: 0, in: region())
+        let middle = curve.anchors[0]
+        XCTAssertEqual(middle.outgoing.x, 1, accuracy: 1e-12)
+        let incoming = simd_normalize(middle.position - middle.incoming)
+        let outgoing = simd_normalize(middle.outgoing - middle.position)
+        XCTAssertLessThan(simd_distance(incoming, outgoing), 1e-12)
+        XCTAssertEqual(Array(curve.anchors.dropFirst()), Array(before.anchors.dropFirst()))
+        XCTAssertEqual(curve.direction, .reverse)
+        let table = try curve.prepare(in: region())
+        XCTAssertEqual(table.samples.first?.position, table.samples.last?.position)
+    }
+
+    func testSmoothSkipsReversalsAndInvalidSelections() {
+        for (original, index) in [
+            (path([anchor(0.2, 0.4), anchor(0.8, 0.4), anchor(0.2, 0.41)]), 1),
+            (path([anchor(0.2, 0.4), anchor(0.8, 0.4)], closed: true), 0),
+            (Path.editorDefault, -1), (Path.editorDefault, 2),
+        ] {
+            var curve = original
+            curve.smoothAnchor(at: index, in: region())
+            XCTAssertEqual(curve, original)
+        }
+    }
+
     func testClosingDefaultPathAcrossRegionShapes() throws {
         for width in [1, 2, 8, 24, 75, 120, 400, 640, 1000, 1920, 3000, 3840, 5000, 8192] {
             for height in [1, 2, 8, 24, 75, 120, 400, 640, 1000, 1920, 3000, 3840, 5000, 8192]
