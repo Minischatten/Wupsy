@@ -26,7 +26,7 @@ Nutze die statische Arbeitsfläche zum Anordnen des Layouts und die Live-Vorscha
 
 ## Wupsy verwenden
 
-Lade `Wupsy-0.5.0.dmg` von [GitHub Releases](https://github.com/Minischatten/Wupsy/releases) herunter. Öffne das Disk-Image, kopiere `Wupsy.app` nach Programme (Applications), warte auf den Abschluss des Kopiervorgangs, wirf das Disk-Image aus und öffne die kopierte App. Falls macOS den Start blockiert, kannst du die Anwendung unter **Systemeinstellungen → Datenschutz & Sicherheit** freigeben.
+Lade [Wupsy-0.7.0.dmg](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg) und die [SHA-256-Prüfsumme](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg.sha256) von der [Release-Seite für Wupsy 0.7.0](https://github.com/Minischatten/Wupsy/releases/tag/v0.7.0) herunter. Öffne das Disk-Image, kopiere `Wupsy.app` nach Programme (Applications), warte auf den Abschluss des Kopiervorgangs, wirf das Disk-Image aus und öffne die kopierte App. Falls macOS den Start blockiert, kannst du die Anwendung unter **Systemeinstellungen → Datenschutz & Sicherheit** freigeben.
 
 Für Entwickler ist alternativ der [Selbstbau aus dem Quellcode](#build) möglich.
 

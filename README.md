@@ -26,7 +26,7 @@ Use the static editing canvas to arrange the layout and Live Preview to check th
 
 ## Use Wupsy
 
-Download `Wupsy-0.5.0.dmg` from [GitHub Releases](https://github.com/Minischatten/Wupsy/releases). Open the disk image, copy `Wupsy.app` to Applications, wait for the copy to finish, eject the disk image and open the copied app. If macOS blocks the app, you can approve it in **System Settings → Privacy & Security**.
+Download [Wupsy-0.7.0.dmg](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg) and its [SHA-256 checksum](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg.sha256) from the [Wupsy 0.7.0 release](https://github.com/Minischatten/Wupsy/releases/tag/v0.7.0). Open the disk image, copy `Wupsy.app` to Applications, wait for the copy to finish, eject the disk image and open the copied app. If macOS blocks the app, you can approve it in **System Settings → Privacy & Security**.
 
 Developers can alternatively [build from source](#build).
 
