@@ -366,7 +366,7 @@ import XCTest
             storage: root.appendingPathComponent("library.json"), defaults: defaults)
         lib?.manuallyPaused = true
         let request = try XCTUnwrap(lib).apply(try item())
-        weak var released = lib
+        weak let released = lib
         lib = nil
         XCTAssertNil(released)
         superseded(await request.outcome)

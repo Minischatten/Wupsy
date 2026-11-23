@@ -114,7 +114,7 @@ final class WSSMilkyWayRenderTests: XCTestCase {
         XCTAssertTrue(reused?.starfield === r.starfield)
         XCTAssertNotNil(reused?.milkyWay)
         XCTAssertEqual(reused?.textureBytes, 0)
-        weak var galaxy = reused?.milkyWay
+        weak let galaxy = reused?.milkyWay
         reused = nil
         XCTAssertNil(galaxy)
         c.milkyWay.enabled = false

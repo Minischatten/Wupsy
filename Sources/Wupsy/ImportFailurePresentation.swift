@@ -51,8 +51,6 @@ struct ImportFailurePresentation: Identifiable {
             title = ImportText.unsafeTitle.localized(language: language)
         case .storage, .publish, .rollback, .cleanup, .invalidResource, .resourceLimit:
             title = ImportText.failed.localized(language: language)
-        default:
-            title = ImportText.unsupportedTitle.localized(language: language)
         }
         switch diagnostic.category {
         case .invalidProject: explanation = ImportText.invalidProject.localized(language: language)

@@ -225,7 +225,7 @@ import XCTest
         host.expand()
         let large = try XCTUnwrap(host.expandedWindow)
         var player = host.surface.player
-        weak var released = player
+        weak let released = player
         XCTAssertNotNil(player?.resources.ripple)
         doc.close()
         XCTAssertNil(host.expandedWindow)

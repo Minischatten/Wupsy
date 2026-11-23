@@ -135,7 +135,7 @@ import XCTest
             r, size: CGSize(width: 32, height: 32), time: player!.elapsed,
             trail: player!.trailContext, pointer: pointer)
         XCTAssertEqual(player!.trailContext.sampleCount(index: 1), 1)
-        weak var released = player
+        weak let released = player
         player?.stop()
         XCTAssertNil(player?.view.delegate)
         XCTAssertNil((player?.view as? SceneMetalView)?.geometryChanged)
@@ -147,7 +147,7 @@ import XCTest
         let helper = WSSEditorCoordinatorTests()
         let document = WSSEditorDocument(project: try await helper.project())
         var surface: WSSPreviewSurface? = WSSPreviewSurface(document: document)
-        weak var player = surface?.player
+        weak let player = surface?.player
         document.close()
         XCTAssertNil(surface?.player)
         surface = nil

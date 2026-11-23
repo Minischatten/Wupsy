@@ -52,7 +52,7 @@ struct LibraryRestorePlan {
         var records: [Wallpaper] = []
         var mappings: [LibraryRestoreFile] = []
         var projects: [LibraryRestoreProject] = []
-        var promoted: [UUID] = []
+        let promoted: [UUID] = []
         let payloads = Dictionary(grouping: m.files.filter { $0.path.contains("/") }) { file in
             let parts = file.path.split(separator: "/")
             return parts.prefix(parts.first == "recovery" ? 2 : 3).joined(separator: "/")

@@ -202,7 +202,6 @@ enum WSSEditorParameter: String, CaseIterable {
                 default: break
                 }
                 effect = .clouds(c)
-            default: break
             }
         }
         var candidate = model

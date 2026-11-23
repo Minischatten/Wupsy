@@ -123,7 +123,7 @@ import XCTest
         let state = PlaylistCollectionState(definitions: [definition])
         try playlistStore.save(state)
         XCTAssertEqual(try playlistStore.load().definitions, state.definitions)
-        let loaded = try await store.load()
+        let loaded = try store.load()
         XCTAssertEqual(loaded.map(\.id), [item.id])
         XCTAssertEqual(try Data(contentsOf: old), before)
     }

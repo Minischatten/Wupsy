@@ -2,6 +2,7 @@ import AppKit
 import Observation
 import WebKit
 import XCTest
+import os
 
 @testable import Wupsy
 
@@ -222,14 +223,16 @@ final class WidgetHealthTests: XCTestCase {
     @MainActor func testSystemSamplingDoesNotInvalidateClockForUnchangedMinute() {
         let readings = SystemReadings()
         let minute = floor(readings.date.timeIntervalSince1970 / 60)
-        var invalidated = false
+        let invalidated = OSAllocatedUnfairLock(initialState: false)
         withObservationTracking {
             _ = readings.date
         } onChange: {
-            invalidated = true
+            invalidated.withLock { $0 = true }
         }
         readings.refresh(stats: true)
-        if floor(Date().timeIntervalSince1970 / 60) == minute { XCTAssertFalse(invalidated) }
+        if floor(Date().timeIntervalSince1970 / 60) == minute {
+            XCTAssertFalse(invalidated.withLock { $0 })
+        }
     }
 
     @MainActor func testDraggingPreservesGrabOffsetAndCommitsOnlyOnRelease() {

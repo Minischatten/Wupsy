@@ -46,23 +46,23 @@ import XCTest
         canvas.postsFrameChangedNotifications = true
         canvas.contentView.postsBoundsChangedNotifications = true
         let center = NotificationCenter.default
+        let observe: @MainActor (Notification) -> Void = { [weak self, weak canvas] note in
+            guard let canvas,
+                (note.object as? NSView) === canvas
+                    || (note.object as? NSView) === canvas.surface
+                    || (note.object as? NSView) === canvas.contentView
+                    || (note.object as? NSWindow) === canvas.window
+                    || (note.object as? NSApplication) === NSApp
+            else { return }
+            self?.traceCheckpoint(note.name.rawValue)
+        }
         let observers = [
             NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification,
             NSWindow.didResignKeyNotification, NSWindow.didBecomeKeyNotification,
             NSApplication.didResignActiveNotification,
         ].map { name in
-            center.addObserver(forName: name, object: nil, queue: .main) {
-                [weak self, weak canvas] note in
-                MainActor.assumeIsolated {
-                    guard let canvas,
-                        (note.object as? NSView) === canvas
-                            || (note.object as? NSView) === canvas.surface
-                            || (note.object as? NSView) === canvas.contentView
-                            || (note.object as? NSWindow) === canvas.window
-                            || (note.object as? NSApplication) === NSApp
-                    else { return }
-                    self?.traceCheckpoint(name.rawValue)
-                }
+            center.addObserver(forName: name, object: nil, queue: .main) { note in
+                MainActor.assumeIsolated { observe(note) }
             }
         }
         traceCheckpoint("trace started")

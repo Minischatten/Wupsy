@@ -274,7 +274,7 @@ import XCTest
                 return nil
             }
             guard candidates.count == 1,
-                position(candidates[0].object).map { abs($0 - expected) < 0.00001 } == true
+                position(candidates[0].object).map({ abs($0 - expected) < 0.00001 }) == true
             else { return nil }
             result[identifier] = candidates[0].object
         }
