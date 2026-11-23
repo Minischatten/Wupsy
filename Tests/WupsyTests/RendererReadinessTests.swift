@@ -111,10 +111,129 @@ import XCTest
         XCTAssertNil(player.view.delegate)
     }
 
-    func testScenePresentationWithDesktopWindowCover() async throws {
+    func testSceneGPUCompletionAndZeroTimeLeaveReadinessPending() async throws {
         let fixture = try imageFixture()
         defer { try? fixture.helper.tearDownWithError() }
-        let screen = fixture.screen
+        let item = try WallpaperImporter.resolve(fixture.helper.fixture())
+        let prepared = try await ScenePlayback.prepare(for: item)
+        var results: [RendererReadiness] = []
+        let renderer = makeDetachedSceneRenderer(item, prepared, screen: fixture.screen) {
+            results.append($0)
+        }
+        defer { renderer.stop() }
+        let player = try XCTUnwrap(renderer.scene as? WSSStaticPlayer)
+        XCTAssertFalse(renderer.window.isVisible)
+        let resources = player.resources
+        let target = try WSSRippleChainTests().target(resources.device)
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        let command = try XCTUnwrap(resources.queue.makeCommandBuffer())
+        try resources.encode(
+            command: command, descriptor: pass, size: CGSize(width: 64, height: 64), time: 0,
+            rippleContext: player.rippleContext)
+        let completed = expectation(description: "Offscreen WSS completed")
+        command.addCompletedHandler(
+            player.frameCompletionHandler(retryTransitionFrame: false) { completed.fulfill() })
+        command.commit()
+        await fulfillment(of: [completed], timeout: 3)
+        XCTAssertEqual(command.status, .completed)
+        XCTAssertEqual(player.metrics.snapshot().frames, 1)
+        XCTAssertTrue(results.isEmpty)
+        XCTAssertNil(player.receivePresentation(at: 0))
+        XCTAssertTrue(results.isEmpty)
+        let presentation = try XCTUnwrap(player.receivePresentation(at: 1))
+        let duplicate = try XCTUnwrap(player.receivePresentation(at: 2))
+        await presentation.value
+        await duplicate.value
+        XCTAssertEqual(results, [.ready])
+        await renderer.stopAndDrainForMaintenance()
+        XCTAssertEqual(results, [.ready])
+    }
+
+    func testStoppedSceneIgnoresQueuedAndLatePresentationsAfterReplacement() async throws {
+        let fixture = try imageFixture()
+        defer { try? fixture.helper.tearDownWithError() }
+        let first = try WallpaperImporter.resolve(fixture.helper.fixture(name: "First"))
+        let next = try WallpaperImporter.resolve(fixture.helper.fixture(name: "Next"))
+        let firstPrepared = try await ScenePlayback.prepare(for: first)
+        let nextPrepared = try await ScenePlayback.prepare(for: next)
+        var firstResults: [RendererReadiness] = []
+        let firstRenderer = makeDetachedSceneRenderer(first, firstPrepared, screen: fixture.screen)
+        {
+            firstResults.append($0)
+        }
+        defer { firstRenderer.stop() }
+        let stopped = try XCTUnwrap(firstRenderer.scene as? WSSStaticPlayer)
+        let queued = try XCTUnwrap(stopped.receivePresentation(at: 1))
+        firstRenderer.stop()
+        XCTAssertEqual(firstResults, [.cancelled])
+
+        var nextResults: [RendererReadiness] = []
+        let nextRenderer = makeDetachedSceneRenderer(next, nextPrepared, screen: fixture.screen) {
+            nextResults.append($0)
+        }
+        defer { nextRenderer.stop() }
+        let current = try XCTUnwrap(nextRenderer.scene as? WSSStaticPlayer)
+        XCTAssertFalse(stopped === current)
+        let late = try XCTUnwrap(stopped.receivePresentation(at: 2))
+        await queued.value
+        await late.value
+        XCTAssertEqual(firstResults, [.cancelled])
+        XCTAssertTrue(nextResults.isEmpty)
+        let presentation = try XCTUnwrap(current.receivePresentation(at: 3))
+        await presentation.value
+        XCTAssertEqual(nextResults, [.ready])
+
+        var maintenanceResults: [RendererReadiness] = []
+        let maintenanceRenderer = makeDetachedSceneRenderer(
+            next, nextPrepared, screen: fixture.screen
+        ) { maintenanceResults.append($0) }
+        defer { maintenanceRenderer.stop() }
+        let maintenancePlayer = try XCTUnwrap(maintenanceRenderer.scene as? WSSStaticPlayer)
+        await maintenanceRenderer.stopAndDrainForMaintenance()
+        let afterMaintenance = try XCTUnwrap(maintenancePlayer.receivePresentation(at: 4))
+        await afterMaintenance.value
+        XCTAssertEqual(maintenanceResults, [.cancelled])
+        XCTAssertFalse(maintenanceRenderer.hasLiveResources)
+    }
+
+    private func makeDetachedSceneRenderer(
+        _ item: Wallpaper, _ scene: PreparedScenePlayback, screen: NSScreen,
+        onReadiness: @escaping (RendererReadiness) -> Void
+    ) -> Renderer {
+        let renderer = Renderer(
+            maintenance: MaintenanceCoordinator(), wallpaper: item, screen: screen,
+            initiallyPaused: true, scenePlayback: scene, sceneRenderResolution: .standard,
+            onReadiness: onReadiness, onError: { XCTFail($0) })
+        renderer.deferPresentation()
+        renderer.setPaused(false)
+        return renderer
+    }
+
+    func testScenePresentationWithDesktopWindowCover() async throws {
+        _ = NSApplication.shared
+        guard let screen = NSScreen.main else {
+            return XCTFail("WUPSY_METAL_PROBE result=failed attempts=0 reason=no usable display")
+        }
+        let strict = ProcessInfo.processInfo.environment["WUPSY_REQUIRE_METAL_PRESENTATION"] == "1"
+        switch await MetalPresentationProbe.run(on: screen) {
+        case .confirmed:
+            print("WUPSY_METAL_PROBE result=confirmed strict=\(strict) running cover test")
+        case .notConfirmed:
+            let reason =
+                "WUPSY_METAL_PROBE result=notConfirmed strict=\(strict) "
+                + "after 3 successful GPU completions, 2 zero timestamps before close, "
+                + "and 1 zero timestamp during window close; no on-screen presentation confirmed"
+            print(reason)
+            if strict { return XCTFail(reason) }
+            throw XCTSkip(reason)
+        case .failed(let reason):
+            return XCTFail("WUPSY_METAL_PROBE result=failed strict=\(strict) reason=\(reason)")
+        }
+        let fixture = try imageFixture(screen: screen)
+        defer { try? fixture.helper.tearDownWithError() }
         for animated in [false, true] {
             let folder = try fixture.helper.fixture(fixture.helper.document(clouds: animated))
             let item = try WallpaperImporter.resolve(folder)
@@ -169,10 +288,12 @@ import XCTest
         }
     }
 
-    private func imageFixture() throws -> (
+    private func imageFixture(screen providedScreen: NSScreen? = nil) throws -> (
         helper: WSSNativeSceneTests, item: Wallpaper, screen: NSScreen
     ) {
-        guard let screen = NSScreen.main else { throw XCTSkip("Desktop display required") }
+        guard let screen = providedScreen ?? NSScreen.main else {
+            throw XCTSkip("Desktop display required")
+        }
         let helper = WSSNativeSceneTests()
         try helper.setUpWithError()
         let url = helper.root.appendingPathComponent("wallpaper.png")

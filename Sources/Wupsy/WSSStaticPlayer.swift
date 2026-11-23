@@ -227,14 +227,32 @@ import MetalKit
             return
         }
         let semaphore = inFlight
-        let metrics = metrics
         let retryTransitionFrame =
             transitionStillPending && !resources.scene.isAnimated && transitionDrawRetries > 0
         if retryTransitionFrame { transitionDrawRetries -= 1 }
-        command.addCompletedHandler { [weak self, frameResources] buffer in
-            _ = frameResources  // Retain the immutable scene/resources through GPU completion.
-            metrics.completed(buffer)
+        let complete = frameCompletionHandler(retryTransitionFrame: retryTransitionFrame) {
             semaphore.signal()
+        }
+        command.addCompletedHandler { [frameResources] buffer in
+            _ = frameResources  // Retain the immutable scene/resources through GPU completion.
+            complete(buffer)
+        }
+        if onFirstFramePresented != nil {
+            drawable.addPresentedHandler { [weak self] drawable in
+                self?.receivePresentation(at: drawable.presentedTime)
+            }
+        }
+        command.present(drawable)
+        command.commit()
+    }
+
+    func frameCompletionHandler(
+        retryTransitionFrame: Bool, releaseSlot: @escaping @Sendable () -> Void
+    ) -> @Sendable (MTLCommandBuffer) -> Void {
+        let metrics = metrics
+        return { [weak self] buffer in
+            metrics.completed(buffer)
+            releaseSlot()
             if buffer.status == .error {
                 Task { @MainActor in
                     guard let self, !self.stopped else { return }
@@ -251,21 +269,19 @@ import MetalKit
                 }
             }
         }
-        if onFirstFramePresented != nil {
-            drawable.addPresentedHandler { [weak self] drawable in
-                // Zero also covers dropped frames. GPU completion alone is insufficient.
-                guard drawable.presentedTime > 0 else { return }
-                Task { @MainActor in
-                    guard let self, !self.stopped else { return }
-                    let callback = self.onFirstFramePresented
-                    self.onFirstFramePresented = nil
-                    self.transitionStillPending = false
-                    callback?()
-                }
-            }
+    }
+
+    @discardableResult
+    nonisolated func receivePresentation(at presentedTime: CFTimeInterval) -> Task<Void, Never>? {
+        // Zero also covers dropped frames. GPU completion alone is insufficient.
+        guard presentedTime > 0 else { return nil }
+        return Task { @MainActor [weak self] in
+            guard let self, !stopped else { return }
+            let callback = onFirstFramePresented
+            onFirstFramePresented = nil
+            transitionStillPending = false
+            callback?()
         }
-        command.present(drawable)
-        command.commit()
     }
 }
 

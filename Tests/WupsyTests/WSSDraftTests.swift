@@ -406,28 +406,91 @@ import XCTest
         XCTAssertTrue(library.contains("await editors.newWallpaper(onFirstSave: onFirstSave)"))
     }
     func testNativeNamingSheetCancelReturnsNoName() async throws {
+        let app = NSApplication.shared
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
             styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        defer { window.close() }
-        let request = Task {
-            await WSSWallpaperNameRequest.present(
+        defer {
+            if let sheet = window.attachedSheet {
+                window.endSheet(sheet, returnCode: .alertSecondButtonReturn)
+            }
+            window.close()
+        }
+
+        func find<T: NSView>(
+            _ type: T.Type, in view: NSView?, matching predicate: (T) -> Bool
+        ) -> T? {
+            guard let view else { return nil }
+            if let match = view as? T, predicate(match) { return match }
+            for child in view.subviews {
+                if let match = find(type, in: child, matching: predicate) { return match }
+            }
+            return nil
+        }
+        @MainActor func waitFor<T>(_ state: () -> T?) async throws -> T? {
+            let deadline = ContinuousClock.now + .seconds(1)
+            while true {
+                if let value = state() { return value }
+                if ContinuousClock.now >= deadline { return nil }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+        @MainActor func diagnostics(_ field: NSTextField? = nil) -> String {
+            let sheet = window.attachedSheet
+            let responder = sheet?.firstResponder.map { String(describing: type(of: $0)) }
+            let editor = field?.currentEditor().map { String(describing: type(of: $0)) }
+            return [
+                "active=\(app.isActive) policy=\(app.activationPolicy().rawValue)",
+                "parentVisible=\(window.isVisible) parentKey=\(window.isKeyWindow)",
+                "sheetVisible=\(sheet?.isVisible == true) sheetKey=\(sheet?.isKeyWindow == true)",
+                "appKeyWindow=\(String(describing: NSApp.keyWindow?.windowNumber))",
+                "responder=\(responder ?? "nil") fieldPresent=\(field != nil) fieldEditor=\(editor ?? "nil")",
+            ].joined(separator: " ")
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        app.activate()
+        XCTAssertTrue(window.isVisible, diagnostics())
+        let request = Task { () -> String? in
+            guard !Task.isCancelled else { return nil }
+            return await WSSWallpaperNameRequest.present(
                 title: "Save Wallpaper", proposedName: "Example", window: window)
         }
-        for _ in 0..<100 {
-            if window.attachedSheet != nil { break }
-            try await Task.sleep(nanoseconds: 10_000_000)
+        defer { request.cancel() }
+        guard let sheet = try await waitFor({ window.attachedSheet }) else {
+            return XCTFail("Naming sheet was not attached. \(diagnostics())")
         }
-        guard let sheet = window.attachedSheet else {
-            XCTFail("Naming sheet was not attached")
-            request.cancel()
-            return
+
+        let fieldLabel = ProductText.wallpaperName.text
+        var field: NSTextField?
+        let fieldEditor: NSTextView? = try await waitFor {
+            field = find(NSTextField.self, in: sheet.contentView) {
+                $0.accessibilityLabel() == fieldLabel
+            }
+            guard let editor = field?.currentEditor() as? NSTextView,
+                editor.isFieldEditor, sheet.firstResponder === editor
+            else { return nil }
+            return editor
         }
-        let fieldEditor = try XCTUnwrap(sheet.firstResponder as? NSTextView)
-        XCTAssertEqual(fieldEditor.string, "Example")
-        XCTAssertEqual(fieldEditor.selectedRange(), NSRange(location: 0, length: 7))
-        window.endSheet(sheet, returnCode: .alertSecondButtonReturn)
+        XCTAssertEqual(field?.stringValue, "Example", diagnostics(field))
+        if let fieldEditor {
+            XCTAssertEqual(fieldEditor.string, "Example", diagnostics(field))
+            XCTAssertEqual(
+                fieldEditor.selectedRange(), NSRange(location: 0, length: 7), diagnostics(field))
+        } else {
+            XCTFail("Naming field has no active field editor. \(diagnostics(field))")
+        }
+
+        let cancel = try XCTUnwrap(
+            find(NSButton.self, in: sheet.contentView) {
+                $0.title == ProductText.cancel.text && $0.keyEquivalent == "\u{1b}"
+            }, "Native Cancel button missing. \(diagnostics(field))")
+        cancel.performClick(nil)
+        let ended: Bool? = try await waitFor { window.attachedSheet == nil ? true : nil }
+        guard ended == true else {
+            return XCTFail("Native Cancel did not close the sheet. \(diagnostics(field))")
+        }
         let name = await request.value
         XCTAssertNil(name)
     }
