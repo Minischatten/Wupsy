@@ -152,39 +152,88 @@ import XCTest
     func testSaveAsToolbarUsesExistingCommandAndEnablement() async throws {
         _ = NSApplication.shared
         let doc = try await open()
-        let controller = WSSEditorWindowController(document: doc, onClose: {})
+        let suite = "save-as-toolbar." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appearance = WupsyAppearance(defaults: defaults)
+        let controller = WSSEditorWindowController(
+            document: doc, onClose: {}, sizePreferences: .init(defaults: defaults),
+            appearance: appearance)
         defer { controller.window?.close() }
         let toolbar = try XCTUnwrap(controller.window?.toolbar)
-        let id = NSToolbarItem.Identifier("wss.saveAs")
-        XCTAssertTrue(controller.toolbarDefaultItemIdentifiers(toolbar).contains(id))
-        let item = try XCTUnwrap(
-            controller.toolbar(
-                toolbar, itemForItemIdentifier: id, willBeInsertedIntoToolbar: true))
-        XCTAssertEqual(item.label, EditorText.saveAs.text)
-        XCTAssertEqual(item.toolTip, EditorText.saveAsHelp.text)
-        XCTAssertTrue(controller.validateToolbarItem(item))
+        func item(_ identifier: String) throws -> NSToolbarItem {
+            try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == identifier })
+        }
+        let save = try item("wss.save")
+        let saveAs = try item("wss.saveAs")
+        let revert = try item("wss.revert")
+        let items = [save, saveAs, revert]
+        let layer = doc.identity.layers[0].id
+        XCTAssertEqual(saveAs.label, EditorText.saveAs.text)
+        XCTAssertEqual(saveAs.toolTip, EditorText.saveAsHelp.text)
         XCTAssertTrue(WSSEditorCoordinator.document(in: controller.window) === doc)
         XCTAssertNil(WSSEditorCoordinator.document(in: NSWindow()))
-        var requested = 0
-        doc.chooseSaveAsName = { _ in
-            requested += 1
-            return nil
+
+        func click(_ item: NSToolbarItem) throws {
+            if let button = item.view as? NSButton {
+                XCTAssertTrue(button.isEnabled)
+                XCTAssertNotNil(button.action)
+                button.performClick(nil)
+            } else {
+                let action = try XCTUnwrap(item.action)
+                XCTAssertTrue(NSApp.sendAction(action, to: item.target, from: item))
+            }
         }
-        _ = controller.perform(try XCTUnwrap(item.action), with: item)
-        for _ in 0..<20 { await Task.yield() }
-        XCTAssertEqual(requested, 1)
-        XCTAssertEqual(calls, 0)
-        doc.saveAsBusy = true
-        XCTAssertFalse(controller.validateToolbarItem(item))
-        _ = controller.perform(try XCTUnwrap(item.action), with: item)
-        for _ in 0..<20 { await Task.yield() }
-        XCTAssertEqual(requested, 1)
-        doc.saveAsBusy = false
+
+        let scales: [WupsyInterfaceScale] = [.standard, .large, .standard, .largest, .standard]
+        for (index, scale) in scales.enumerated() {
+            appearance.scale = scale
+            for item in items {
+                XCTAssertTrue(item.target === controller)
+                XCTAssertNotNil(item.action)
+                XCTAssertEqual(item.view is NSButton, scale != .standard)
+            }
+            try doc.setImage(.centerX, value: 17, layer: layer)
+            doc.saveAsBusy = true
+            for item in items {
+                XCTAssertFalse(controller.validateToolbarItem(item))
+                if let button = item.view as? NSButton {
+                    item.validate()
+                    XCTAssertFalse(button.isEnabled)
+                }
+            }
+            doc.saveAsBusy = false
+            for item in items {
+                XCTAssertTrue(controller.validateToolbarItem(item))
+                item.validate()
+            }
+
+            try click(revert)
+            XCTAssertFalse(doc.isDirty)
+            try doc.setImage(.centerX, value: Float(19 + index), layer: layer)
+            save.validate()
+            try click(save)
+            for _ in 0..<200 where doc.isDirty { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertFalse(doc.isDirty)
+            let saved = try await WSSEditorProjectLoader().load(doc.project.handle.wallpaper)
+            XCTAssertEqual(saved.document, doc.state.workingModel)
+
+            let requested = expectation(description: "Save As invoked at \(scale.rawValue)%")
+            doc.chooseSaveAsName = { _ in
+                requested.fulfill()
+                return nil
+            }
+            try click(saveAs)
+            await fulfillment(of: [requested], timeout: 2)
+            for _ in 0..<200 where doc.saveAsBusy { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertEqual(calls, 0)
+            XCTAssertFalse(doc.saveAsBusy)
+        }
         doc.interactionLocked = true
-        XCTAssertFalse(controller.validateToolbarItem(item))
+        XCTAssertFalse(controller.validateToolbarItem(saveAs))
         doc.interactionLocked = false
         doc.requestSaveAs = nil
-        XCTAssertFalse(controller.validateToolbarItem(item))
+        XCTAssertFalse(controller.validateToolbarItem(saveAs))
     }
     func testCancelAndDefaultNameDoNotMutateAnything() async throws {
         let doc = try await open()

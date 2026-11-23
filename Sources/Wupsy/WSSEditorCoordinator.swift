@@ -881,17 +881,13 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
         let item = WSSAppearanceToolbarItem(itemIdentifier: id)
-        item.target = self
         if id == Self.saveItem {
             item.label = ProductText.save.text
-            item.action = #selector(saveEditor(_:))
         } else if id == Self.saveAsItem {
             item.label = EditorText.saveAs.text
             item.toolTip = EditorText.saveAsHelp.text
-            item.action = #selector(saveAsEditor(_:))
         } else if id == Self.revertItem {
             item.label = EditorText.revert.text
-            item.action = #selector(revertEditor(_:))
         } else {
             return nil
         }
@@ -901,16 +897,20 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
     private func applyToolbarScale(_ scale: WupsyInterfaceScale, to item: NSToolbarItem) {
         let symbol: String
         let accessibility: String
+        let action: Selector
         switch item.itemIdentifier {
         case Self.saveItem:
             symbol = "square.and.arrow.down"
             accessibility = EditorText.saveWallpaperAX.text
+            action = #selector(saveEditor(_:))
         case Self.saveAsItem:
             symbol = "square.and.arrow.down.on.square"
             accessibility = EditorText.saveCopyAX.text
+            action = #selector(saveAsEditor(_:))
         case Self.revertItem:
             symbol = "arrow.uturn.backward"
             accessibility = EditorText.revert.text
+            action = #selector(revertEditor(_:))
         default: return
         }
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibility)
@@ -919,7 +919,7 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
             item.image = image
         } else {
             let metrics = WupsyMetrics(scale: scale)
-            let button = NSButton(title: item.label, target: self, action: item.action)
+            let button = NSButton(title: item.label, target: self, action: action)
             button.controlSize = metrics.nativeControlSize
             button.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
             button.image = image?.withSymbolConfiguration(
@@ -929,8 +929,11 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
             button.setAccessibilityLabel(accessibility)
             button.setFrameSize(button.fittingSize)
             item.view = button
-            item.validate()
         }
+        // AppKit can clear the target-action binding when replacing the view.
+        item.target = self
+        item.action = action
+        item.validate()
     }
     private var commands: WSSEditorCommands {
         WSSEditorCommands(document: editorDocument, window: window)
