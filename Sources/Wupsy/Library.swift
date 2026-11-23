@@ -687,6 +687,7 @@ import SwiftUI
             defer { admission.finish() }
             await MaintenanceOperation.$id.withValue(admission.id) {
                 var candidates: [Renderer] = []
+                var candidateFailure: RuntimeDiagnostic?
                 defer { for renderer in candidates { retire(renderer) } }
                 do {
                     guard !screens.isEmpty else {
@@ -699,8 +700,17 @@ import SwiftUI
                         let renderer = makeRenderer(
                             item, screen: screen, mediaURL: item.url, quality: quality,
                             playback: scene, ticket: ticket,
-                            onError: { [weak self] diagnostic, renderer in
-                                self?.rendererFailed(diagnostic, ticket: ticket, renderer: renderer)
+                            onError: {
+                                [weak self, weak transition = request] diagnostic, renderer in
+                                guard let self else { return }
+                                if let transition, self.transitionRequest === transition,
+                                    self.generation != ticket
+                                {
+                                    candidateFailure = candidateFailure ?? diagnostic
+                                } else {
+                                    self.rendererFailed(
+                                        diagnostic, ticket: ticket, renderer: renderer)
+                                }
                             })
                         candidates.append(renderer)
                         if scene != nil {
@@ -713,6 +723,7 @@ import SwiftUI
                         try await renderer.prepareTransition()
                         try Task.checkCancellation()
                         try rendererStart(renderer, index)
+                        if let candidateFailure { throw candidateFailure }
                     }
                     guard transitionRequest === request, maintenance.allowsMutation else {
                         throw CancellationError()
@@ -797,6 +808,9 @@ import SwiftUI
                 guard let self, let renderer, !renderer.stopped, self.generation == ticket else {
                     return
                 }
+                // While a replacement is prepared, this generation still owns the
+                // outgoing windows. Its runtime errors must not pause the replacement.
+                guard self.transitionRequest == nil else { return }
                 self.showProductError(text, presentation: .playbackError)
                 self.messagePresentation = diagnostic.localized()
                 self.recordPlayback(.diagnostic(diagnostic))

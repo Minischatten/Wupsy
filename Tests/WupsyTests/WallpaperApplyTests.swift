@@ -117,6 +117,7 @@ import XCTest
         let first = try item()
         let lib = try library(prepare: { _ in throw ImportFailure.message("injected preparation") })
         accepted(await lib.apply(first).outcome)
+        let previous = try XCTUnwrap(lib.renderers.first)
         var scene = first
         scene.id = UUID()
         scene.kind = .scene
@@ -124,8 +125,10 @@ import XCTest
         XCTAssertEqual(lib.message, "injected preparation")
         XCTAssertEqual(lib.messagePresentation, ProductText.playbackError.text)
         XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), first.id.uuidString)
-        XCTAssertNil(lib.active)
-        XCTAssertTrue(lib.renderers.isEmpty)
+        XCTAssertEqual(lib.active?.id, first.id)
+        XCTAssertEqual(lib.renderers.count, 1)
+        XCTAssertTrue(lib.renderers.first === previous)
+        XCTAssertFalse(previous.stopped)
     }
     func testLateFailureFromSupersededPreparationCannotAffectNewRequest() async throws {
         var continuation: CheckedContinuation<PreparedScenePlayback, Error>?
@@ -205,6 +208,7 @@ import XCTest
         renderer.webViewWebContentProcessDidTerminate(WKWebView())
         try await waitUntil { lib.manuallyPaused }
         XCTAssertTrue(lib.manuallyPaused)
+        XCTAssertEqual(lib.message, RuntimeDiagnostic.webStopped.technicalDescription)
         XCTAssertTrue(lib.renderers.allSatisfy { !$0.hasLiveResources })
         accepted(await request.outcome)
         XCTAssertNotNil(defaults.string(forKey: "activeWallpaper"))
@@ -373,15 +377,93 @@ import XCTest
     }
 
     func testQueuedRuntimeErrorFromPreviousApplyCannotPauseSuccessor() async throws {
-        let lib = try library()
+        let (fixtureRoot, next) = try ScenePlaybackTests().fixture()
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+        let prepared = try await ScenePlayback.prepare(for: next)
+        var preparation: CheckedContinuation<PreparedScenePlayback, Never>?
+        defer { preparation?.resume(returning: prepared) }
+        let lib = try library(prepare: { _ in
+            await withCheckedContinuation { preparation = $0 }
+        })
         accepted(await lib.apply(try item("first")).outcome)
         let renderer = try XCTUnwrap(lib.renderers.first)
         renderer.webViewWebContentProcessDidTerminate(WKWebView())
-        let next = try item("next")
-        accepted(await lib.apply(next).outcome)
+        let transition = lib.apply(next)
+        try await waitUntil { preparation != nil }
+        XCTAssertTrue(lib.preparing)
+        let continuation = try XCTUnwrap(preparation)
+        preparation = nil
+        continuation.resume(returning: prepared)
+        accepted(await transition.outcome)
+        XCTAssertTrue(renderer.stopped)
         XCTAssertFalse(lib.manuallyPaused)
         XCTAssertNil(lib.message)
         XCTAssertEqual(lib.active?.id, next.id)
+        XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), next.id.uuidString)
+
+        renderer.webViewWebContentProcessDidTerminate(WKWebView())
+        await Task.yield()
+        XCTAssertFalse(lib.manuallyPaused)
+        XCTAssertNil(lib.message)
+        XCTAssertEqual(lib.renderers.first?.wallpaper.id, next.id)
+    }
+
+    func testCandidateRuntimeErrorDuringStartupRejectsTransition() async throws {
+        let first = try item("first")
+        let next = try item("next")
+        let lib = try library(start: { renderer, _ in
+            renderer.setPaused(false)
+            if renderer.wallpaper.id == next.id {
+                renderer.webViewWebContentProcessDidTerminate(WKWebView())
+            }
+        })
+        accepted(await lib.apply(first).outcome)
+        let previous = try XCTUnwrap(lib.renderers.first)
+        failed(await lib.apply(next).outcome)
+        XCTAssertTrue(lib.renderers.first === previous)
+        XCTAssertFalse(previous.stopped)
+        XCTAssertFalse(lib.manuallyPaused)
+        XCTAssertEqual(lib.active?.id, first.id)
+        XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), first.id.uuidString)
+        XCTAssertEqual(lib.message, RuntimeDiagnostic.webStopped.technicalDescription)
+    }
+
+    func testCancelledOrPausedTransitionCannotInstallPreparedCandidate() async throws {
+        let (fixtureRoot, next) = try ScenePlaybackTests().fixture()
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+        let prepared = try await ScenePlayback.prepare(for: next)
+        var preparation: CheckedContinuation<PreparedScenePlayback, Never>?
+        defer { preparation?.resume(returning: prepared) }
+        let lib = try library(prepare: { _ in
+            await withCheckedContinuation { preparation = $0 }
+        })
+        let first = try item()
+        accepted(await lib.apply(first).outcome)
+        let previous = try XCTUnwrap(lib.renderers.first)
+
+        for userPause in [false, true] {
+            let request = lib.apply(next)
+            try await waitUntil { preparation != nil }
+            if userPause {
+                lib.manuallyPaused = true
+            } else {
+                let waiter = Task { await request.outcome }
+                waiter.cancel()
+                superseded(await waiter.value)
+            }
+            superseded(await request.outcome)
+            let continuation = try XCTUnwrap(preparation)
+            preparation = nil
+            continuation.resume(returning: prepared)
+            try await waitUntil { lib.maintenance.activeOperationCount == 0 }
+
+            XCTAssertFalse(lib.preparing)
+            XCTAssertEqual(lib.manuallyPaused, userPause)
+            XCTAssertEqual(lib.active?.id, first.id)
+            XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), first.id.uuidString)
+            XCTAssertTrue(lib.renderers.first === previous)
+            XCTAssertFalse(previous.stopped)
+        }
     }
 
 }
