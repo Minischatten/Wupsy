@@ -63,9 +63,9 @@ import XCTest
 
     func testBuildMetadataDefaults() throws {
         XCTAssertEqual(
-            try source("VERSION").trimmingCharacters(in: .whitespacesAndNewlines), "0.6.0")
+            try source("VERSION").trimmingCharacters(in: .whitespacesAndNewlines), "0.7.0")
         XCTAssertTrue(
-            try source("scripts/config.sh").contains("BUILD_NUMBER=\"${BUILD_NUMBER:-2}\""))
+            try source("scripts/config.sh").contains("BUILD_NUMBER=\"${BUILD_NUMBER:-3}\""))
         XCTAssertTrue(
             try source("scripts/build-app.sh").contains(
                 "<key>CFBundleVersion</key><string>$BUILD_NUMBER</string>"))
