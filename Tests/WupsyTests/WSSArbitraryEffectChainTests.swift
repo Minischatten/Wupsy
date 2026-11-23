@@ -7,8 +7,12 @@ final class WSSArbitraryEffectChainTests: XCTestCase {
     let image = WSSAssetID(value: "assets/base.png")
     struct Assets: WSSImageAssetSource {
         var pixels = WSSFlowTests().pixels(size: 64)
+        var lowerLayer: (id: WSSAssetID, rgba: [UInt8])?
         func image(for id: WSSAssetID) throws -> WSSImageAsset {
-            WSSImageAsset(width: 64, height: 64, payload: .rgba8(pixels))
+            if let lowerLayer, id == lowerLayer.id {
+                return WSSStaticTests().solid(lowerLayer.rgba)
+            }
+            return WSSImageAsset(width: 64, height: 64, payload: .rgba8(pixels))
         }
         func mask(for id: WSSAssetID) throws -> WSSMaskAsset {
             guard !id.value.contains("missing") else {
@@ -233,22 +237,40 @@ final class WSSArbitraryEffectChainTests: XCTestCase {
             fieldStages[1].binding.field?.vectors === fieldStages[2].binding.field?.vectors)
         let base = WSSFlowTests().pixels(size: 64, alpha: 128)
         let full = try render(chain, pixels: base)
+        let lower = WSSAssetID(value: "assets/lower.png")
+        let lowerRGBA: [UInt8] = [32, 96, 224, 192]
+        let lowerBGRA = [224.0, 96, 32, 192]
+        let opacity: Float = 0.4
+        let sourceAlpha = 128.0 / 255
+        let effectiveAlpha = sourceAlpha * Double(opacity)
         for composition: WSSImageLayer.Composition in [.sourceOver, .replace] {
+            var layered = scene(chain, opacity: opacity, composition: composition)
+            layered.layers.insert(
+                .image(
+                    WSSImageLayer(
+                        asset: lower,
+                        transform: WSSImageTransform(center: SIMD2(32, 32), size: SIMD2(64, 64)),
+                        composition: .replace)), at: 0)
             let r = try WSSStaticResources(
-                scene: scene(chain, opacity: 0.4, composition: composition),
-                assets: Assets(pixels: base), device: WSSStaticTests().device())
+                scene: layered, assets: Assets(pixels: base, lowerLayer: (lower, lowerRGBA)),
+                device: WSSStaticTests().device())
             let output = try WSSRippleChainTests().render(r, time: 0.37).0
+            let replacing = composition == .replace
+            let lowerWeight = 1 - (replacing ? Double(opacity) : effectiveAlpha)
             for i in stride(from: 0, to: output.count, by: 4) {
-                XCTAssertEqual(Double(output[i + 3]), 128 * 0.4, accuracy: 1)
+                XCTAssertEqual(
+                    Double(output[i + 3]), effectiveAlpha * 255 + lowerBGRA[3] * lowerWeight,
+                    accuracy: 1)
                 for c in 0..<3 {
+                    let premultiplied = Double(full[i + c])
+                    let sourceRGB = replacing ? premultiplied / sourceAlpha : premultiplied
                     XCTAssertEqual(
                         Double(output[i + c]),
-                        composition == .sourceOver
-                            ? Double(full[i + c]) * 0.4 : Double(full[i + c]) * 255 / 128,
+                        sourceRGB * Double(opacity) + lowerBGRA[c] * lowerWeight,
                         accuracy: 2)
                 }
             }
-            let stages = try XCTUnwrap(r.effectPlans[0]).stages
+            let stages = try XCTUnwrap(r.effectPlans[1]).stages
             XCTAssertFalse(stages[0].binding.field?.vectors === stages[3].binding.field?.vectors)
             XCTAssertTrue(stages[0].binding.field?.vectors === stages[2].binding.field?.vectors)
             XCTAssertEqual(r.vectorFields?.fields.count, 2)

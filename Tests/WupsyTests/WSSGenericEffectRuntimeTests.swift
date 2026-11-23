@@ -150,21 +150,26 @@ final class WSSGenericEffectRuntimeTests: XCTestCase {
 
     func testIntermediateAlphaAndFinalOpacityComposition() throws {
         let h = WSSRippleChainTests()
+        let opacity: Float = 0.4
         for alpha: UInt8 in [0, 128, 255] {
+            // This full-opacity frame supplies the effects' premultiplied color.
+            // Final opacity must scale it once, independent of the number of passes.
+            let full = try h.render(
+                h.resources([h.a, h.b], alpha: alpha, opacity: 1, over: true)
+            ).0
+            let sourceAlpha = Double(alpha) / 255
             for over in [false, true] {
-                let chain = try h.resources([h.a, h.b], alpha: alpha, opacity: 0.4, over: over)
+                let chain = try h.resources([h.a, h.b], alpha: alpha, opacity: opacity, over: over)
                 let actual = try h.render(chain).0
-                let full = try h.render(
-                    h.resources([h.a, h.b], alpha: alpha, opacity: 1, over: true)
-                ).0
                 for i in stride(from: 0, to: actual.count, by: 4) {
-                    XCTAssertEqual(Double(actual[i + 3]), Double(alpha) * 0.4, accuracy: 1)
+                    XCTAssertEqual(
+                        Double(actual[i + 3]), Double(alpha) * Double(opacity), accuracy: 1)
                     for channel in 0..<3 {
-                        let expected =
-                            over
-                            ? Double(full[i + channel]) * 0.4
-                            : (alpha == 0 ? 0 : Double(full[i + channel]) * 255 / Double(alpha))
-                        XCTAssertEqual(Double(actual[i + channel]), expected, accuracy: 2)
+                        let premultiplied = Double(full[i + channel])
+                        let sourceRGB =
+                            over ? premultiplied : (alpha == 0 ? 0 : premultiplied / sourceAlpha)
+                        XCTAssertEqual(
+                            Double(actual[i + channel]), sourceRGB * Double(opacity), accuracy: 2)
                     }
                 }
             }

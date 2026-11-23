@@ -248,7 +248,7 @@ import simd
         doc.close()
         XCTAssertNil(doc.canvasTransform)
     }
-    func testReuseRejectsAnyNonTransformChangeAndRetainsAllTextures() throws {
+    func testTransformAndOpacityReuseTexturesWhileAssetAndEffectChangesRequirePreparation() throws {
         let original = helper.project.document
         var model = original
         if case .image(var image) = model.layers[0].content {
@@ -263,18 +263,34 @@ import simd
             XCTAssertTrue(reused.images[key]?.sampler === image.sampler)
         }
         XCTAssertEqual(reused.scene.imageLayers[0].transform.center.x, 42)
-        for property in [WSSImageProperty.opacity, .width] {
-            var changed = model
-            if case .image(var image) = changed.layers[0].content {
-                if property == .opacity {
-                    image.opacity = 0.5
-                } else {
-                    image.asset = "assets/other.png"
-                }
-                changed.layers[0].content = .image(image)
-            }
-            XCTAssertNil(try resources.updatingTransforms(from: original, to: changed))
+        var changed = model
+        guard case .image(var foreground) = changed.layers[1].content else {
+            return XCTFail("Expected the opaque red source-over image")
         }
+        XCTAssertEqual(foreground.opacity, 0.3)
+        foreground.opacity = 0.5
+        changed.layers[1].content = .image(foreground)
+        let opacityEdit = try XCTUnwrap(reused.updatingTransforms(from: model, to: changed))
+        XCTAssertEqual(opacityEdit.scene.imageLayers[1].opacity, 0.5)
+        XCTAssertTrue(opacityEdit.sharesPreparedResources(with: reused))
+        for (key, image) in reused.images {
+            XCTAssertTrue(opacityEdit.images[key]?.texture === image.texture)
+            XCTAssertTrue(opacityEdit.images[key]?.sampler === image.sampler)
+        }
+        let renderer = WSSRippleChainTests()
+        let before = try renderer.render(reused).0
+        let after = try renderer.render(opacityEdit).0
+        XCTAssertNotEqual(after, before)
+        let center = (32 * 64 + 32) * 4
+        for (channel, redBGRA) in [0.0, 0, 255, 255].enumerated() {
+            // Solve the 30% source-over result for the lower layer and reblend at 50%.
+            let lower = (Double(before[center + channel]) - 0.3 * redBGRA) / 0.7
+            XCTAssertEqual(Double(after[center + channel]), 0.5 * (lower + redBGRA), accuracy: 1)
+        }
+
+        foreground.asset = "assets/other.png"
+        changed.layers[1].content = .image(foreground)
+        XCTAssertNil(try reused.updatingTransforms(from: model, to: changed))
         var effects = model
         if case .image(var image) = effects.layers[0].content {
             image.effects.removeAll()

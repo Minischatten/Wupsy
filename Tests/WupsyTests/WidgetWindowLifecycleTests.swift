@@ -5,9 +5,19 @@ import XCTest
 
 @MainActor private final class WidgetLifecycleTestWindow: NSWindow {
     var frontRequests = 0
+    private(set) var minimizeRequests = 0
+    private(set) var restoreRequests = 0
     override func makeKeyAndOrderFront(_ sender: Any?) {
         frontRequests += 1
         super.makeKeyAndOrderFront(sender)
+    }
+    override func miniaturize(_ sender: Any?) {
+        minimizeRequests += 1
+        super.miniaturize(sender)
+    }
+    override func deminiaturize(_ sender: Any?) {
+        restoreRequests += 1
+        super.deminiaturize(sender)
     }
 }
 
@@ -161,13 +171,45 @@ import XCTest
         try await withWidgets { widgets in
             let window = window()
             defer { window.close() }
-            window.orderFront(nil)
-            await transition(window, notification: NSWindow.didMiniaturizeNotification) {
-                widgets.setEditing(true)
+            if NSApp.isHidden { NSApp.unhide(nil) }
+            window.makeKeyAndOrderFront(nil)
+            @MainActor func state() -> String {
+                [
+                    "hidden=\(NSApp.isHidden), active=\(NSApp.isActive), visible=\(window.isVisible)",
+                    "key=\(window.isKeyWindow), main=\(window.isMainWindow)",
+                    "canBecomeMain=\(window.canBecomeMain), level=\(window.level.rawValue)",
+                    "miniaturized=\(window.isMiniaturized), editing=\(widgets.editing)",
+                    "minimizeRequests=\(window.minimizeRequests), restoreRequests=\(window.restoreRequests)",
+                ].joined(separator: ", ")
             }
+            let ready =
+                !NSApp.isHidden && window.isVisible && window.canBecomeMain
+                && window.level == .normal && !window.isMiniaturized
+                && NSApp.windows.contains { $0 === window } && !widgets.editing
+            guard ready else {
+                return XCTFail("Window is ineligible for widget editing. \(state())")
+            }
+
+            widgets.setEditing(true)
+            // AppKit can reach this state without delivering the notification to the test.
+            let deadline = ContinuousClock.now + .seconds(3)
+            while !window.isMiniaturized && ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            guard window.isMiniaturized else {
+                return XCTFail("Window did not minimize. \(state())")
+            }
+            XCTAssertEqual(window.minimizeRequests, 1, state())
+            let restoreRequests = window.restoreRequests
+
+            // Exercise the real observer while keeping the app visible, so only
+            // discarding the pending windows can prevent a restoration request.
             NotificationCenter.default.post(name: NSApplication.didHideNotification, object: NSApp)
+            XCTAssertFalse(NSApp.isHidden, state())
             widgets.setEditing(false)
-            XCTAssertTrue(window.isMiniaturized)
+            XCTAssertFalse(widgets.editing, state())
+            XCTAssertEqual(window.restoreRequests, restoreRequests, state())
+            XCTAssertTrue(window.isMiniaturized, state())
         }
     }
 

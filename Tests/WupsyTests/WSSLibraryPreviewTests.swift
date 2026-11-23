@@ -164,20 +164,27 @@ import XCTest
     }
 
     func testThumbnailPreservesOpaqueNativeReplaceOutput() throws {
-        var model = helper.project.document
-        guard case .image(var image) = model.layers[0].content else { return XCTFail("fixture") }
-        image.effects = []
-        image.opacity = 0
-        image.composition = "replace"
-        model.layers[0].content = .image(image)
-        model.layers.removeLast()
-        let resources = try WSSStaticResources(
-            scene: model.scene(), assets: model.assetSource(root: helper.project.handle.root),
-            device: helper.project.resources.device)
-        let thumbnail = try WSSLibraryThumbnail.render(resources, maxPixel: 480)
-        let data = try pixels(thumbnail)
-        XCTAssertTrue(stride(from: 3, to: data.count, by: 4).allSatisfy { data[$0] == 255 })
-        XCTAssertTrue(data.enumerated().contains { $0.offset % 4 != 3 && $0.element > 0 })
+        let foreground = WSSAssetID(value: "foreground")
+        let assets = WSSStaticTests.Assets(values: [
+            foreground: WSSStaticTests().solid([0, 0, 255, 64])
+        ])
+        for opacity: Float in [0, 1] {
+            let layer = WSSImageLayer(
+                asset: foreground,
+                transform: WSSImageTransform(center: SIMD2(4, 4), size: SIMD2(8, 8)),
+                opacity: opacity, composition: .replace)
+            let scene = WSSScene(width: 8, height: 8, background: SIMD3(1, 0, 0), layers: [layer])
+            let resources = try WSSStaticResources(
+                scene: scene, assets: assets, device: helper.project.resources.device)
+            let thumbnail = try WSSLibraryThumbnail.render(resources, maxPixel: 8)
+            let expected: [UInt8] = opacity == 0 ? [255, 0, 0, 255] : [0, 0, 255, 255]
+            XCTAssertEqual(
+                try pixels(thumbnail), Data(Array(repeating: expected, count: 64).joined()))
+            if opacity == 1 {
+                let raw = try WSSRippleChainTests().render(resources, width: 8, height: 8).0
+                XCTAssertEqual(Array(raw.prefix(4)), [255, 0, 0, 64])
+            }
+        }
     }
 
 }
