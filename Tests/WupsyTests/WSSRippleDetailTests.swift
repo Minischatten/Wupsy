@@ -5,6 +5,113 @@ import simd
 @testable import Wupsy
 
 final class WSSRippleDetailTests: XCTestCase {
+    private struct LayeredAssets: WSSImageAssetSource {
+        let images: WSSStaticTests.Assets
+        let flow: WSSFlowMapAsset
+
+        func image(for id: WSSAssetID) throws -> WSSImageAsset { try images.image(for: id) }
+        func flowMap(for id: WSSAssetID) throws -> WSSFlowMapAsset { flow }
+    }
+
+    func testGPUDetailOpacityOverAnotherLayerAndAfterFlow() throws {
+        let gpu = WSSStaticTests()
+        let device = try gpu.device()
+        let renderer = WSSRippleChainTests()
+        let flow = WSSFlowTests()
+        let field = try flow.field()
+        let foreground = WSSAssetID(value: "front")
+        let background = WSSAssetID(value: "back")
+        let transform = WSSImageTransform(center: SIMD2(32, 32), size: SIMD2(64, 64))
+        let back = WSSImageLayer(asset: background, transform: transform, composition: .replace)
+
+        for alpha: UInt8 in [0, 128, 255] {
+            let assets = LayeredAssets(
+                images: .init(values: [
+                    foreground: gpu.solid([0, 0, 255, alpha]),
+                    background: gpu.solid([255, 0, 0, 192]),
+                ]), flow: field)
+            let lowerFrame = try renderer.render(
+                WSSStaticResources(
+                    scene: WSSScene(width: 64, height: 64, layers: [back]),
+                    assets: assets, device: device)
+            ).0
+            for chained in [false, true] {
+                for composition: WSSImageLayer.Composition in [.replace, .sourceOver] {
+                    for opacity: Float in [0, 0.4, 1] {
+                        var normal: Data?
+                        for lateralDetail: Float in [1, 3] {
+                            var ripple = renderer.a
+                            ripple.lateralDetail = lateralDetail
+                            let effects: [WSSImageEffect] =
+                                chained ? [.flow(flow.effect), .ripple(ripple)] : [.ripple(ripple)]
+                            let front = WSSImageLayer(
+                                asset: foreground, transform: transform, opacity: opacity,
+                                composition: composition, effects: effects)
+                            let resources = try WSSStaticResources(
+                                scene: WSSScene(width: 64, height: 64, layers: [back, front]),
+                                assets: assets, device: device)
+                            XCTAssertEqual(resources.ripple?.detail != nil, lateralDetail != 1)
+                            let frame = try renderer.render(resources).0
+                            if opacity == 0 { XCTAssertEqual(frame, lowerFrame) }
+                            // Constant colors isolate compositing from differences in displacement.
+                            if let normal { XCTAssertEqual(frame, normal) } else { normal = frame }
+                            let coverage = Double(alpha) * Double(opacity)
+                            let weight = composition == .replace ? Double(opacity) : coverage / 255
+                            let blue =
+                                composition == .replace ? (alpha == 0 ? 0 : weight * 255) : coverage
+                            let expected = [
+                                blue, 0, 255 * (1 - weight), coverage + 192 * (1 - weight),
+                            ]
+                            let center = (32 * 64 + 32) * 4
+                            for (channel, value) in expected.enumerated() {
+                                // Allow one byte of rounding at each 8-bit render target.
+                                XCTAssertEqual(Double(frame[center + channel]), value, accuracy: 2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func testGPUDetailOpacityEditUpdatesReusedResources() throws {
+        let gpu = WSSStaticTests()
+        let renderer = WSSRippleChainTests()
+        var original = try WSSSceneDocumentV1.decode(
+            data: Data(
+                """
+                {
+                  "format":"wss-scene", "version":1, "title":"Ripple opacity",
+                  "canvas":{"width":64,"height":64},
+                  "layers":[
+                    {"image":"assets/back.png","transform":{"center":[32,32],"size":[64,64]}},
+                    {"image":"assets/front.png","transform":{"center":[32,32],"size":[64,64]},
+                     "composition":"replace"}
+                  ]
+                }
+                """.utf8))
+        guard case .image(var image) = original.layers[1].content else {
+            return XCTFail("Expected foreground image")
+        }
+        var ripple = renderer.a
+        ripple.lateralDetail = 3
+        image.effects = [.init(parameters: .ripple(ripple), mask: nil, field: nil)]
+        original.layers[1].content = .image(image)
+        let resources = try WSSStaticResources(
+            scene: original.scene(),
+            assets: WSSStaticTests.Assets(values: [
+                WSSAssetID(value: "assets/back.png"): gpu.solid([255, 0, 0, 255]),
+                WSSAssetID(value: "assets/front.png"): gpu.solid([0, 0, 255, 255]),
+            ]), device: gpu.device())
+        XCTAssertEqual(Array(try renderer.render(resources).0.prefix(4)), [255, 0, 0, 255])
+        var edited = original
+        image.opacity = 0.4
+        edited.layers[1].content = .image(image)
+        let reused = try XCTUnwrap(resources.updatingTransforms(from: original, to: edited))
+        XCTAssertTrue(reused.sharesPreparedResources(with: resources))
+        XCTAssertEqual(Array(try renderer.render(reused).0.prefix(4)), [102, 0, 153, 255])
+    }
+
     func decode(_ json: [String: Any]) throws -> WSSRippleEffect {
         try WSSRippleOrientationTests().decode(json)
     }
