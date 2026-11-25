@@ -143,6 +143,100 @@ import XCTest
         player = nil
         XCTAssertNil(released)
     }
+    func testDesktopTrailResumesWithSeparateSegmentAndAgesOutsideDisplay() async throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let resources = try resources(trail: true)
+        var pointer: SIMD2<Float>? = SIMD2(10, 20)
+        let player = WSSStaticPlayer(
+            resources: resources, size: CGSize(width: 128, height: 128),
+            scale: 1, maxDimension: 2560, fps: 30, resolution: .standard, offset: 0,
+            pointerProvider: { pointer }, desktopPlayback: true,
+            onError: { XCTFail($0) })
+        let window = NSWindow(
+            contentRect: CGRect(
+                origin: screen.visibleFrame.origin, size: CGSize(width: 128, height: 128)),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.level = .floating
+        window.contentView = player.view
+        window.orderFrontRegardless()
+        defer {
+            player.stop()
+            window.orderOut(nil)
+        }
+        player.play()
+        for _ in 0..<100 where player.trailContext.sampleCount(index: 1) < 3 {
+            player.view.draw()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertGreaterThanOrEqual(player.trailContext.sampleCount(index: 1), 3)
+        pointer = nil
+        player.pauseDesktop()
+        try await Task.sleep(for: .milliseconds(250))
+        let frozenTime = player.elapsed
+        let frozenSamples = try XCTUnwrap(player.trailContext.snapshot()[1]?.samples)
+        player.view.draw()
+        XCTAssertEqual(player.elapsed, frozenTime)
+        XCTAssertEqual(player.trailContext.snapshot()[1]?.samples, frozenSamples)
+
+        pointer = SIMD2(55, 55)
+        player.play()
+        for _ in 0..<100
+        where player.trailContext.snapshot()[1]?.samples.contains(where: \.startsSegment) != true {
+            player.view.draw()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let resumedSamples = try XCTUnwrap(player.trailContext.snapshot()[1]?.samples)
+        XCTAssertEqual(resumedSamples.first(where: \.startsSegment)?.position, pointer)
+
+        pointer = nil
+        player.pauseDesktop()
+        try await Task.sleep(for: .milliseconds(250))
+        let beforeExit = try XCTUnwrap(player.trailContext.snapshot()[1]?.samples)
+        let outsideTime = player.elapsed
+        XCTAssertFalse(beforeExit.isEmpty)
+        player.play()
+        for _ in 0..<150 where player.trailContext.sampleCount(index: 1) > 0 {
+            player.view.draw()
+            try await Task.sleep(for: .milliseconds(10))
+            let remaining = try XCTUnwrap(player.trailContext.snapshot()[1]?.samples)
+            XCTAssertTrue(remaining.allSatisfy(beforeExit.contains))
+        }
+        XCTAssertGreaterThan(player.elapsed, outsideTime)
+        XCTAssertEqual(player.trailContext.sampleCount(index: 1), 0)
+    }
+
+    func testDesktopPlayersKeepSeparateTrailHistoriesWithSharedResources() throws {
+        let resources = try resources(trail: true)
+        let size = CGSize(width: 64, height: 64)
+        let first = WSSStaticPlayer(
+            resources: resources, size: size, scale: 1, maxDimension: 2560, fps: 30,
+            resolution: .standard, offset: 0, desktopPlayback: true, onError: { XCTFail($0) })
+        let second = WSSStaticPlayer(
+            resources: resources, size: size, scale: 1, maxDimension: 2560, fps: 30,
+            resolution: .standard, offset: 0, desktopPlayback: true, onError: { XCTFail($0) })
+        defer {
+            first.stop()
+            second.stop()
+        }
+        _ = try render(resources, size: size, trail: first.trailContext, pointer: SIMD2(10, 20))
+        _ = try render(
+            resources, size: size, time: 0.125, trail: first.trailContext, pointer: SIMD2(20, 20))
+        let firstSamples = try XCTUnwrap(first.trailContext.snapshot()[1]?.samples)
+        XCTAssertGreaterThan(firstSamples.count, 1)
+        XCTAssertEqual(second.trailContext.sampleCount(index: 1), 0)
+
+        _ = try render(resources, size: size, time: 0.25, trail: first.trailContext)
+        _ = try render(
+            resources, size: size, time: 0.25, trail: second.trailContext, pointer: SIMD2(50, 20))
+        XCTAssertEqual(first.trailContext.snapshot()[1]?.samples, firstSamples)
+        let secondSample = try XCTUnwrap(second.trailContext.snapshot()[1]?.samples.first)
+        XCTAssertEqual(secondSample.position, SIMD2(50, 20))
+
+        _ = try render(resources, size: size, time: 1.25, trail: first.trailContext)
+        XCTAssertEqual(first.trailContext.sampleCount(index: 1), 0)
+        XCTAssertEqual(second.trailContext.snapshot()[1]?.samples, [secondSample])
+    }
+
     func testSurfaceCloseReleasesPlayerAndDocumentCallbacks() async throws {
         let helper = WSSEditorCoordinatorTests()
         let document = WSSEditorDocument(project: try await helper.project())

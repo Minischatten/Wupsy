@@ -311,8 +311,9 @@ final class WSSTrailLengthTests: XCTestCase {
         a.update(time: 0.2, pointer: SIMD2(20, 30))
         XCTAssertGreaterThan(a.samples.count, b.samples.count)
         b.update(time: 0, pointer: .zero)
+        let visibleSamples = a.samples
         a.update(time: 0.3, pointer: nil)
-        XCTAssertTrue(a.samples.isEmpty)
+        XCTAssertEqual(a.samples, visibleSamples)
         XCTAssertEqual(b.samples.count, 1)
         XCTAssertEqual(doc.state.workingModel, before)
         XCTAssertEqual(doc.state.workingRevision, revision)

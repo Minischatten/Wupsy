@@ -102,10 +102,12 @@ Section 2 was accepted. AirPlay confirmed basic playback and global pause
 and resume on both displays, with noticeable latency. A complete wired
 multi-display topology check remains open.
 
-Cursor Trail currently resets its samples on the next advancing frame when
-the pointer leaves a display's frame. This behavior predates desktop pause.
-Allowing the samples to fade after an exit would require aging them while
-outside the display and starting a disconnected segment on reentry.
+Each native player owns its Cursor Trail history. A pointer outside its
+display disconnects the sampling anchor. Existing samples continue to age
+on advancing frames, and reentry starts a separate segment without filling
+missed emission slots. Frozen recovery frames leave the history and its
+scene time intact. Resuming outside the display disconnects the anchor
+and lets the remaining samples expire normally.
 
 ### Apply outcomes
 

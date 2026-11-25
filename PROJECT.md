@@ -142,12 +142,16 @@ global pause and resume worked on both displays over AirPlay. The accepted
 automated run passed 151 tests, including strict Metal presentation.
 
 AirPlay latency limited visual verification. A complete wired multi-display
-check, including all display topology changes, remains open. The existing
-Cursor Trail clears its samples when the pointer leaves a display, which
-limited manual verification of frozen Trail history on the second display.
-This behavior predates Section 1. The next separate development task is to
-stop emitting samples outside the display, let existing samples expire,
-and begin a disconnected segment on reentry.
+check, including all display topology changes, remains open.
+
+The subsequent Cursor Trail change lets existing samples fade on their own
+display after the pointer leaves. Reentry starts a disconnected segment at
+the existing emission cadence. During desktop pause, samples still use
+frozen scene time. When playback resumes with the pointer outside the
+display, the remaining trail fades normally. The Cursor Trail correction
+was manually accepted in a multi-display setup and is complete. The
+accepted automated run passed 85 tests, including strict Metal presentation,
+with two optional export tests skipped.
 See [desktop pause](docs/ARCHITECTURE.md#native-desktop-pause).
 
 ## Interface size

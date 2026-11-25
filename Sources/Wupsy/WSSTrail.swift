@@ -94,27 +94,49 @@ struct WSSTrailSimulation {
         x = (x ^ (x >> 13)) &* 3_266_489_917
         return Float((x ^ (x >> 16)) >> 8) / Float(0xffffff)
     }
-    mutating func rebase(time: Double, pointer: SIMD2<Float>) {
+    mutating func rebase(time: Double, pointer: SIMD2<Float>?) {
+        guard let pointer else {
+            previous = nil
+            return
+        }
         guard let old = previous else { return }
         startsSegment = startsSegment || old.pointer != pointer
         previous = (time, pointer)
     }
     mutating func update(time: Double, pointer: SIMD2<Float>?) {
-        guard time.isFinite, abs(time) < 1e12, let p = pointer, p.x.isFinite, p.y.isFinite else {
+        guard time.isFinite, abs(time) < 1e12 else {
+            reset()
+            return
+        }
+        guard let p = pointer else {
+            rebase(time: time, pointer: nil)
+            samples.removeAll { time - $0.birth >= configuration.lifetime }
+            return
+        }
+        guard p.x.isFinite, p.y.isFinite else {
             reset()
             return
         }
         if let old = previous, time < old.time || time - old.time > configuration.lifetime {
             reset()
         }
-        guard let old = previous else {
+        if previous == nil, let last = samples.last, time < last.birth { reset() }
+        samples.removeAll { time - $0.birth >= configuration.lifetime }
+        if previous == nil, samples.isEmpty {
             epoch = time
             nextIndex = 1
             samples = [.init(position: p, birth: time, colorCoordinate: random(0))]
             previous = (time, p)
+            startsSegment = false
             return
         }
-        samples.removeAll { time - $0.birth >= configuration.lifetime }
+        if previous == nil {
+            // Keep the emission cadence and skip every slot before reentry.
+            nextIndex = max(
+                nextIndex, Int(ceil((time - epoch - 1e-9) * configuration.emissionRate)))
+            startsSegment = true
+        }
+        let old = previous ?? (time, pointer: p)
         // Skip expired emissions after a gap; work stays bounded by the live population.
         let oldest = max(
             0,

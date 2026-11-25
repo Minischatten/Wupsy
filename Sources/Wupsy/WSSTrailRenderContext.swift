@@ -20,7 +20,6 @@ final class WSSTrailRenderContext {
     func rebase(time: Double, pointer: SIMD2<Float>?) {
         lock.lock()
         defer { lock.unlock() }
-        guard let pointer else { return }
         for index in states.keys {
             states[index]?.rebase(time: time, pointer: pointer)
         }

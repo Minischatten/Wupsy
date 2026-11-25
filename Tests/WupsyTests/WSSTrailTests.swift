@@ -90,13 +90,71 @@ final class WSSTrailTests: XCTestCase {
         XCTAssertTrue(s.samples.allSatisfy { $0.position == SIMD2(700, 240) })
         XCTAssertTrue(s.vertices(time: 2).isEmpty)  // coincident geometry, no stationary glow
         s.update(time: 2.1, pointer: nil)
-        XCTAssertTrue(s.samples.isEmpty)
+        XCTAssertFalse(s.samples.isEmpty)
         s.update(time: 2.2, pointer: SIMD2(1, 1))
         XCTAssertTrue(s.vertices(time: 2.2).isEmpty)
         s.update(time: 1, pointer: SIMD2(3, 3))  // backward clock resets
         XCTAssertEqual(s.samples.count, 1)
         s.update(time: 1e100, pointer: SIMD2(3, 3))
         XCTAssertTrue(s.samples.isEmpty)
+    }
+    func testDisplayExitAgesExistingGeometryAndReentryStartsNewSegment() throws {
+        var s = try WSSTrailSimulation(configuration: configuration())
+        s.update(time: 0, pointer: SIMD2(20, 20))
+        s.update(time: 0.25, pointer: SIMD2(100, 20))
+        let original = s.samples
+        let visible = s.vertices(time: 0.25)
+        s.update(time: 0.5, pointer: nil)
+        XCTAssertEqual(s.samples, original)
+        XCTAssertFalse(visible.isEmpty)
+        XCTAssertLessThan(
+            s.vertices(time: 0.5).map(\.color.w).max() ?? 1,
+            visible.map(\.color.w).max() ?? 0)
+
+        s.update(time: 0.625, pointer: SIMD2(500, 20))
+        XCTAssertEqual(Array(s.samples.dropLast()), original)
+        XCTAssertEqual(s.samples.last?.startsSegment, true)
+        XCTAssertEqual(s.samples.last?.birth, 0.625)
+        XCTAssertEqual(s.vertices(time: 0.625).count, visible.count)
+        s.update(time: 0.75, pointer: SIMD2(550, 20))
+        XCTAssertTrue(
+            s.vertices(time: 0.75).allSatisfy { $0.position.x < 110 || $0.position.x > 490 })
+
+        s.update(time: 1.25, pointer: nil)
+        XCTAssertTrue(s.samples.allSatisfy { $0.birth >= 0.625 })
+        s.update(time: 1.75, pointer: nil)
+        XCTAssertTrue(s.samples.isEmpty)
+        s.update(time: 2, pointer: SIMD2(700, 20))
+        XCTAssertEqual(s.samples.map(\.birth), [2])
+        XCTAssertTrue(s.vertices(time: 2).isEmpty)
+    }
+
+    func testRepeatedDisplayCrossingsKeepHistoriesIndependentAndBounded() throws {
+        var first = try WSSTrailSimulation(configuration: configuration())
+        var second = first
+        let canvas = CGSize(width: 100, height: 100)
+        let left = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let right = left.offsetBy(dx: 100, dy: 0)
+        for index in 0..<256 {
+            let time = Double(index) / 128
+            let onLeft = index % 8 < 4
+            let pointer = CGPoint(x: onLeft ? 25 : 175, y: 40)
+            let outside = onLeft ? second.samples : first.samples
+            first.update(
+                time: time,
+                pointer: SceneCursor.scenePoint(global: pointer, screen: left, canvas: canvas))
+            second.update(
+                time: time,
+                pointer: SceneCursor.scenePoint(global: pointer, screen: right, canvas: canvas))
+            XCTAssertEqual(
+                onLeft ? second.samples : first.samples, outside.filter { time - $0.birth < 1 })
+            XCTAssertLessThanOrEqual(first.samples.count, 32)
+            XCTAssertLessThanOrEqual(second.samples.count, 32)
+        }
+        XCTAssertTrue(first.samples.allSatisfy { $0.position.x == 25 })
+        XCTAssertTrue(second.samples.allSatisfy { $0.position.x == 75 })
+        XCTAssertTrue(first.samples.contains(where: \.startsSegment))
+        XCTAssertTrue(second.samples.contains(where: \.startsSegment))
     }
     func testPaletteFadeAndWidthReachGeometry() throws {
         var c = configuration()

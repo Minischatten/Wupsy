@@ -406,7 +406,7 @@ import os
         let firstResumeFrame = resumeAtFrozenFrame
         let time = elapsed
         let pointer = resources.trail == nil || paused ? nil : currentPointer()
-        if resumeNeedsTrailAnchor, let pointer {
+        if resumeNeedsTrailAnchor, !paused {
             trailContext.rebase(time: time, pointer: pointer)
             resumeNeedsTrailAnchor = false
         }
@@ -418,7 +418,7 @@ import os
                 rippleContext: rippleContext, trailContext: trailContext,
                 pointer: pointer,
                 projection: projection,
-                advanceTrail: !paused && !firstResumeFrame && !resumeNeedsTrailAnchor,
+                advanceTrail: !paused && !firstResumeFrame,
                 stormContext: stormContext,
                 lightingContext: lightingContext)
         } catch {
