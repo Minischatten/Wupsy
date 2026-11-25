@@ -45,14 +45,14 @@ struct PreparedScenePlayback {
     }
     @MainActor func makePlayer(
         size: CGSize, scale: CGFloat, maxDimension: Int, fps: Int,
-        resolution: SceneRenderResolution, offset: Double,
+        resolution: SceneRenderResolution, offset: Double, desktopPlayback: Bool = false,
         onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
         onFirstFramePresented: (@MainActor () -> Void)? = nil,
         onError: @escaping (String) -> Void
     ) -> any ScenePlaybackSession {
         WSSStaticPlayer(
             resources: resources, size: size, scale: scale, maxDimension: maxDimension,
-            fps: fps, resolution: resolution, offset: offset,
+            fps: fps, resolution: resolution, offset: offset, desktopPlayback: desktopPlayback,
             onDiagnostic: onDiagnostic, onFirstFramePresented: onFirstFramePresented,
             onError: onError)
     }

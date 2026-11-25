@@ -338,7 +338,7 @@ enum RendererReadiness: Equatable {
         let player = prepared.makePlayer(
             size: window.frame.size, scale: displayScale,
             maxDimension: profile.maxDimension, fps: fps, resolution: sceneRenderResolution,
-            offset: sceneTime,
+            offset: sceneTime, desktopPlayback: true,
             onDiagnostic: { [weak self] diagnostic in self?.report(diagnostic) },
             onFirstFramePresented: onFirstFramePresented,
             onError: { [weak self] error in self?.report(.failure(error)) })
@@ -428,18 +428,34 @@ enum RendererReadiness: Equatable {
         window.contentView = nil
         window.orderOut(nil)
     }
-    func setPaused(_ value: Bool) {
+    var hasFrozenScene: Bool { (scene as? WSSStaticPlayer)?.desktopFrozen == true }
+
+    func setPaused(_ value: Bool, retainingScene: Bool = false) {
         guard !stopped else { return }
         if transitionPrepared && !value { return }
         if paused == value {
-            if value { preparedScene = nil }
+            if value {
+                preparedScene = nil
+                if hasFrozenScene, !retainingScene {
+                    releaseResources()
+                    finishReadiness(.cancelled)
+                }
+            }
             return
         }
         paused = value
         health = VideoHealth()
         if value {
-            releaseResources()
-            finishReadiness(.cancelled)
+            if retainingScene, let player = scene as? WSSStaticPlayer,
+                player.rendererStatus != .failed, player.rendererStatus != .stopped
+            {
+                player.pauseDesktop()
+            } else {
+                releaseResources()
+                finishReadiness(.cancelled)
+            }
+        } else if let scene {
+            scene.play()
         } else {
             load()
         }

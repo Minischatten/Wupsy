@@ -100,6 +100,30 @@ See [measurement semantics and diagnosis views](docs/ARCHITECTURE.md#wss-perform
 See [stage 4 resource comparison](docs/ARCHITECTURE.md#stage-4-resource-comparison)
 for the local A/B measurements and their limits.
 
+## Native desktop pause
+
+Manual pause keeps the native WSS desktop window, player and Metal view
+in place and stops frame submissions. It resumes at the confirmed scene
+position with Trail history intact. Stop and system resource relief retain
+their teardown path. Editor and Library previews keep independent playback.
+Section 1 passed manual acceptance on a physical Mac with both synthetic test
+wallpapers and several existing wallpapers. The desktop image stayed visible
+during pause and animation resumed without visible disruption. The panel showed
+lower CPU activity and a drop of roughly 10 MB in physical footprint after a
+few seconds. Memory reduction was outside the acceptance criteria. The
+difference between manual and benchmark footprint readings remains unexplained.
+
+The targeted run passed 162 tests, including strict Metal presentation, with
+four optional tests skipped. Across five pause cycles, the CLI benchmark showed
+zero frame submissions and GPU completions during pause, constant scene time
+and resumed rendering on the same player. It received no presentation
+confirmations even during playback. Pixel-identical image retention was
+therefore outside the benchmark's evidence.
+
+Section 2 covers system events, display topology changes and any necessary
+recovery frames. Other wallpaper formats retain their existing pause behavior.
+See [desktop pause](docs/ARCHITECTURE.md#native-desktop-pause).
+
 ## Interface size
 
 The Settings window offers 100%, 125% and 150% under Appearance. Open it

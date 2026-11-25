@@ -41,6 +41,26 @@ import Foundation
         return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(
             usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1_000_000
     }
+    private static func desktopWindow(
+        _ scene: any ScenePlaybackSession, phase: String
+    ) async throws -> [String: Any] {
+        _ = scene.performanceSnapshot()
+        let seconds = ProcessInfo.processInfo.systemUptime
+        let cpu = cpuSeconds()
+        let elapsed = scene.elapsed
+        try await Task.sleep(for: .seconds(2))
+        let duration = ProcessInfo.processInfo.systemUptime - seconds
+        let window = scene.performanceSnapshot()?.frameWindow
+        return [
+            "phase": phase, "seconds": duration, "sceneElapsedChange": scene.elapsed - elapsed,
+            "submissions": window?.submissions as Any? ?? NSNull(),
+            "gpuCompletions": window?.gpu.frames as Any? ?? NSNull(),
+            "confirmedPresentations": window?.confirmedPresentations as Any? ?? NSNull(),
+            "cpuPercentOfOneCore": (cpuSeconds() - cpu) / duration * 100,
+            "physicalFootprintMiB": footprintMiB() as Any? ?? NSNull(),
+            "metalBytes": scene.metalAllocation()?.bytes as Any? ?? NSNull(),
+        ]
+    }
     static func runIfRequested(_ library: Library) async {
         guard !started, let path = argument("--benchmark"), let reportPath = argument("--report")
         else { return }
@@ -132,7 +152,6 @@ import Foundation
                 result["sceneSubmittedDrawableHeight"] =
                     snapshot?.submittedDrawableSize?.height
                     as Any? ?? NSNull()
-                scene?.stopMeasuring()
             }
             if let scene = library.renderers.first?.scene, scene.sessionID == sessionID {
                 let diagnostics = scene.diagnostics
@@ -163,18 +182,41 @@ import Foundation
             result["webViewCreated"] = renderer.web != nil
             result["nativeGIFCreated"] = renderer.gif != nil
             result["playbackError"] = library.message ?? "none"
-            library.manuallyPaused = true
-            try await Task.sleep(for: .seconds(3))
-            result["pausedFootprintMiB"] = footprintMiB() as Any? ?? NSNull()
-            result["pausedResourcesReleased"] = library.renderers.allSatisfy {
-                !$0.hasLiveResources
+            if let scene = renderer.scene {
+                let repeats = min(10, max(1, Int(argument("--pause-cycles") ?? "1") ?? 1))
+                var windows: [[String: Any]] = []
+                var retained = true
+                var visible = true
+                for _ in 0..<repeats {
+                    windows.append(try await desktopWindow(scene, phase: "playing"))
+                    library.manuallyPaused = true
+                    try await Task.sleep(for: .milliseconds(350))
+                    windows.append(try await desktopWindow(scene, phase: "paused"))
+                    retained = retained && renderer.scene === scene
+                    visible = visible && renderer.window.isVisible
+                    library.manuallyPaused = false
+                    try await Task.sleep(for: .milliseconds(350))
+                    windows.append(try await desktopWindow(scene, phase: "resumed"))
+                }
+                result["desktopPauseWindows"] = windows
+                result["pausedPlayerRetained"] = retained && renderer.scene === scene
+                result["pausedWindowVisible"] = visible
+            } else {
+                library.manuallyPaused = true
+                try await Task.sleep(for: .seconds(3))
+                result["pausedFootprintMiB"] = footprintMiB() as Any? ?? NSNull()
+                result["pausedResourcesReleased"] = !renderer.hasLiveResources
+                library.manuallyPaused = false
+                try await Task.sleep(for: .seconds(2))
             }
-            library.manuallyPaused = false
-            try await Task.sleep(for: .seconds(2))
             result["statusAfterResume"] = library.playbackStatus.technicalTitle
             result["resumedResources"] =
                 !library.renderers.isEmpty && library.renderers.allSatisfy { $0.hasLiveResources }
+            let startedRenderers = library.renderers
             library.stop()
+            result["stoppedResourcesReleased"] = startedRenderers.allSatisfy {
+                !$0.hasLiveResources
+            }
         } catch {
             result["error"] = error.localizedDescription
             library.stop()

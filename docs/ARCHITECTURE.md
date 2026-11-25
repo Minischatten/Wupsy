@@ -47,6 +47,31 @@ the still and reports readiness. WSS animation starts its normal draw loop
 and elapsed clock independently of that callback, including on an occluded
 desktop where GPU frames can complete without a presentation acknowledgment.
 
+### Native desktop pause
+
+Manual WSS pause keeps the ordered desktop window, player, prepared resources
+and Metal view. The draw gate closes before drawable acquisition. Submitted GPU
+work drains asynchronously. A bounded history tracks scene time and, for Trail,
+simulation state by frame ID. The newest positive presentation timestamp during
+the drain selects the frozen state. A 200 ms deadline discards outstanding
+presentation metadata without waiting on the main thread. A pause with no
+confirmed frame falls back to the scene clock. Stop and system resource relief
+retain the teardown path.
+
+Resume uses the same view and encodes the first new frame at the frozen time.
+The Trail anchor is rebased to the current pointer while history, emission epoch
+and sequence survive. Pause drops late callbacks by discarding their frame IDs
+when the drain ends. The collector suppresses unfinished windows during the
+drain and resets on stabilization. A settled paused player keeps its session
+and target FPS and collects no frame samples. The CLI benchmark records equal
+two-second playing, paused and resumed windows. Full Stop is measured
+separately for resource release.
+
+A new Apply while the old desktop remains frozen waits until Resume or Stop.
+Editor and Library previews keep their own playback behavior. Section 1 does
+not restore a lost surface after a display or system event. Other media kinds
+retain the original resource-release pause behavior.
+
 ### Apply outcomes
 
 Library.apply starts an external WallpaperApplyRequest, whose outcome resolves exactly once. accepted means preparation and synchronous renderer startup completed for every current target display and ownership was handed to runtime; it does not promise a first visible frame or continued media health. failed covers preparation/validation/no-display/startup errors and stops partial renderer sets. superseded covers a newer apply, Stop, shutdown or caller cancellation; obsolete callbacks cannot affect successors.

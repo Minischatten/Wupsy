@@ -53,6 +53,97 @@ import XCTest
         XCTAssertFalse(previous.hasLiveResources)
     }
 
+    func testDesktopPauseKeepsVisiblePlayerAndDefersApply() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        let renderer = try XCTUnwrap(library.renderers.first)
+        let player = try XCTUnwrap(renderer.scene as? WSSStaticPlayer)
+        let view = player.view
+        let collector = try XCTUnwrap(player.startMeasuring())
+        for _ in 0..<120 where collector.snapshot().frames == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(collector.snapshot().frames, 0)
+        library.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(250))
+        let frozen = player.elapsed
+        _ = player.performanceSnapshot()
+        let completed = collector.snapshot()
+        for _ in 0..<5 { view.draw() }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(player.elapsed, frozen)
+        XCTAssertEqual(collector.snapshot(), completed)
+        XCTAssertTrue(renderer.window.isVisible)
+        XCTAssertTrue(renderer.scene === player)
+        XCTAssertTrue(player.view === view)
+        let paused = try XCTUnwrap(player.performanceSnapshot())
+        let frames = try XCTUnwrap(paused.frameWindow)
+        XCTAssertEqual(paused.status, .paused)
+        XCTAssertEqual(frames.submissions, 0)
+        XCTAssertEqual(frames.presentedFPS, 0)
+        XCTAssertEqual(frames.gpuCompletionsPerSecond, 0)
+        XCTAssertNil(frames.averageCPUMilliseconds)
+        XCTAssertNil(frames.averageGPUMilliseconds)
+
+        library.manuallyPaused = false
+        for _ in 0..<120 where collector.snapshot().frames < completed.frames + 3 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThanOrEqual(collector.snapshot().frames, completed.frames + 3)
+        XCTAssertTrue(renderer.scene === player)
+        XCTAssertGreaterThan(player.elapsed, frozen)
+        library.manuallyPaused = true
+        library.manuallyPaused = false
+        library.manuallyPaused = true
+        let replaced = library.apply(fixture.image)
+        let queued = library.apply(fixture.secondImage)
+        guard case .superseded = await replaced.outcome else {
+            return XCTFail("Expected the newer deferred apply to replace the first")
+        }
+        XCTAssertTrue(library.renderers.first === renderer)
+        XCTAssertEqual(library.active?.id, fixture.animatedScene.id)
+        XCTAssertTrue(renderer.window.isVisible)
+        library.manuallyPaused = false
+        try await accepted(queued)
+        XCTAssertEqual(library.active?.id, fixture.secondImage.id)
+        XCTAssertFalse(renderer.hasLiveResources)
+
+        try await accepted(library.apply(fixture.animatedScene))
+        let last = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = true
+        let cancelled = library.apply(fixture.image)
+        library.stop()
+        guard case .superseded = await cancelled.outcome else {
+            return XCTFail("Expected Stop to cancel the deferred apply")
+        }
+        XCTAssertFalse(last.hasLiveResources)
+        XCTAssertFalse(last.window.isVisible)
+    }
+
+    func testRetainedDesktopPauseCanStillReleaseUnderSystemPolicy() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        let renderer = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = true
+        XCTAssertTrue(renderer.hasFrozenScene)
+        var conditions = PlaybackConditions()
+        conditions.manual = true
+        conditions.memoryPressure = true
+        XCTAssertEqual(conditions.reason(conserve: false, pauseOnBattery: false), .manual)
+        XCTAssertEqual(conditions.systemReason(conserve: false, pauseOnBattery: false), .memory)
+        renderer.setPaused(true, retainingScene: false)
+        XCTAssertFalse(renderer.hasLiveResources)
+        XCTAssertFalse(renderer.window.isVisible)
+        await renderer.stopAndDrainForMaintenance()
+        XCTAssertTrue(renderer.stopped)
+    }
+
     func testAnimatedDesktopTransitionClockDoesNotWaitForPresentation() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }

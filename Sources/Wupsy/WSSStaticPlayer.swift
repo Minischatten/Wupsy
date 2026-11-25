@@ -1,4 +1,5 @@
 import MetalKit
+import os
 
 @MainActor final class WSSStaticPlayer: NSObject, ScenePlaybackSession, MTKViewDelegate {
     private(set) var resources: WSSStaticResources
@@ -41,7 +42,8 @@ import MetalKit
         return ScenePerformanceSnapshot(
             sessionID: sessionID, status: rendererStatus, targetDrawableSize: view.drawableSize,
             submittedDrawableSize: metrics.submittedDrawableSize, completions: metrics.snapshot(),
-            targetFPS: view.preferredFramesPerSecond, frameWindow: metrics.takeFrameWindow())
+            targetFPS: view.preferredFramesPerSecond,
+            frameWindow: pauseSettling ? nil : metrics.takeFrameWindow())
     }
 
     func metalAllocation() -> PerformanceMemory.DeviceAllocation? {
@@ -58,6 +60,14 @@ import MetalKit
     private(set) var resolution: SceneRenderResolution
     private var stopped = false
     private var paused = true
+    private let desktopPlayback: Bool
+    private(set) var desktopFrozen = false
+    private var pauseSettling = false
+    private var resumeAtFrozenFrame = false
+    private var resumeNeedsTrailAnchor = false
+    private var presentationHistory = WSSDesktopFrameHistory()
+    private let desktopGPU = OSAllocatedUnfairLock(initialState: (count: 0, draining: false))
+    private var settleTask: Task<Void, Never>?
     private let pointerProvider: (() -> SIMD2<Float>?)?
     private var projection: WSSRenderProjection
     private let inFlight = DispatchSemaphore(value: 2)
@@ -91,12 +101,14 @@ import MetalKit
         resolution: SceneRenderResolution, offset: Double,
         projection: WSSRenderProjection = .cover,
         pointerProvider: (() -> SIMD2<Float>?)? = nil,
+        desktopPlayback: Bool = false,
         onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
         onFirstFramePresented: (@MainActor () -> Void)? = nil, onError: @escaping (String) -> Void
     ) {
         self.resources = resources
         self.projection = projection
         self.pointerProvider = pointerProvider
+        self.desktopPlayback = desktopPlayback
         rippleContext = WSSRippleRenderContext(device: resources.device)
         lightingContext = WSSStormLightingRenderContext(device: resources.device)
         self.scale = scale
@@ -167,14 +179,31 @@ import MetalKit
     }
     func play() {
         guard !stopped else { return }
-        if paused { resetPerformanceWindow() }
+        let wasPaused = paused
         paused = false
-        trailContext.reset()
-        clock.play(now: ProcessInfo.processInfo.systemUptime)
+        if desktopFrozen {
+            finishDesktopPause()
+            desktopFrozen = false
+            presentationHistory.discardPending()
+            resumeAtFrozenFrame = true
+            resumeNeedsTrailAnchor = true
+        } else {
+            trailContext.reset()
+            clock.play(now: ProcessInfo.processInfo.systemUptime)
+        }
+        if wasPaused { resetPerformanceWindow() }
         let onDemand = !resources.isAnimated
         view.enableSetNeedsDisplay = onDemand
         view.isPaused = onDemand
         view.needsDisplay = true
+        if resumeAtFrozenFrame {
+            Task { @MainActor [weak self] in
+                guard let self, !stopped, !desktopFrozen, resumeAtFrozenFrame,
+                    view.window?.isVisible == true
+                else { return }
+                view.draw()
+            }
+        }
     }
     func playFromStill() {
         // The still protects the first visible frame. An occluded desktop
@@ -192,6 +221,61 @@ import MetalKit
         view.enableSetNeedsDisplay = true
         view.needsDisplay = true
     }
+    func pauseDesktop() {
+        guard desktopPlayback, !stopped, !desktopFrozen else { return }
+        desktopFrozen = true
+        paused = true
+        resumeAtFrozenFrame = false
+        clock.freeze(at: presentationHistory.confirmed?.time ?? elapsed)
+        view.isPaused = true
+        view.enableSetNeedsDisplay = false
+        pauseSettling = true
+        let gpuIdle = desktopGPU.withLock { state in
+            state.draining = true
+            return state.count == 0
+        }
+        if gpuIdle, !presentationHistory.hasPending {
+            finishDesktopPause()
+        } else {
+            // Hidden or invalidated drawables need not report presentation.
+            settleTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+                guard let self else { return }
+                presentationHistory.discardPending()
+                settleDesktopPauseIfReady()
+            }
+        }
+        performanceInvalidated?()
+    }
+
+    private func finishDesktopPause() {
+        guard pauseSettling else { return }
+        pauseSettling = false
+        desktopGPU.withLock { $0.draining = false }
+        settleTask?.cancel()
+        settleTask = nil
+        presentationHistory.discardPending()
+        if let frame = presentationHistory.confirmed {
+            clock.freeze(at: frame.time)
+            if let trail = frame.trail { trailContext.restore(trail) }
+        }
+        resetPerformanceWindow()
+    }
+
+    private func settleDesktopPauseIfReady() {
+        if pauseSettling, !presentationHistory.hasPending,
+            desktopGPU.withLock({ $0.count == 0 })
+        {
+            finishDesktopPause()
+        }
+    }
+
+    private func desktopFramePresented(_ id: UInt64, at hostTime: Double) {
+        guard !stopped else { return }
+        if presentationHistory.presented(id, at: hostTime) { confirmFirstPresentation() }
+        settleDesktopPauseIfReady()
+    }
+
     func currentPointer() -> SIMD2<Float>? {
         if let pointerProvider { return pointerProvider() }
         return view.window?.screen.flatMap { screen in
@@ -201,6 +285,9 @@ import MetalKit
         }
     }
     func stop() {
+        settleTask?.cancel()
+        settleTask = nil
+        presentationHistory = WSSDesktopFrameHistory()
         trailContext.reset()
         stormContext.reset()
         lightingContext.discardResources()
@@ -231,7 +318,7 @@ import MetalKit
         view.needsDisplay = true
     }
     private func resize() {
-        guard !stopped else { return }
+        guard !stopped, !desktopFrozen else { return }
         let bounds = view.bounds.size
         let backing =
             view.window != nil
@@ -247,8 +334,9 @@ import MetalKit
     nonisolated func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     nonisolated func draw(in view: MTKView) { MainActor.assumeIsolated { drawFrame() } }
     private func drawFrame() {
+        guard !stopped, !desktopFrozen else { return }
         resize()
-        guard !stopped, inFlight.wait(timeout: .now()) == .success else { return }
+        guard inFlight.wait(timeout: .now()) == .success else { return }
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
             let command = resources.queue.makeCommandBuffer()
         else {
@@ -261,8 +349,13 @@ import MetalKit
         pass.colorAttachments[0].clearColor = MTLClearColorMake(
             Double(background.x), Double(background.y), Double(background.z), 1)
         pass.colorAttachments[0].storeAction = .store
+        let firstResumeFrame = resumeAtFrozenFrame
         let time = elapsed
         let pointer = resources.trail == nil || paused ? nil : currentPointer()
+        if resumeNeedsTrailAnchor, let pointer {
+            trailContext.rebase(time: time, pointer: pointer)
+            resumeNeedsTrailAnchor = false
+        }
         let metrics = metrics
         let encoding = metrics?.beginEncoding()
         do {
@@ -270,7 +363,8 @@ import MetalKit
                 command: command, descriptor: pass, size: view.drawableSize, time: time,
                 rippleContext: rippleContext, trailContext: trailContext,
                 pointer: pointer,
-                projection: projection, advanceTrail: !paused,
+                projection: projection,
+                advanceTrail: !paused && !firstResumeFrame && !resumeNeedsTrailAnchor,
                 stormContext: stormContext,
                 lightingContext: lightingContext)
         } catch {
@@ -280,7 +374,20 @@ import MetalKit
             onError(error.localizedDescription)
             return
         }
+        if firstResumeFrame {
+            resumeAtFrozenFrame = false
+            clock.play(now: ProcessInfo.processInfo.systemUptime)
+        }
         if let encoding { metrics?.encoded(encoding) }
+        let desktopFrameID: UInt64?
+        if desktopPlayback {
+            desktopFrameID = presentationHistory.submit(
+                .init(
+                    time: time, trail: frameResources.trail == nil ? nil : trailContext.snapshot()))
+            desktopGPU.withLock { $0.count += 1 }
+        } else {
+            desktopFrameID = nil
+        }
         let semaphore = inFlight
         let retryTransitionFrame =
             transitionStillPending && !resources.isAnimated && transitionDrawRetries > 0
@@ -290,11 +397,29 @@ import MetalKit
         ) {
             semaphore.signal()
         }
-        command.addCompletedHandler { [frameResources] buffer in
+        let desktopGPU = desktopGPU
+        command.addCompletedHandler { [weak self, frameResources] buffer in
             _ = frameResources  // Retain the immutable scene/resources through GPU completion.
             complete(buffer)
+            if desktopFrameID != nil {
+                let drained = desktopGPU.withLock { state in
+                    state.count -= 1
+                    return state.draining && state.count == 0
+                }
+                if drained {
+                    Task { @MainActor [weak self] in self?.settleDesktopPauseIfReady() }
+                }
+            }
         }
-        if onFirstFramePresented != nil {
+        if let desktopFrameID {
+            drawable.addPresentedHandler { [weak self] drawable in
+                let time = drawable.presentedTime
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    desktopFramePresented(desktopFrameID, at: time)
+                }
+            }
+        } else if onFirstFramePresented != nil {
             drawable.addPresentedHandler { [weak self] drawable in
                 self?.receivePresentation(at: drawable.presentedTime)
             }
@@ -332,7 +457,8 @@ import MetalKit
                 }
             } else if retryTransitionFrame {
                 Task { @MainActor in
-                    guard let self, !self.stopped, self.transitionStillPending else { return }
+                    guard let self, !self.stopped, !self.desktopFrozen, self.transitionStillPending
+                    else { return }
                     self.view.draw()
                 }
             }
@@ -344,12 +470,16 @@ import MetalKit
         // Zero also covers dropped frames. GPU completion alone is insufficient.
         guard presentedTime > 0 else { return nil }
         return Task { @MainActor [weak self] in
-            guard let self, !stopped else { return }
-            let callback = onFirstFramePresented
-            onFirstFramePresented = nil
-            transitionStillPending = false
-            callback?()
+            self?.confirmFirstPresentation()
         }
+    }
+
+    private func confirmFirstPresentation() {
+        guard !stopped else { return }
+        let callback = onFirstFramePresented
+        onFirstFramePresented = nil
+        transitionStillPending = false
+        callback?()
     }
 }
 

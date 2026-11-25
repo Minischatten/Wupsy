@@ -39,6 +39,7 @@ final class SceneMetrics: Sendable {
         let seconds: Double
         let gpu: Totals
         let cpuSamples: Int
+        let submissions: Int
         let cpuSeconds: Double
         let confirmedPresentations: Int
         let presentationWasIdle: Bool
@@ -169,6 +170,7 @@ final class SceneMetrics: Sendable {
                 startedWithPendingPresentation: submissions > state.presentationCallbacks)
             return FrameWindow(
                 seconds: seconds, gpu: window.gpu, cpuSamples: cpu.samples,
+                submissions: cpu.submissions,
                 cpuSeconds: cpu.seconds, confirmedPresentations: window.presentations,
                 presentationWasIdle: cpu.submissions == 0 && !window.startedWithPendingPresentation)
         }

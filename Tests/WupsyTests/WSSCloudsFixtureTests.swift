@@ -231,10 +231,11 @@ final class WSSCloudsFixtureTests: XCTestCase {
         }
         XCTAssertEqual(frames[0], frames[1])
         lib.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(250))
         let frozen = p.elapsed
         try await Task.sleep(for: .milliseconds(350))
         XCTAssertEqual(p.elapsed, frozen)
-        XCTAssertTrue(lib.renderers.allSatisfy { !$0.hasLiveResources })
+        XCTAssertTrue(lib.renderers.allSatisfy(\.hasFrozenScene))
         lib.manuallyPaused = false
         let resumed = try await helper.running(lib)
         XCTAssertGreaterThanOrEqual(resumed.elapsed, frozen - 0.02)

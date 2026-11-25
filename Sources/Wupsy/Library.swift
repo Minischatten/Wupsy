@@ -186,6 +186,7 @@ import SwiftUI
     private var conditions = PlaybackConditions()
     private var preparation: Task<Void, Never>?
     private var generation = UUID()
+    private var deferredFrozenApply: (wallpaper: Wallpaper, request: WallpaperApplyRequest)?
     private var pendingApply: WallpaperApplyRequest?
     private var transitionRequest: WallpaperApplyRequest?
     private var transitionTask: Task<Void, Never>?
@@ -669,12 +670,29 @@ import SwiftUI
                 request, ProductText.wallpaperMissing.text)
             return request
         }
+        if manuallyPaused, !renderers.isEmpty, renderers.allSatisfy(\.hasFrozenScene) {
+            deferredFrozenApply?.request.finish(.superseded)
+            deferredFrozenApply = (item, request)
+            request.cancel = { [weak self, weak request] in
+                guard let self, let request, deferredFrozenApply?.request === request else {
+                    return
+                }
+                deferredFrozenApply = nil
+                request.finish(.superseded)
+            }
+            return request
+        }
+        startApply(item, request: request)
+        return request
+    }
+
+    private func startApply(_ item: Wallpaper, request: WallpaperApplyRequest) {
         if pauseReason == nil, !renderers.isEmpty,
             item.kind == .image || item.kind == .scene,
             renderers.allSatisfy({ $0.wallpaper.kind == .image || $0.wallpaper.kind == .scene })
         {
             prepareTransition(to: item, request: request)
-            return request
+            return
         }
         stopPlayback(preserveSelection: true)
         pendingApply = request
@@ -684,8 +702,6 @@ import SwiftUI
         }
         active = item
         updatePolicy()
-        return request
-
     }
 
     private func cancelTransition() {
@@ -1143,6 +1159,8 @@ import SwiftUI
         replacementPreparationID = nil
         pendingApply?.finish(.superseded)
         pendingApply = nil
+        deferredFrozenApply?.request.finish(.superseded)
+        deferredFrozenApply = nil
         if !preserveSelection { defaults.removeObject(forKey: "activeWallpaper") }
         generation = UUID()
         preparation?.cancel()
@@ -1227,7 +1245,17 @@ import SwiftUI
             preparation = nil
             preparing = false
         }
-        for renderer in renderers { renderer.setPaused(reason != nil) }
+        let retainingScenes =
+            manuallyPaused
+            && conditions.systemReason(conserve: conserve, pauseOnBattery: pauseOnBattery) == nil
+        for renderer in renderers {
+            renderer.setPaused(reason != nil, retainingScene: retainingScenes)
+        }
+        if reason == nil, let deferred = deferredFrozenApply {
+            deferredFrozenApply = nil
+            startApply(currentPlaybackRecord(deferred.wallpaper), request: deferred.request)
+            return
+        }
         guard let active else {
             playbackStatus = .ready
             return

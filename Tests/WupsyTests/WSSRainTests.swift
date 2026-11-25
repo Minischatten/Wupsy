@@ -332,10 +332,11 @@ final class WSSRainTests: XCTestCase {
         }
         XCTAssertEqual(frames[0], frames[1])
         lib.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(250))
         let frozen = player.elapsed
         try await Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(player.elapsed, frozen)
-        XCTAssertTrue(lib.renderers.allSatisfy { !$0.hasLiveResources })
+        XCTAssertTrue(lib.renderers.allSatisfy(\.hasFrozenScene))
         lib.manuallyPaused = false
         let resumed = try await helper.running(lib)
         XCTAssertGreaterThanOrEqual(resumed.elapsed, frozen - 0.02)

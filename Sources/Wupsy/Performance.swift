@@ -76,7 +76,9 @@ struct PlaybackConditions {
     var hot = false
     var memoryPressure = false
     func reason(conserve: Bool, pauseOnBattery: Bool) -> PauseReason? {
-        if manual { return .manual }
+        manual ? .manual : systemReason(conserve: conserve, pauseOnBattery: pauseOnBattery)
+    }
+    func systemReason(conserve: Bool, pauseOnBattery: Bool) -> PauseReason? {
         if sleeping { return .sleep }
         if inactive { return .session }
         if memoryPressure { return .memory }

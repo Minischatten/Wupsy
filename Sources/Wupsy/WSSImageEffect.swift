@@ -152,6 +152,10 @@ struct WSSPlaybackClock {
         if let start { offset += max(0, now - start) }
         start = nil
     }
+    mutating func freeze(at time: Double) {
+        offset = time
+        start = nil
+    }
     func time(now: Double) -> Double { offset + (start.map { max(0, now - $0) } ?? 0) }
 }
 

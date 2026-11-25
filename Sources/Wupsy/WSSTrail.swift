@@ -62,6 +62,7 @@ struct WSSTrailSample: Equatable {
     var position: SIMD2<Float>
     var birth: Double
     var colorCoordinate: Float
+    var startsSegment = false
 }
 struct WSSTrailVertex {
     var position: SIMD2<Float>
@@ -76,6 +77,7 @@ struct WSSTrailSimulation {
     private var previous: (time: Double, pointer: SIMD2<Float>)?
     private var epoch: Double = 0
     private var nextIndex: Int = 0
+    private var startsSegment = false
     init(configuration: WSSTrailConfiguration) throws {
         try configuration.validate()
         self.configuration = configuration
@@ -84,12 +86,18 @@ struct WSSTrailSimulation {
         samples.removeAll()
         previous = nil
         nextIndex = 0
+        startsSegment = false
     }
     private func random(_ index: Int) -> Float {
         var x = UInt32(truncatingIfNeeded: index) &+ configuration.seed &* 747_796_405
         x = (x ^ (x >> 16)) &* 2_246_822_519
         x = (x ^ (x >> 13)) &* 3_266_489_917
         return Float((x ^ (x >> 16)) >> 8) / Float(0xffffff)
+    }
+    mutating func rebase(time: Double, pointer: SIMD2<Float>) {
+        guard let old = previous else { return }
+        startsSegment = startsSegment || old.pointer != pointer
+        previous = (time, pointer)
     }
     mutating func update(time: Double, pointer: SIMD2<Float>?) {
         guard time.isFinite, abs(time) < 1e12, let p = pointer, p.x.isFinite, p.y.isFinite else {
@@ -121,7 +129,9 @@ struct WSSTrailSimulation {
             samples.append(
                 .init(
                     position: old.pointer + (p - old.pointer) * f,
-                    birth: birth, colorCoordinate: random(nextIndex)))
+                    birth: birth, colorCoordinate: random(nextIndex),
+                    startsSegment: startsSegment))
+            startsSegment = false
             nextIndex += 1
         }
         previous = (time, p)
@@ -135,6 +145,7 @@ struct WSSTrailSimulation {
         for i in stride(from: samples.count - 2, through: 0, by: -1) {
             let older = samples[i]
             let newer = samples[i + 1]
+            if newer.startsSegment { continue }
             let segment = simd_distance(older.position, newer.position)
             if distance + segment > limit {
                 let fraction = (limit - distance) / segment
@@ -165,10 +176,14 @@ struct WSSTrailSimulation {
         }
         var result: [WSSTrailVertex] = []
         for i in 0..<(samples.count - 1) {
+            let next = samples[i + 1]
+            guard !next.startsSegment else { continue }
             let p = samples[i].position
-            let q = samples[i + 1].position
-            let before = samples[max(0, i - 1)].position
-            let after = samples[min(samples.count - 1, i + 2)].position
+            let q = next.position
+            let before = i > 0 && !samples[i].startsSegment ? samples[i - 1].position : p
+            let after =
+                i + 2 < samples.count && !samples[i + 2].startsSegment
+                ? samples[i + 2].position : q
             func normal(_ v: SIMD2<Float>) -> SIMD2<Float> {
                 let len = simd_length(v)
                 return len > 1e-5 ? SIMD2(-v.y, v.x) / len * c.width * 0.5 : .zero

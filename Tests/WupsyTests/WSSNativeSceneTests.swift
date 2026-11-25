@@ -284,7 +284,8 @@ final class WSSNativeSceneTests: XCTestCase {
             lib.sceneRenderResolution = .hiDPI
             XCTAssertGreaterThanOrEqual(p.elapsed, before)
             lib.manuallyPaused = true
-            XCTAssertTrue(lib.renderers.allSatisfy { !$0.hasLiveResources })
+            XCTAssertTrue(lib.renderers.allSatisfy(\.hasFrozenScene))
+            try await Task.sleep(for: .milliseconds(250))
             let paused = p.elapsed
             try await Task.sleep(for: .milliseconds(150))
             XCTAssertEqual(p.elapsed, paused)
