@@ -66,15 +66,17 @@ import XCTest
             try await Task.sleep(for: .milliseconds(10))
         }
         let host = try XCTUnwrap(preview(in: hosting))
+        host.surface.measuresPerformance = true
         let player = try XCTUnwrap(host.surface.player)
+        let metrics = try XCTUnwrap(player.metrics)
         XCTAssertTrue(player.view.isPaused)
         // Simulate a visible view that no longer draws from AppKit invalidation.
         player.view.enableSetNeedsDisplay = false
         player.view.draw()
-        for _ in 0..<100 where player.metrics.snapshot().frames == 0 {
+        for _ in 0..<100 where metrics.snapshot().frames == 0 {
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertGreaterThan(player.metrics.snapshot().frames, 0)
+        XCTAssertGreaterThan(metrics.snapshot().frames, 0)
         let prepared = player.resources
         var pixels = try WSSStarfieldTests().render(prepared)
         let colors: [WSSTrailColor] = [
@@ -83,7 +85,7 @@ import XCTest
         for role: WSSStarfieldColorRole in [.stars, .milkyWay] {
             doc.beginStarfieldColorInteraction(id, role: role)
             for color in colors {
-                let frames = player.metrics.snapshot().frames
+                let frames = metrics.snapshot().frames
                 let previous = doc.state.workingRevision
                 try doc.setStarfieldColor(color, layer: id, role: role, undo: false)
                 let revision = doc.state.workingRevision
@@ -98,10 +100,10 @@ import XCTest
                 XCTAssertTrue(player.resources === resources)
                 XCTAssertTrue(resources.starfield === prepared.starfield)
                 XCTAssertTrue(resources.milkyWay === prepared.milkyWay)
-                for _ in 0..<100 where player.metrics.snapshot().frames == frames {
+                for _ in 0..<100 where metrics.snapshot().frames == frames {
                     try await Task.sleep(for: .milliseconds(10))
                 }
-                XCTAssertGreaterThan(player.metrics.snapshot().frames, frames)
+                XCTAssertGreaterThan(metrics.snapshot().frames, frames)
                 let updated = try WSSStarfieldTests().render(player.resources)
                 XCTAssertNotEqual(updated, pixels, "Expected new pixels for \(role) and \(color)")
                 pixels = updated
@@ -113,7 +115,7 @@ import XCTest
         var current = player
         for enabled in [true, false, true, false] {
             let previous = current
-            let frames = previous.metrics.snapshot().frames
+            let frames = try XCTUnwrap(previous.metrics).snapshot().frames
             let elapsed = previous.elapsed
             try doc.changeStarfield(id, name: "Twinkle") { $0.starfield.twinkleEnabled = enabled }
             await doc.waitForPreview()
@@ -134,11 +136,12 @@ import XCTest
             XCTAssertEqual(current.resources.scene.isAnimated, enabled)
             XCTAssertEqual(current.view.isPaused, !enabled)
             XCTAssertEqual(current.view.enableSetNeedsDisplay, !enabled)
-            let targetFrames = enabled ? current.metrics.snapshot().frames + 3 : frames + 1
-            for _ in 0..<200 where current.metrics.snapshot().frames < targetFrames {
+            let currentMetrics = try XCTUnwrap(current.metrics)
+            let targetFrames = enabled ? currentMetrics.snapshot().frames + 3 : frames + 1
+            for _ in 0..<200 where currentMetrics.snapshot().frames < targetFrames {
                 try await Task.sleep(for: .milliseconds(10))
             }
-            XCTAssertGreaterThanOrEqual(current.metrics.snapshot().frames, targetFrames)
+            XCTAssertGreaterThanOrEqual(currentMetrics.snapshot().frames, targetFrames)
             guard enabled else { continue }
             try await verifyDriftAndColorWhileRunning(id: id, host: host, player: current)
             for color in colors.prefix(2) {
@@ -168,11 +171,12 @@ import XCTest
                 XCTAssertGreaterThanOrEqual(resumed, frozen)
                 XCTAssertLessThanOrEqual(
                     resumed, frozen + (ProcessInfo.processInfo.systemUptime - requested))
-                let afterResume = current.metrics.snapshot().frames
-                for _ in 0..<200 where current.metrics.snapshot().frames < afterResume + 3 {
+                let resumedMetrics = try XCTUnwrap(current.metrics)
+                let afterResume = resumedMetrics.snapshot().frames
+                for _ in 0..<200 where resumedMetrics.snapshot().frames < afterResume + 3 {
                     try await Task.sleep(for: .milliseconds(10))
                 }
-                XCTAssertGreaterThanOrEqual(current.metrics.snapshot().frames, afterResume + 3)
+                XCTAssertGreaterThanOrEqual(resumedMetrics.snapshot().frames, afterResume + 3)
 
                 try doc.setStarfieldColor(
                     color, layer: id, role: .milkyWay)
@@ -188,6 +192,7 @@ import XCTest
     private func verifyDriftAndColorWhileRunning(
         id: WSSLayerID, host: WSSPreviewHost, player: WSSStaticPlayer
     ) async throws {
+        let metrics = try XCTUnwrap(player.metrics)
         let view = player.view
         XCTAssertEqual(doc.starfieldLayer(id)?.starfield.driftX, 0)
         XCTAssertEqual(doc.starfieldLayer(id)?.starfield.driftY, 0)
@@ -212,11 +217,11 @@ import XCTest
             XCTAssertTrue(player.view === view)
             XCTAssertFalse(view.isPaused)
             XCTAssertFalse(view.enableSetNeedsDisplay)
-            let target = player.metrics.snapshot().frames + 3
-            for _ in 0..<200 where player.metrics.snapshot().frames < target {
+            let target = metrics.snapshot().frames + 3
+            for _ in 0..<200 where metrics.snapshot().frames < target {
                 try await Task.sleep(for: .milliseconds(10))
             }
-            XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, target)
+            XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, target)
         }
         try await awaitFrames()
         let previous = doc.state.workingRevision

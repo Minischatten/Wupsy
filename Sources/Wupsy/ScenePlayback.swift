@@ -68,7 +68,13 @@ struct PreparedScenePlayback {
 @MainActor protocol ScenePlaybackSession: AnyObject {
     var view: MTKView { get }
     var elapsed: Double { get }
-    var metrics: SceneMetrics { get }
+    var sessionID: UUID { get }
+    var rendererStatus: SceneRendererStatus { get }
+    var metrics: SceneMetrics? { get }
+    @discardableResult func startMeasuring() -> SceneMetrics?
+    func stopMeasuring()
+    func performanceSnapshot() -> ScenePerformanceSnapshot?
+    func metalAllocation() -> PerformanceMemory.DeviceAllocation?
     var diagnostics: ScenePlaybackDiagnostics { get }
     func play()
     func stop()

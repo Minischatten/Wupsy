@@ -222,7 +222,7 @@ final class WSSNativeSceneTests: XCTestCase {
     @MainActor func running(_ lib: Library) async throws -> WSSStaticPlayer {
         for _ in 0..<250 {
             if let p = lib.renderers.first?.scene as? WSSStaticPlayer,
-                p.metrics.snapshot().frames > 0
+                let metrics = p.startMeasuring(), metrics.snapshot().frames > 0
             {
                 return p
             }
@@ -242,7 +242,12 @@ final class WSSNativeSceneTests: XCTestCase {
             defaults.set(false, forKey: "pauseOnBattery")
             defaults.set(false, forKey: "allDisplays")
             let storage = root.appendingPathComponent("Support\(i)/library.json")
-            let lib = Library(storage: storage, defaults: defaults)
+            let lib = Library(
+                storage: storage, defaults: defaults,
+                rendererStart: { renderer, _ in
+                    renderer.measuresPerformance = true
+                    renderer.setPaused(false)
+                })
             defer { lib.stop() }
             lib.importURLs([source])
             for _ in 0..<300 {

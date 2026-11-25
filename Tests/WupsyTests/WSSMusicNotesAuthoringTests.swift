@@ -187,11 +187,12 @@ import XCTest
                 return XCTFail("Missing preview music notes")
             }
             XCTAssertEqual(layer.notes.color, color)
-            let target = player.metrics.snapshot().frames + 2
-            for _ in 0..<150 where player.metrics.snapshot().frames < target {
+            let metrics = try XCTUnwrap(player.startMeasuring())
+            let target = metrics.snapshot().frames + 2
+            for _ in 0..<150 where metrics.snapshot().frames < target {
                 try await Task.sleep(for: .milliseconds(10))
             }
-            XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, target)
+            XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, target)
         }
 
         let steady = try WSSStormLightingRenderTests().render(player.resources, time: 1.5).0

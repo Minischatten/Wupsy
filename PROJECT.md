@@ -66,6 +66,13 @@ or resume, desktop widget editing, Settings, a manual update check, About and
 Quit. Picture quality, scene resolution, frame rate and Stop remain in the
 Library window.
 
+## WSS performance diagnosis
+
+Stage 1 provides explicit per-player measurement and CLI benchmark reporting.
+Ordinary playback starts with collection disabled. The later Desktop and Editor
+diagnosis views will own activation while open, without an additional settings
+switch. See [measurement semantics and benchmark output](docs/ARCHITECTURE.md#wss-performance-measurement).
+
 ## Interface size
 
 The Settings window offers 100%, 125% and 150% under Appearance. Open it

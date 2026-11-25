@@ -239,7 +239,7 @@ final class WSSCloudsFixtureTests: XCTestCase {
         let resumed = try await helper.running(lib)
         XCTAssertGreaterThanOrEqual(resumed.elapsed, frozen - 0.02)
         XCTAssertLessThan(resumed.elapsed, frozen + 0.3)
-        XCTAssertGreaterThan(resumed.metrics.snapshot().frames, 0)
+        XCTAssertGreaterThan(try XCTUnwrap(resumed.metrics).snapshot().frames, 0)
         lib.remove(item)
         for _ in 0..<500 {
             if !lib.importing { break }

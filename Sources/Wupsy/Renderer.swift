@@ -43,6 +43,15 @@ enum RendererReadiness: Equatable {
     private(set) var web: WKWebView?
     private(set) var gif: GIFPlayer?
     private(set) var scene: (any ScenePlaybackSession)?
+    var measuresPerformance = false {
+        didSet {
+            if measuresPerformance {
+                scene?.startMeasuring()
+            } else {
+                scene?.stopMeasuring()
+            }
+        }
+    }
     private var preparedScene: PreparedScenePlayback?
     private var sceneTime = 0.0
     private var sceneRenderResolution: SceneRenderResolution
@@ -330,6 +339,7 @@ enum RendererReadiness: Equatable {
             onDiagnostic: { [weak self] diagnostic in self?.report(diagnostic) },
             onFirstFramePresented: onFirstFramePresented,
             onError: { [weak self] error in self?.report(.failure(error)) })
+        if measuresPerformance { player.startMeasuring() }
         scene = player
         if let transitionStill, let player = player as? WSSStaticPlayer {
             let container = NSView(frame: NSRect(origin: .zero, size: window.frame.size))

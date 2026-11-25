@@ -3,7 +3,42 @@ import MetalKit
 @MainActor final class WSSStaticPlayer: NSObject, ScenePlaybackSession, MTKViewDelegate {
     private(set) var resources: WSSStaticResources
     let view: MTKView
-    let metrics = SceneMetrics()
+    private(set) lazy var sessionID = UUID()
+    private(set) var metrics: SceneMetrics?
+    private var renderFailed = false
+
+    var rendererStatus: SceneRendererStatus {
+        if renderFailed { return .failed }
+        if stopped { return .stopped }
+        if paused { return .paused }
+        return resources.scene.isAnimated ? .running : .onDemand
+    }
+
+    @discardableResult
+    func startMeasuring() -> SceneMetrics? {
+        guard !stopped else { return nil }
+        if let metrics { return metrics }
+        let collector = SceneMetrics()
+        metrics = collector
+        return collector
+    }
+
+    func stopMeasuring() {
+        metrics?.deactivate()
+        metrics = nil
+    }
+
+    func performanceSnapshot() -> ScenePerformanceSnapshot? {
+        guard let metrics else { return nil }
+        return ScenePerformanceSnapshot(
+            sessionID: sessionID, status: rendererStatus, targetDrawableSize: view.drawableSize,
+            submittedDrawableSize: metrics.submittedDrawableSize, completions: metrics.snapshot())
+    }
+
+    func metalAllocation() -> PerformanceMemory.DeviceAllocation? {
+        guard metrics != nil else { return nil }
+        return PerformanceMemory.metalAllocation(for: resources.device)
+    }
     let trailContext = WSSTrailRenderContext()
     let stormContext = WSSStormRenderContext()
     let lightingContext: WSSStormLightingRenderContext
@@ -159,6 +194,7 @@ import MetalKit
         lightingContext.discardResources()
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         stopped = true
+        stopMeasuring()
         onFirstFramePresented = nil
         view.isPaused = true
         view.delegate = nil
@@ -222,6 +258,7 @@ import MetalKit
                 lightingContext: lightingContext)
         } catch {
             inFlight.signal()
+            renderFailed = true
             stop()
             onError(error.localizedDescription)
             return
@@ -244,18 +281,22 @@ import MetalKit
         }
         command.present(drawable)
         command.commit()
+        if let metrics {
+            metrics.submitted(width: drawable.texture.width, height: drawable.texture.height)
+        }
     }
 
     func frameCompletionHandler(
         retryTransitionFrame: Bool, releaseSlot: @escaping @Sendable () -> Void
     ) -> @Sendable (MTLCommandBuffer) -> Void {
         let metrics = metrics
-        return { [weak self] buffer in
-            metrics.completed(buffer)
+        return { [weak self, weak metrics] buffer in
+            metrics?.completed(buffer)
             releaseSlot()
             if buffer.status == .error {
                 Task { @MainActor in
                     guard let self, !self.stopped else { return }
+                    self.renderFailed = true
                     if let onDiagnostic = self.onDiagnostic {
                         onDiagnostic(.wssGPU)
                     } else {

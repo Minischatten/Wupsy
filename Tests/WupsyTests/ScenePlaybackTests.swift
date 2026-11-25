@@ -28,7 +28,9 @@ final class ScenePlaybackTests: XCTestCase {
         XCTAssertEqual(native.resolution, .standard)
         XCTAssertGreaterThanOrEqual(session.elapsed, 7)
         XCTAssertLessThan(session.elapsed, 8)
-        XCTAssertTrue(session.metrics === native.metrics)
+        XCTAssertNil(session.metrics)
+        let metrics = try XCTUnwrap(session.startMeasuring())
+        XCTAssertTrue(metrics === native.metrics)
         XCTAssertEqual(session.diagnostics.sourceWidth, 64)
         XCTAssertEqual(session.diagnostics.sourceHeight, 64)
         XCTAssertEqual(session.diagnostics.textureBytes, original.textureBytes)
@@ -114,18 +116,22 @@ final class ScenePlaybackTests: XCTestCase {
         let prepared = try await ScenePlayback.prepare(for: item)
         var errors: [String] = []
         let renderer = Renderer(
-            wallpaper: item, screen: screen, scenePlayback: prepared, onError: { errors.append($0) }
+            wallpaper: item, screen: screen, initiallyPaused: true, scenePlayback: prepared,
+            onError: { errors.append($0) }
         )
         defer { renderer.stop() }
+        renderer.measuresPerformance = true
+        renderer.setPaused(false)
         let session = try XCTUnwrap(renderer.scene)
+        let metrics = try XCTUnwrap(session.metrics)
         for _ in 0..<100 {
-            if session.metrics.snapshot().frames > 0 || !errors.isEmpty { break }
+            if metrics.snapshot().frames > 0 || !errors.isEmpty { break }
             try await Task.sleep(for: .milliseconds(20))
         }
         XCTAssertTrue(errors.isEmpty, errors.joined(separator: "; "))
-        XCTAssertGreaterThan(session.metrics.snapshot().frames, 0, root.lastPathComponent)
+        XCTAssertGreaterThan(metrics.snapshot().frames, 0, root.lastPathComponent)
         print(
-            "Playback boundary: \(root.lastPathComponent), \(session.metrics.snapshot().frames) live GPU frames"
+            "Playback boundary: \(root.lastPathComponent), \(metrics.snapshot().frames) live GPU frames"
         )
     }
 }

@@ -216,23 +216,30 @@ final class WSSCloudsTests: XCTestCase {
             p.stop()
             window.close()
         }
+        let metrics = try XCTUnwrap(p.startMeasuring())
         window.orderFront(nil)
         p.play()
         for _ in 0..<100 {
-            if p.metrics.snapshot().frames >= 3 { break }
+            if metrics.snapshot().frames >= 3 { break }
             try await Task.sleep(for: .milliseconds(20))
         }
-        XCTAssertGreaterThanOrEqual(p.metrics.snapshot().frames, 3)
+        XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, 3)
+        let measured = try XCTUnwrap(p.performanceSnapshot())
+        XCTAssertEqual(measured.status, .running)
+        XCTAssertEqual(
+            measured.submittedDrawableSize,
+            SceneRenderExtent(
+                width: Int(p.view.drawableSize.width), height: Int(p.view.drawableSize.height)))
         let before = p.elapsed
         p.setRenderResolution(.hiDPI)
         XCTAssertGreaterThanOrEqual(p.elapsed, before)
         p.stop()
         let time = p.elapsed
         try await Task.sleep(for: .milliseconds(150))
-        let frames = p.metrics.snapshot().frames
+        let frames = metrics.snapshot().frames
         try await Task.sleep(for: .milliseconds(150))
         XCTAssertEqual(p.elapsed, time)
-        XCTAssertEqual(p.metrics.snapshot().frames, frames)
+        XCTAssertEqual(metrics.snapshot().frames, frames)
     }
     func testMaskDecodeOrientationAndLayerOrder() throws {
         let rgba = Data([0, 71, 91, 255, 255, 81, 101, 255])

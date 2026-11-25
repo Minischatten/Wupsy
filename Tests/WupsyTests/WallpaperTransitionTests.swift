@@ -37,10 +37,11 @@ import XCTest
                 XCTAssertNotNil(current.window.contentView)
                 if item.id == fixture.animatedScene.id {
                     let player = try XCTUnwrap(current.scene)
-                    for _ in 0..<120 where player.metrics.snapshot().frames < 3 {
+                    let metrics = try XCTUnwrap(player.startMeasuring())
+                    for _ in 0..<120 where metrics.snapshot().frames < 3 {
                         try await Task.sleep(for: .milliseconds(20))
                     }
-                    XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, 3)
+                    XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, 3)
                     XCTAssertGreaterThan(player.elapsed, 0)
                 }
             } else {
@@ -77,24 +78,26 @@ import XCTest
             maxDimension: 128, fps: 30, resolution: .standard, offset: 0,
             onFirstFramePresented: { XCTFail("Detached view cannot present") },
             onError: { XCTFail($0) })
+        let detachedMetrics = try XCTUnwrap(detached.startMeasuring())
         detached.playFromStill()
         XCTAssertFalse(detached.view.isPaused)
         try await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(detached.metrics.snapshot().frames, 0)
+        XCTAssertEqual(detachedMetrics.snapshot().frames, 0)
         XCTAssertGreaterThan(detached.elapsed, 0)
         detached.stop()
 
         try await accepted(library.apply(fixture.image))
         try await accepted(library.apply(item))
         let desktop = try XCTUnwrap(library.renderers.first?.scene as? WSSStaticPlayer)
+        let metrics = try XCTUnwrap(desktop.startMeasuring())
         guard case .musicNotes(let loaded) = desktop.resources.scene.layers.first else {
             return XCTFail("Saved Music Notes layer missing from desktop resources")
         }
         XCTAssertEqual(loaded, notes)
-        for _ in 0..<120 where desktop.metrics.snapshot().frames < 3 {
+        for _ in 0..<120 where metrics.snapshot().frames < 3 {
             try await Task.sleep(for: .milliseconds(20))
         }
-        XCTAssertGreaterThanOrEqual(desktop.metrics.snapshot().frames, 3)
+        XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, 3)
         let time = desktop.elapsed
         XCTAssertGreaterThan(time, 0)
         XCTAssertFalse(desktop.view.isPaused)
@@ -106,13 +109,13 @@ import XCTest
         let paused = desktop.elapsed
         try await Task.sleep(for: .milliseconds(80))
         XCTAssertEqual(desktop.elapsed, paused)
-        let completed = desktop.metrics.snapshot().frames
+        let completed = metrics.snapshot().frames
         desktop.play()
-        for _ in 0..<100 where desktop.metrics.snapshot().frames <= completed {
+        for _ in 0..<100 where metrics.snapshot().frames <= completed {
             try await Task.sleep(for: .milliseconds(20))
         }
         XCTAssertGreaterThan(desktop.elapsed, paused)
-        XCTAssertGreaterThan(desktop.metrics.snapshot().frames, completed)
+        XCTAssertGreaterThan(metrics.snapshot().frames, completed)
     }
 
     func testFailureAndSupersessionKeepOldCoverageUntilNewestApply() async throws {

@@ -247,11 +247,14 @@ final class WSSFogTests: XCTestCase {
         }
         let host = try XCTUnwrap(preview(in: hosting))
 
+        host.surface.measuresPerformance = true
+
         func requireFrames(_ player: WSSStaticPlayer, target: Int) async throws {
-            for _ in 0..<150 where player.metrics.snapshot().frames < target {
+            let metrics = try XCTUnwrap(player.metrics)
+            for _ in 0..<150 where metrics.snapshot().frames < target {
                 try await Task.sleep(for: .milliseconds(10))
             }
-            XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, target)
+            XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, target)
         }
 
         for playing in [true, false, true] {
@@ -261,7 +264,7 @@ final class WSSFogTests: XCTestCase {
             }
             for visible in [false, true, false, true] {
                 let previous = try XCTUnwrap(host.surface.player)
-                let frames = previous.metrics.snapshot().frames
+                let frames = try XCTUnwrap(previous.metrics).snapshot().frames
                 let time = previous.elapsed
                 try doc.toggleVisibility(id)
                 await doc.waitForPreview()
@@ -283,9 +286,10 @@ final class WSSFogTests: XCTestCase {
                 if !playing { XCTAssertEqual(player.elapsed, time) }
                 let pixels = try renderer.render(player.resources, time: 2).0
                 XCTAssertEqual(pixels == visiblePixels, visible)
+                let metrics = try XCTUnwrap(player.metrics)
                 let target =
                     visible && playing
-                    ? player.metrics.snapshot().frames + 3
+                    ? metrics.snapshot().frames + 3
                     : (player === previous ? frames + 1 : 1)
                 try await requireFrames(player, target: target)
             }

@@ -45,6 +45,15 @@ struct WSSPreviewRenderPolicy: Equatable {
     // Local safety limit, intentionally not a product/format contract or preference.
     static let drawableLimit = 2560
     private(set) var player: WSSStaticPlayer?
+    var measuresPerformance = false {
+        didSet {
+            if measuresPerformance {
+                player?.startMeasuring()
+            } else {
+                player?.stopMeasuring()
+            }
+        }
+    }
     private var tracking: NSTrackingArea?
     private var pointer: SIMD2<Float>?
     var resetsTrailWithPointer = false
@@ -115,6 +124,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             offset: offset,
             projection: projection, pointerProvider: { [weak self] in self?.pointer },
             onError: { [weak self] text in self?.onError?(text) })
+        if measuresPerformance { player.startMeasuring() }
         self.player = player
         addSubview(player.view)
         player.view.frame = bounds

@@ -85,11 +85,12 @@ import XCTest
         let initial = try XCTUnwrap(surface.player)
         XCTAssertTrue(initial.resources.scene.isAnimated)
         func requireFrames(_ player: WSSStaticPlayer) async throws {
-            let target = player.metrics.snapshot().frames + 3
-            for _ in 0..<200 where player.metrics.snapshot().frames < target {
+            let metrics = try XCTUnwrap(player.startMeasuring())
+            let target = metrics.snapshot().frames + 3
+            for _ in 0..<200 where metrics.snapshot().frames < target {
                 try await Task.sleep(for: .milliseconds(10))
             }
-            XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, target)
+            XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, target)
         }
         try await requireFrames(initial)
         surface.transferPresentation {}
@@ -145,11 +146,12 @@ import XCTest
         XCTAssertTrue(visible.resources.storm === storm)
         XCTAssertGreaterThanOrEqual(visible.elapsed, time)
         XCTAssertFalse(visible.view.isPaused)
-        let target = visible.metrics.snapshot().frames + 3
-        for _ in 0..<150 where visible.metrics.snapshot().frames < target {
+        let metrics = try XCTUnwrap(visible.startMeasuring())
+        let target = metrics.snapshot().frames + 3
+        for _ in 0..<150 where metrics.snapshot().frames < target {
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertGreaterThanOrEqual(visible.metrics.snapshot().frames, target)
+        XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, target)
     }
 
     func testPausedExpansionAndNativeClosePreserveFrozenTime() async throws {

@@ -133,13 +133,14 @@ import XCTest
         try resources.encode(
             command: command, descriptor: pass, size: CGSize(width: 64, height: 64), time: 0,
             rippleContext: player.rippleContext)
+        let metrics = try XCTUnwrap(player.startMeasuring())
         let completed = expectation(description: "Offscreen WSS completed")
         command.addCompletedHandler(
             player.frameCompletionHandler(retryTransitionFrame: false) { completed.fulfill() })
         command.commit()
         await fulfillment(of: [completed], timeout: 3)
         XCTAssertEqual(command.status, .completed)
-        XCTAssertEqual(player.metrics.snapshot().frames, 1)
+        XCTAssertEqual(metrics.snapshot().frames, 1)
         XCTAssertTrue(results.isEmpty)
         XCTAssertNil(player.receivePresentation(at: 0))
         XCTAssertTrue(results.isEmpty)
@@ -251,6 +252,7 @@ import XCTest
             renderer.deferPresentation()
             renderer.setPaused(false)
             let player = try XCTUnwrap(renderer.scene)
+            let metrics = try XCTUnwrap(player.startMeasuring())
             XCTAssertTrue(results.isEmpty)
             renderer.window.order(.below, relativeTo: cover.window.windowNumber)
             XCTAssertTrue(renderer.window.isVisible)
@@ -261,7 +263,7 @@ import XCTest
                 try await Task.sleep(for: .milliseconds(20))
             }
             print(
-                "Covered desktop WSS animated=\(animated), GPU frames=\(player.metrics.snapshot().frames), readiness=\(results)"
+                "Covered desktop WSS animated=\(animated), GPU frames=\(metrics.snapshot().frames), readiness=\(results)"
             )
             cover.stop()
             // A desktop-level window can remain covered by other apps on the test host.

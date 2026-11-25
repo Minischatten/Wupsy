@@ -26,7 +26,13 @@ import XCTest
             try await ScenePlayback.prepare(for: $0)
         }
     ) -> Library {
-        Library(storage: helper.store.storage, defaults: defaults, scenePreparation: preparation)
+        Library(
+            storage: helper.store.storage, defaults: defaults,
+            rendererStart: { renderer, _ in
+                renderer.measuresPerformance = true
+                renderer.setPaused(false)
+            },
+            scenePreparation: preparation)
     }
 
     func item() async throws -> Wallpaper {
@@ -34,7 +40,9 @@ import XCTest
     }
     func running(_ library: Library) async throws -> any ScenePlaybackSession {
         for _ in 0..<500 {
-            if let scene = library.renderers.first?.scene, scene.metrics.snapshot().frames > 0 {
+            if let scene = library.renderers.first?.scene,
+                let metrics = scene.metrics, metrics.snapshot().frames > 0
+            {
                 return scene
             }
             if library.message != nil { break }

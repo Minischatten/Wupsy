@@ -170,3 +170,61 @@ prepared resource families. It draws a bounded procedural region quad before
 stars/meteors, with no texture target or simulation state. Parameter edits share
 star populations and meteor pipelines; independent color transactions use the same
 editor finish/Undo contracts. See [Milky Way](effects/STARFIELD.md#optional-procedural-milky-way-stage-3).
+
+## WSS performance measurement
+
+Performance collection is opt-in per WSS player. The desktop renderer and
+each preview player have independent session IDs. Reconfiguring a player
+keeps its ID and replacing it creates a new one. An activation starts a fresh
+collector. Deactivation and player stop detach it and reject late completions.
+A desktop renderer or preview surface can carry opt-in across player replacements. Collection adds
+no diagnostic callbacks, clocks, timers or memory queries to ordinary playback.
+The existing completion and first-presentation handlers remain in charge of
+resource lifetimes, errors and transition readiness.
+
+A session snapshot contains the current player state, configured drawable size
+in pixels and the actual texture size of the most recently submitted frame
+during this activation, when available. The paused state describes the playback
+gate. On-demand means playback is enabled for a static scene. Running means
+continuous playback is requested. Failed records a reported render failure.
+Preparing and system pause reasons remain with the existing playback owners.
+None of these states confirms presentation.
+
+Completion totals count successful Metal command buffers. A GPU sample
+requires finite timestamps with a positive start and a later end. Its duration
+covers the command buffer. GPU averages divide by the number of valid GPU
+samples. Presentation FPS and CPU encoding times are outside stage 1.
+
+Process footprint is the current process's Darwin `TASK_VM_INFO.phys_footprint`.
+Failed or truncated queries yield an unavailable value. Metal allocation is
+`MTLDevice.currentAllocatedSize` in bytes, associated with the device registry
+ID. A device value can be shared across sessions and can overlap process
+footprint on unified memory. Sample it once per device when reporting several
+sessions. The reported device allocation and the existing WSS texture
+subtotals describe different scopes.
+
+### CLI benchmark output
+
+`--benchmark … --report …` explicitly enables collection on the first
+desktop WSS session before warmup. The report retains `sceneFrames` and
+`sceneMeasuredFPS` for compatibility. Their meaning is now successful GPU
+completions and successful GPU completions per elapsed second, respectively.
+They describe GPU throughput even when no presentation is acknowledged. A
+sample spanning replacement of the measured session is unavailable. The GPU
+average uses valid samples only and the new `sceneGPUValidSamples` reports the
+denominator. Missing values use JSON `null`. An uninterrupted sample with no
+completions reports a frame count and rate of zero.
+
+`sceneDrawableWidth` and `sceneDrawableHeight` retain the configured target
+size. The new `sceneSubmittedDrawableWidth` and
+`sceneSubmittedDrawableHeight` report the most recently submitted drawable
+observed since activation. `sceneMetalAllocatedBytes` reports device
+allocation separately from process footprint and WSS texture subtotals.
+Footprint summaries use successful samples only and report `null` when
+unavailable.
+
+Virtualized GPU timings, allocations and dimensions describe the guest
+environment. The documented macOS 26 CI run did not confirm presentation,
+while the strict presentation test passed on a physical Mac with macOS 27.2.1.
+This measurement path uses data availability and applies the same checks to
+both OS versions.

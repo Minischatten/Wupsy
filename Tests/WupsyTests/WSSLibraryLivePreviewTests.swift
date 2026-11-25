@@ -344,30 +344,34 @@ import XCTest
         window.orderFront(nil)
         defer { window.close() }
 
-        for _ in 0..<150 where (owner.surface?.player?.metrics.snapshot().frames ?? 0) < 3 {
+        for _ in 0..<150
+        where
+            (owner.surface?.player?.startMeasuring()?.snapshot().frames ?? 0) < 3
+        {
             try await Task.sleep(for: .milliseconds(20))
         }
         XCTAssertEqual(owner.state, .live)
         let player = try XCTUnwrap(owner.surface?.player)
+        let metrics = try XCTUnwrap(player.metrics)
         for index in project.document.layers.indices {
             guard case .musicNotes(let expected) = project.document.layers[index].content,
                 case .musicNotes(let displayed) = player.resources.scene.layers[index]
             else { return XCTFail("Missing preview Music Notes layer") }
             XCTAssertEqual(displayed, expected)
         }
-        XCTAssertGreaterThanOrEqual(player.metrics.snapshot().frames, 3)
+        XCTAssertGreaterThanOrEqual(metrics.snapshot().frames, 3)
         XCTAssertGreaterThan(player.elapsed, 0)
         owner.setHidden(true)
         XCTAssertTrue(player.view.isPaused)
         let time = player.elapsed
         try await Task.sleep(for: .milliseconds(80))
         XCTAssertEqual(player.elapsed, time)
-        let frames = player.metrics.snapshot().frames
+        let frames = metrics.snapshot().frames
         owner.setHidden(false)
-        for _ in 0..<100 where player.metrics.snapshot().frames <= frames {
+        for _ in 0..<100 where metrics.snapshot().frames <= frames {
             try await Task.sleep(for: .milliseconds(20))
         }
-        XCTAssertGreaterThan(player.metrics.snapshot().frames, frames)
+        XCTAssertGreaterThan(metrics.snapshot().frames, frames)
         XCTAssertGreaterThan(player.elapsed, time)
         await owner.shutdownAndDrain()
     }

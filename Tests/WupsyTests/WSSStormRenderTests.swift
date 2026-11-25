@@ -251,7 +251,7 @@ final class WSSStormRenderTests: XCTestCase {
         let helper = WSSNativeSceneTests()
         let player = try await helper.running(library)
         XCTAssertNotNil(player.resources.storm)
-        XCTAssertGreaterThan(player.metrics.snapshot().frames, 0)
+        XCTAssertGreaterThan(try XCTUnwrap(player.metrics).snapshot().frames, 0)
         library.manuallyPaused = true
         let frozen = player.elapsed
         try await Task.sleep(for: .milliseconds(100))

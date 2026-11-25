@@ -12,16 +12,28 @@ import Foundation
         else { return nil }
         return CommandLine.arguments[index + 1]
     }
-    static func footprintMiB() -> Double {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(
-            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) { pointer in
-            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
-            }
+    private static func footprintMiB() -> Double? {
+        PerformanceMemory.processFootprintBytes().map { Double($0) / 1_048_576 }
+    }
+
+    static func sceneMeasurement(
+        start: SceneMetrics.Totals?, end: SceneMetrics.Totals?, seconds: Double
+    ) -> [String: Any] {
+        let missing = NSNull()
+        guard let start, let end, seconds.isFinite, seconds > 0 else {
+            return [
+                "sceneFrames": missing, "sceneMeasuredFPS": missing,
+                "sceneGPUAverageMilliseconds": missing, "sceneGPUValidSamples": missing,
+            ]
         }
-        return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
+        let frames = end.frames - start.frames
+        return [
+            "sceneFrames": frames,
+            "sceneMeasuredFPS": Double(frames) / seconds,
+            "sceneGPUAverageMilliseconds": end.averageGPUMilliseconds(since: start) as Any?
+                ?? missing,
+            "sceneGPUValidSamples": end.gpuSamples - start.gpuSamples,
+        ]
     }
     static func cpuSeconds() -> Double {
         var usage = rusage()
@@ -69,29 +81,50 @@ import Foundation
                 result["videoHeight"] = size.height
                 result["videoFPS"] = try await track.load(.nominalFrameRate)
             }
+            let sessionID = renderer.scene?.sessionID
+            let collector = renderer.scene?.startMeasuring()
+            defer {
+                if let collector, renderer.scene?.metrics === collector {
+                    renderer.scene?.stopMeasuring()
+                }
+            }
             try await Task.sleep(for: .seconds(3))
             let seconds = min(60, max(5, Double(argument("--seconds") ?? "12") ?? 12))
-            let sceneStart = renderer.scene?.metrics.snapshot()
+            let sceneStart = collector?.snapshot()
             let start = ProcessInfo.processInfo.systemUptime
             let cpu = cpuSeconds()
             var memory: [Double] = []
             var states: [String] = []
             var uninterruptedPlayback = true
             while ProcessInfo.processInfo.systemUptime - start < seconds {
-                memory.append(footprintMiB())
+                if let footprint = footprintMiB() { memory.append(footprint) }
                 states.append(library.playbackStatus.technicalTitle)
                 uninterruptedPlayback = uninterruptedPlayback && library.playbackStatus.isPlaying
                 try await Task.sleep(for: .seconds(1))
             }
             let sampleDuration = ProcessInfo.processInfo.systemUptime - start
-            if let scene = library.renderers.first?.scene, let sceneStart {
-                let end = scene.metrics.snapshot()
-                let frames = end.frames - sceneStart.frames
-                result["sceneFrames"] = frames
-                result["sceneMeasuredFPS"] = Double(frames) / sampleDuration
-                result["sceneGPUAverageMilliseconds"] =
-                    frames > 0
-                    ? (end.gpuSeconds - sceneStart.gpuSeconds) * 1000 / Double(frames) : 0
+            if let collector {
+                let currentScene = library.renderers.first?.scene
+                let scene =
+                    currentScene?.sessionID == sessionID && currentScene?.metrics === collector
+                    ? currentScene : nil
+                let snapshot = scene?.performanceSnapshot()
+                result.merge(
+                    sceneMeasurement(
+                        start: sceneStart, end: snapshot?.completions, seconds: sampleDuration)
+                ) { _, value in value }
+                result["sceneMetalAllocatedBytes"] =
+                    scene?.metalAllocation()?.bytes
+                    as Any? ?? NSNull()
+                result["sceneSubmittedDrawableWidth"] =
+                    snapshot?.submittedDrawableSize?.width
+                    as Any? ?? NSNull()
+                result["sceneSubmittedDrawableHeight"] =
+                    snapshot?.submittedDrawableSize?.height
+                    as Any? ?? NSNull()
+                scene?.stopMeasuring()
+            }
+            if let scene = library.renderers.first?.scene, scene.sessionID == sessionID {
                 let diagnostics = scene.diagnostics
                 result["sceneTextureMiB"] =
                     Double(diagnostics.textureBytes) / 1_048_576
@@ -109,8 +142,9 @@ import Foundation
             result["uninterruptedPlayback"] = uninterruptedPlayback
             result["cpuPercentOfOneCore"] =
                 (cpuSeconds() - cpu) / (ProcessInfo.processInfo.systemUptime - start) * 100
-            result["meanFootprintMiB"] = memory.reduce(0, +) / Double(memory.count)
-            result["peakFootprintMiB"] = memory.max()
+            result["meanFootprintMiB"] =
+                memory.isEmpty ? NSNull() : memory.reduce(0, +) / Double(memory.count)
+            result["peakFootprintMiB"] = memory.max() as Any? ?? NSNull()
             result["statusAfterSample"] = library.playbackStatus.technicalTitle
             result["activeRendererCount"] = library.renderers.count
             result["rendererReplaced"] = library.renderers.first !== renderer
@@ -121,7 +155,7 @@ import Foundation
             result["playbackError"] = library.message ?? "none"
             library.manuallyPaused = true
             try await Task.sleep(for: .seconds(3))
-            result["pausedFootprintMiB"] = footprintMiB()
+            result["pausedFootprintMiB"] = footprintMiB() as Any? ?? NSNull()
             result["pausedResourcesReleased"] = library.renderers.allSatisfy {
                 !$0.hasLiveResources
             }

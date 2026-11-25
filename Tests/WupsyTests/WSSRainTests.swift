@@ -306,7 +306,7 @@ final class WSSRainTests: XCTestCase {
         lib.apply(item)
         let helper = WSSNativeSceneTests()
         var player = try await helper.running(lib)
-        XCTAssertGreaterThan(player.metrics.snapshot().frames, 0)
+        XCTAssertGreaterThan(try XCTUnwrap(player.metrics).snapshot().frames, 0)
         let population = try XCTUnwrap(player.resources.rain?.layers[1]?.population)
         let buffer = try XCTUnwrap(player.resources.rain?.layers[1]?.buffer)
         let start = player.elapsed
