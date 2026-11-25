@@ -17,7 +17,7 @@ actor WSSEditorPreviewPreparation {
         assets.sessionAssets = sessionAssets
         assets.didRead = { try capture.record($0, $1) }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw WSSSceneError.invalid("Metal unavailable")
+            throw WSSSceneError.metalUnavailable
         }
         let resources = try WSSStaticResources(scene: model.scene(), assets: assets, device: device)
         guard model.referencedPaths.isSubset(of: Set(basis.assets.keys)),

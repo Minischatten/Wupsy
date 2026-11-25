@@ -18,7 +18,7 @@ extension WSSMaskAsset {
             let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
             image.width == width, image.height == height, image.bitsPerComponent == 8,
             let provider = image.dataProvider, let raw = provider.data
-        else { throw WSSSceneError.invalid("encoded scalar mask") }
+        else { throw WSSDocumentError.invalidResource("encoded scalar mask") }
         let bytes = raw as Data
         let channels = image.bitsPerPixel / 8
         guard
@@ -52,7 +52,7 @@ extension WSSMaskAsset {
         default: throw WSSSceneError.unsupported("mask pixel layout")
         }
         guard bytes.count >= image.bytesPerRow * height else {
-            throw WSSSceneError.invalid("mask row data")
+            throw WSSDocumentError.invalidResource("mask row data")
         }
         var scalar = Data(count: width * height)
         for y in 0..<height {

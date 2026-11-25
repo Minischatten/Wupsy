@@ -41,6 +41,10 @@ it is not a persisted visual layer.
 The [Music Notes user guide](anleitungen/MUSIC-NOTES.md) shows how to animate
 notes, draw your own paths, and set up depth changes and perspective.
 
+If a native wallpaper cannot be opened, the library shows the WSS failure
+reason. Use Details to inspect or copy the diagnosis. Higher WSS versions
+and unknown features can indicate that a newer Wupsy version may help.
+
 ## Fog
 
 Choose Fog from the layer add menu. Fog starts with a black mask, an active

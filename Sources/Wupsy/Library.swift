@@ -798,7 +798,7 @@ import SwiftUI
                     if error is CancellationError {
                         request.finish(.superseded)
                     } else {
-                        showProductError(error.localizedDescription, presentation: .playbackError)
+                        presentWallpaperFailure(error, item: item, operation: .playbackError)
                         request.finish(.failed(error))
                     }
                     updatePolicy()
@@ -824,8 +824,20 @@ import SwiftUI
         message = detail
         messagePresentation = presentation.text
     }
-    private func failPreparation(_ error: Error) {
-        showProductError(error.localizedDescription, presentation: .playbackError)
+    func presentWallpaperFailure(_ error: Error, item: Wallpaper, operation: ProductText) {
+        if WSSFailurePresentation(error) != nil || error is WallpaperImportDiagnostic {
+            message = nil
+            importFailureReport = ImportFailureReport(
+                failures: [.init(source: item.url, error: error, wallpaperTitle: item.title)],
+                heading: operation == .playbackError
+                    ? ProductText.wallpaperPlaybackFailed.text : ProductText.editorOpenError.text)
+        } else {
+            showProductError(error.localizedDescription, presentation: operation)
+        }
+    }
+
+    private func failPreparation(_ error: Error, item: Wallpaper) {
+        presentWallpaperFailure(error, item: item, operation: .playbackError)
         pendingApply?.finish(.failed(error))
         pendingApply = nil
         stopPlayback(preserveSelection: true)
@@ -914,8 +926,10 @@ import SwiftUI
                     updatePolicy()
                 } catch {
                     guard generation == ticket, !Task.isCancelled else { return }
-                    failPreparation(error)
-                    if afterImageReplacement {
+                    failPreparation(error, item: item)
+                    if afterImageReplacement, WSSFailurePresentation(error) == nil,
+                        !(error is WallpaperImportDiagnostic)
+                    {
                         let warning = EditorText.desktopWarning.format(
                             EditorErrorPresentation.message(error))
                         message = warning

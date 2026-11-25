@@ -200,12 +200,16 @@ enum WSSSceneError: LocalizedError, Equatable {
     case unsupported(String)
     case invalid(String)
     case decodedImageBudget
+    case metalUnavailable
+    case preparationFailed(String)
     var errorDescription: String? {
         switch self {
         case .unsupported(let detail):
             return "WSS scenes do not support: \(detail). No effects or layers were omitted."
         case .invalid(let detail): return "Invalid WSS scene: \(detail)"
         case .decodedImageBudget: return "Invalid WSS scene: decoded image budget"
+        case .metalUnavailable: return "Metal unavailable"
+        case .preparationFailed(let detail): return "WSS resource preparation failed: \(detail)"
         }
     }
 }

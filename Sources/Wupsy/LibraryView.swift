@@ -260,8 +260,8 @@ struct LibraryView: View {
                         do {
                             try await editors.open(wallpaperID: item.id)
                         } catch is CancellationError {} catch {
-                            library.message =
-                                ProductText.editorOpenError.text
+                            library.presentWallpaperFailure(
+                                error, item: item, operation: .editorOpenError)
                         }
                     }
                 }

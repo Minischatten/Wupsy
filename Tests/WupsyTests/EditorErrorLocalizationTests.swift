@@ -99,15 +99,17 @@ final class EditorErrorLocalizationTests: XCTestCase {
         XCTAssertEqual(
             EditorErrorPresentation.message(WSSSaveAsError.budget, language: "de"),
             "Das neue Hintergrundbild überschreitet das Projektbudget von 512 MiB.")
-        XCTAssertEqual(
-            EditorErrorPresentation.message(WSSDocumentError.version(7), language: "de"),
-            "Die WSS-Szenenversion 7 wird nicht unterstützt. Nur Version 1 wird unterstützt.")
+        XCTAssertTrue(
+            EditorErrorPresentation.message(WSSDocumentError.version(7), language: "de")
+                .hasPrefix("Dieses Hintergrundbild verwendet WSS-Formatversion 7."))
         for language in ["en", "de", "zz"] {
-            XCTAssertEqual(
+            XCTAssertTrue(
                 EditorErrorPresentation.message(
-                    WSSSceneError.decodedImageBudget, language: language),
-                EditorErrorPresentation.message(
-                    WSSImageImportError.decodedBudget, language: language))
+                    WSSSceneError.decodedImageBudget, language: language
+                )
+                .hasPrefix(
+                    EditorErrorPresentation.message(
+                        WSSImageImportError.decodedBudget, language: language)))
             XCTAssertEqual(
                 EditorErrorPresentation.message(WSSSaveAsError.name, language: language),
                 EditorText.nameBytes.localized(language: language))
@@ -131,7 +133,7 @@ final class EditorErrorLocalizationTests: XCTestCase {
         for error in errors {
             for language in ["en", "de", "zz"] {
                 let value = EditorErrorPresentation.message(error, language: language)
-                XCTAssertTrue(value.hasSuffix(evidence))
+                XCTAssertTrue(value.contains(evidence))
                 XCTAssertTrue(
                     value.contains(language == "de" ? "Technische Details:" : "Technical details:"))
             }

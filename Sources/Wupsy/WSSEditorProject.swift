@@ -70,9 +70,10 @@ actor WSSEditorProjectLoader {
         var assets = try document.assetSource(root: handle.root)
         assets.didRead = { try capture.record($0, $1) }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw WSSSceneError.invalid("Metal unavailable")
+            throw WSSSceneError.metalUnavailable
         }
-        let resources = try WSSStaticResources(scene: scene, assets: assets, device: device)
+        let resources = try WSSStaticResources.prepareWallpaper(
+            scene: scene, assets: assets, device: device)
         let basis = try capture.basis(
             handle: handle, identity: identity, manifest: bytes,
             references: document.referencedPaths)

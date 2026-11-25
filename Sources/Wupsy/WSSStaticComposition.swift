@@ -39,7 +39,7 @@ actor WSSStaticCanvasPreparation {
         assets.sessionAssets = sessionAssets
         assets.didRead = { try capture.record($0, $1) }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw WSSSceneError.invalid("Metal unavailable")
+            throw WSSSceneError.metalUnavailable
         }
         let resources = try WSSStaticResources(
             scene: WSSStaticComposition.scene(model), assets: assets, device: device,

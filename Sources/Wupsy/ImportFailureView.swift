@@ -9,7 +9,7 @@ struct ImportFailureView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(ImportText.failures.format(Int64(report.failures.count)))
+            Text(report.heading ?? ImportText.failures.format(Int64(report.failures.count)))
                 .wupsyFont(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -43,7 +43,7 @@ struct ImportFailureView: View {
             )
             .wupsyFont(.subheadline).foregroundStyle(.secondary)
             .textSelection(.enabled)
-            Text(failure.title).fontWeight(.semibold)
+            if !failure.title.isEmpty { Text(failure.title).fontWeight(.semibold) }
             Text(failure.explanation)
             ImportDetailsButton(
                 sourceName: failure.sourceName,

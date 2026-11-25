@@ -6644,6 +6644,23 @@
         }
       }
     },
+    "core.wallpaperPlaybackFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The wallpaper could not be played. The library and original files were kept."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Hintergrundbild konnte nicht wiedergegeben werden. Mediathek und Originaldateien bleiben erhalten."
+          }
+        }
+      }
+    },
     "core.editorOpenError": {
       "extractionState": "manual",
       "comment": "Product core: editorOpenError",
@@ -11200,6 +11217,125 @@
         }
       }
     },
+    "import.wallpaperFailureDiagnostic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallpaper Diagnostic"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundbilddiagnose"
+          }
+        }
+      }
+    },
+    "import.wssInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scene file contains invalid data. Check the file or use an intact copy of the wallpaper."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Szenendatei enthält ungültige Daten. Prüfe die Datei oder verwende eine intakte Kopie des Hintergrundbilds."
+          }
+        }
+      }
+    },
+    "import.wssMetalUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metal is unavailable. This wallpaper requires Metal."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metal ist nicht verfügbar. Dieses Hintergrundbild benötigt Metal."
+          }
+        }
+      }
+    },
+    "import.wssMissingFile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The required file ‘%@’ is missing or unreadable. Check that the entire wallpaper is available."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die benötigte Datei „%@“ fehlt oder kann nicht gelesen werden. Prüfe, ob das Hintergrundbild vollständig vorliegt."
+          }
+        }
+      }
+    },
+    "import.wssNewerVersion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This wallpaper uses WSS format version %1$lld. Your version of Wupsy supports up to version %2$lld. A newer version of Wupsy may be able to open it."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Hintergrundbild verwendet WSS-Formatversion %1$lld. Deine Wupsy-Version unterstützt bis zu Version %2$lld. Eine neuere Version von Wupsy kann möglicherweise Abhilfe schaffen."
+          }
+        }
+      }
+    },
+    "import.wssPreparationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The wallpaper could not be prepared for rendering."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Hintergrundbild konnte nicht für die Darstellung vorbereitet werden."
+          }
+        }
+      }
+    },
+    "import.wssUnknownFeature": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This wallpaper contains features or properties that your version of Wupsy does not recognize. It may have been created with a newer version of Wupsy."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Hintergrundbild enthält Funktionen oder Eigenschaften, die deine Wupsy-Version nicht kennt. Möglicherweise wurde es mit einer neueren Version von Wupsy erstellt."
+          }
+        }
+      }
+    },
     "import.wssVersion": {
       "extractionState": "manual",
       "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
@@ -11214,24 +11350,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die WSS-Szenenversion %lld wird nicht unterstützt. Nur Version 1 wird unterstützt."
-          }
-        }
-      }
-    },
-    "import.wssInvalid": {
-      "extractionState": "manual",
-      "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The WSS document contains missing or invalid data."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das WSS-Dokument enthält fehlende oder ungültige Daten."
           }
         }
       }

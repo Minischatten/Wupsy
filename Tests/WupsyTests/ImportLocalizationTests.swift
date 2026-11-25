@@ -82,11 +82,11 @@ final class ImportLocalizationTests: XCTestCase {
 
     func testNativeAndOpaqueMediaErrorsUseLocalizedMainTextAndStablePrivateDetails() {
         let cases: [(Error, ImportText)] = [
-            (WSSDocumentError.version(5), .wssVersion),
+            (WSSDocumentError.version(5), .wssNewerVersion),
             (WSSDocumentError.invalid("decoder codingPath: layers"), .wssInvalid),
-            (WSSDocumentError.missingAsset("assets/base.png"), .invalidResource),
+            (WSSDocumentError.missingAsset("assets/base.png"), .wssMissingFile),
             (WSSDocumentError.unsafePath("/Users/Test/Private/base.png"), .unsafePath),
-            (WSSDocumentError.effect("future-effect"), .wssUnsupported),
+            (WSSDocumentError.effect("future-effect"), .wssUnknownFeature),
             (WSSSceneError.invalid("image dimensions"), .wssInvalid),
             (WSSSceneError.unsupported("future layer"), .wssUnsupported),
             (WSSSceneError.decodedImageBudget, .decodedBudget),
@@ -106,11 +106,15 @@ final class ImportLocalizationTests: XCTestCase {
                 let value = ImportFailurePresentation(
                     source: source, error: error, language: language)
                 XCTAssertEqual(value.title, ImportText.failed.localized(language: language))
-                XCTAssertEqual(
-                    value.explanation,
-                    reason == .wssVersion
-                        ? reason.format(Int64(5), language: language)
-                        : reason.localized(language: language))
+                let expected: String
+                switch reason {
+                case .wssNewerVersion:
+                    expected = reason.format(Int64(5), Int64(1), language: language)
+                case .wssMissingFile:
+                    expected = reason.format("assets/base.png", language: language)
+                default: expected = reason.localized(language: language)
+                }
+                XCTAssertEqual(value.explanation, expected)
                 XCTAssertEqual(
                     value.technicalDetails,
                     ImportFailurePresentation.privatePaths(

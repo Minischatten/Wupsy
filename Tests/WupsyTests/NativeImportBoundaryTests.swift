@@ -53,7 +53,14 @@ final class NativeImportBoundaryTests: XCTestCase {
         let failing = ManagedWallpaperStore(storage: helper.store.storage) { stage in
             if stage == .sourcePublished { throw ImportFailure.message("synthetic failure") }
         }
-        await helper.fails { _ = try await failing.importWallpaper(source, existing: [first]) }
+        do {
+            _ = try await failing.importWallpaper(source, existing: [first])
+            XCTFail("Expected injected storage failure")
+        } catch {
+            let diagnostic = try XCTUnwrap(error as? WallpaperImportDiagnostic)
+            XCTAssertEqual(diagnostic.category, .storage)
+            XCTAssertTrue(diagnostic.technicalDetails.contains("synthetic failure"))
+        }
         XCTAssertEqual(try Data(contentsOf: helper.store.storage), library)
         XCTAssertEqual(try helper.snapshot(URL(fileURLWithPath: first.root)), project)
         XCTAssertEqual(try helper.snapshot(source.deletingLastPathComponent()), original)

@@ -810,7 +810,11 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
             alert.messageText = title
             alert.informativeText = detail
             alert.addButton(withTitle: ProductText.ok.text)
-            _ = await alert.beginSheetModal(for: window)
+            alert.addButton(withTitle: ImportText.copyDetails.text)
+            if await alert.beginSheetModal(for: window) == .alertSecondButtonReturn {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(detail, forType: .string)
+            }
         }
         document.chooseClose = { [weak self] in
             guard let window = self?.window else { return .cancel }

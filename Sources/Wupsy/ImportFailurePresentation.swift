@@ -11,46 +11,37 @@ struct ImportFailurePresentation: Identifiable {
     private let diagnosticHeading: String
     var copyText: String { diagnosticHeading + "\n\n" + technicalDetails }
 
-    init(source: URL, error: Error, language: String? = nil) {
-        diagnosticHeading = ImportText.diagnosticHeading.localized(language: language)
+    init(source: URL, error: Error, language: String? = nil, wallpaperTitle: String? = nil) {
+        diagnosticHeading =
+            (wallpaperTitle == nil ? ImportText.diagnosticHeading : .wallpaperFailureDiagnostic)
+            .localized(language: language)
         // Canonical entry names need their immediate project name for batch
         // identification. Never display the complete selected path.
         sourceName =
-            ["scene.wss.json"].contains(source.lastPathComponent)
-            ? source.deletingLastPathComponent().lastPathComponent + "/" + source.lastPathComponent
-            : source.lastPathComponent
+            wallpaperTitle
+            ?? (source.lastPathComponent == "scene.wss.json"
+                ? source.deletingLastPathComponent().lastPathComponent + "/"
+                    + source.lastPathComponent
+                : source.lastPathComponent)
         guard let diagnostic = error as? WallpaperImportDiagnostic else {
-            title = ImportText.failed.localized(language: language)
-            switch error {
-            case WSSDocumentError.version(let version):
-                explanation = ImportText.wssVersion.format(Int64(version), language: language)
-            case WSSDocumentError.invalid:
-                explanation = ImportText.wssInvalid.localized(language: language)
-            case WSSDocumentError.missingAsset:
-                explanation = ImportText.invalidResource.localized(language: language)
-            case WSSDocumentError.unsafePath:
-                explanation = ImportText.unsafePath.localized(language: language)
-            case WSSDocumentError.effect, WSSSceneError.unsupported:
-                explanation = ImportText.wssUnsupported.localized(language: language)
-            case WSSSceneError.invalid:
-                explanation = ImportText.wssInvalid.localized(language: language)
-            case WSSSceneError.decodedImageBudget:
-                explanation = ImportText.decodedBudget.localized(language: language)
-            default:
-                // ImportFailure.message and foreign errors have no finer typed identity.
-                explanation = ImportText.generic.localized(language: language)
-            }
+            title = wallpaperTitle == nil ? ImportText.failed.localized(language: language) : ""
+            let wss = WSSFailurePresentation(error, language: language)
+            explanation = wss?.explanation ?? ImportText.generic.localized(language: language)
             technicalDetails = Self.privatePaths(
-                "Details: " + error.localizedDescription, source: source)
+                "Details: " + (wss?.technicalDetails ?? error.localizedDescription), source: source)
             return
         }
-        switch diagnostic.category {
-        case .invalidProject:
-            title = ImportText.invalidProjectTitle.localized(language: language)
-        case .unsafePath:
-            title = ImportText.unsafeTitle.localized(language: language)
-        case .storage, .publish, .rollback, .cleanup, .invalidResource, .resourceLimit:
-            title = ImportText.failed.localized(language: language)
+        if wallpaperTitle != nil {
+            title = ""
+        } else {
+            switch diagnostic.category {
+            case .invalidProject:
+                title = ImportText.invalidProjectTitle.localized(language: language)
+            case .unsafePath:
+                title = ImportText.unsafeTitle.localized(language: language)
+            case .storage, .publish, .rollback, .cleanup, .invalidResource, .resourceLimit:
+                title = ImportText.failed.localized(language: language)
+            }
         }
         switch diagnostic.category {
         case .invalidProject: explanation = ImportText.invalidProject.localized(language: language)
@@ -115,4 +106,5 @@ struct ImportFailurePresentation: Identifiable {
 struct ImportFailureReport: Identifiable {
     let id = UUID()
     let failures: [ImportFailurePresentation]
+    var heading: String? = nil
 }

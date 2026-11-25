@@ -8,7 +8,7 @@ import Metal
 enum WSSDirectionResourceValidation {
     static func validate(_ scene: WSSScene, assets: WSSNativeAssets) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw WSSSceneError.invalid("Metal unavailable")
+            throw WSSSceneError.metalUnavailable
         }
         func allocation(_ width: Int, _ height: Int, _ format: MTLPixelFormat) throws -> Int {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(

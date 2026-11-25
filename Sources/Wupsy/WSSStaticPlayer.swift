@@ -368,9 +368,9 @@ actor WSSStaticPreparation {
             let document = try WSSSceneDocumentV1.load(entry: wallpaper.url, root: root)
             try Task.checkCancellation()
             guard let device = MTLCreateSystemDefaultDevice() else {
-                throw WSSSceneError.invalid("Metal unavailable")
+                throw WSSSceneError.metalUnavailable
             }
-            return try WSSStaticResources(
+            return try WSSStaticResources.prepareWallpaper(
                 scene: document.scene(), assets: document.assetSource(root: root), device: device)
         }
         throw SceneError.unsupported("Only native Wupsy projects can be played")

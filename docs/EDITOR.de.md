@@ -23,6 +23,11 @@ Wähle einen Effekt aus, um seine Maske zu prüfen oder zu bearbeiten, soweit di
 Mit der [Benutzeranleitung für Musiknoten](anleitungen/MUSIKNOTEN.md) lernst du,
 wie du Noten animierst, eigene Kurven zeichnest und Tiefenwechsel und Perspektive einstellst.
 
+Kann ein natives Wallpaper nicht geöffnet werden, zeigt die Mediathek den
+Grund an. Unter „Details“ lässt sich die technische Diagnose ansehen und
+kopieren. Bei einer höheren WSS-Version oder unbekannten Funktionen kann
+eine neuere Wupsy-Version möglicherweise helfen.
+
 ## Nebel
 
 Wähle „Nebel“ im Menü zum Hinzufügen von Ebenen. Nebel startet mit einer

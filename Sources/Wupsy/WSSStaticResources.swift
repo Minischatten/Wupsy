@@ -70,6 +70,29 @@ final class WSSStaticResources: @unchecked Sendable {
         }
     }
 
+    static func prepareWallpaper(
+        scene: WSSScene, assets: any WSSImageAssetSource, device: MTLDevice
+    ) throws -> WSSStaticResources {
+        do {
+            return try WSSStaticResources(scene: scene, assets: assets, device: device)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as WSSSceneError {
+            if case .invalid(let detail) = error {
+                throw WSSSceneError.preparationFailed(detail)
+            }
+            throw error
+        } catch let error as WSSDocumentError {
+            throw error
+        } catch let error as WSSMaskError {
+            throw error
+        } catch let error as WSSSaveError {
+            throw error
+        } catch {
+            throw WSSSceneError.preparationFailed(error.localizedDescription)
+        }
+    }
+
     init(
         scene: WSSScene, assets: any WSSImageAssetSource, device: MTLDevice,
         staticCanvas: Bool = false, referenceFlowShader: String? = nil
@@ -82,7 +105,7 @@ final class WSSStaticResources: @unchecked Sendable {
         musicNotesDepthSources = Set(depthPlan.values.joined())
         self.device = device
         guard let queue = device.makeCommandQueue() else {
-            throw WSSSceneError.invalid("Metal queue")
+            throw WSSSceneError.preparationFailed("Metal queue")
         }
         self.queue = queue
         let library = try device.makeLibrary(
@@ -233,7 +256,7 @@ final class WSSStaticResources: @unchecked Sendable {
             settings.sAddressMode = asset.edge == .clamp ? .clampToEdge : .repeat
             settings.tAddressMode = settings.sAddressMode
             guard let sampler = device.makeSamplerState(descriptor: settings) else {
-                throw WSSSceneError.invalid("image sampler")
+                throw WSSSceneError.preparationFailed("image sampler")
             }
             loaded[layer.asset] = Image(texture: texture, sampler: sampler, uvScale: asset.uvScale)
         }
@@ -466,7 +489,7 @@ final class WSSStaticResources: @unchecked Sendable {
         switch asset.payload {
         case .rgba8(let bytes):
             guard bytes.count == asset.width * asset.height * 4 else {
-                throw WSSSceneError.invalid("RGBA byte count")
+                throw WSSDocumentError.invalidResource("RGBA byte count")
             }
             pixels = bytes
             pixels.withUnsafeMutableBytes { buffer in
@@ -489,7 +512,7 @@ final class WSSStaticResources: @unchecked Sendable {
                 let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
                 image.width == asset.width, image.height == asset.height,
                 image.bitsPerComponent == 8
-            else { throw WSSSceneError.invalid("encoded image") }
+            else { throw WSSDocumentError.invalidResource("encoded image") }
             if [CGImageAlphaInfo.none, .noneSkipFirst, .noneSkipLast].contains(image.alphaInfo) {
                 return try MTKTextureLoader(device: device).newTexture(
                     cgImage: image,
@@ -514,7 +537,7 @@ final class WSSStaticResources: @unchecked Sendable {
                     image, in: CGRect(x: 0, y: 0, width: asset.width, height: asset.height))
                 return true
             }
-            guard success else { throw WSSSceneError.invalid("image normalization") }
+            guard success else { throw WSSSceneError.preparationFailed("image normalization") }
         }
         let settings = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba8Unorm, width: asset.width, height: asset.height,
@@ -522,7 +545,7 @@ final class WSSStaticResources: @unchecked Sendable {
         settings.usage = .shaderRead
         settings.storageMode = .shared
         guard let texture = device.makeTexture(descriptor: settings) else {
-            throw WSSSceneError.invalid("image allocation")
+            throw WSSSceneError.preparationFailed("image allocation")
         }
         pixels.withUnsafeBytes {
             texture.replace(
@@ -532,13 +555,13 @@ final class WSSStaticResources: @unchecked Sendable {
         if asset.mipmapped {
             guard let command = queue.makeCommandBuffer(),
                 let blit = command.makeBlitCommandEncoder()
-            else { throw WSSSceneError.invalid("mipmap encoder") }
+            else { throw WSSSceneError.preparationFailed("mipmap encoder") }
             blit.generateMipmaps(for: texture)
             blit.endEncoding()
             command.commit()
             command.waitUntilCompleted()
             guard command.status == .completed else {
-                throw WSSSceneError.invalid("mipmap generation")
+                throw WSSSceneError.preparationFailed("mipmap generation")
             }
         }
         return texture

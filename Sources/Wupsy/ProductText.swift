@@ -206,6 +206,7 @@ enum ProductText: String, CaseIterable {
     case removeCleanupWarning = "core.removeCleanupWarning"
     case cacheError = "core.cacheError"
     case renameError = "core.renameError"
+    case wallpaperPlaybackFailed = "core.wallpaperPlaybackFailed"
     case editorOpenError = "core.editorOpenError"
     case nameSingleLine = "core.nameSingleLine"
     case nameRequired = "core.nameRequired"

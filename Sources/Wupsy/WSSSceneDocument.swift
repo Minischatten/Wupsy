@@ -8,7 +8,10 @@ enum WSSDocumentError: LocalizedError, Equatable {
     case invalid(String)
     case missingAsset(String)
     case unsafePath(String)
-    case effect(String)
+    case effect(String, path: String = "$")
+    case unknownLayer(String, path: String)
+    case unknownFields([String], path: String)
+    case invalidResource(String)
     var errorDescription: String? {
         switch self {
         case .version(let n):
@@ -16,7 +19,11 @@ enum WSSDocumentError: LocalizedError, Equatable {
         case .invalid(let s): return "Invalid WSS document: \(s)"
         case .missingAsset(let s): return "Missing or unreadable WSS asset: \(s)"
         case .unsafePath(let s): return "Unsafe WSS asset path: \(s)"
-        case .effect(let s): return "Unsupported native WSS effect: \(s)"
+        case .effect(let type, let path): return "Unsupported native WSS effect: \(type) at \(path)"
+        case .unknownLayer(let type, let path): return "Unknown WSS layer type: \(type) at \(path)"
+        case .unknownFields(let fields, let path):
+            return "Unknown WSS fields at \(path): " + fields.joined(separator: ", ")
+        case .invalidResource(let detail): return "Invalid WSS resource: \(detail)"
         }
     }
 }
@@ -27,6 +34,13 @@ private struct WSSDocumentKey: CodingKey {
     init?(intValue: Int) { return nil }
 }
 extension Decoder {
+    var wssObjectPath: String {
+        codingPath.reduce("$") { path, key in
+            if let index = key.intValue { return path + "[\(index)]" }
+            return path + "." + key.stringValue
+        }
+    }
+
     func fields(_ allowed: [String]) throws {
         let c = try container(keyedBy: WSSDocumentKey.self)
         let extra = Set(c.allKeys.map(\.stringValue)).subtracting(allowed)
@@ -36,8 +50,7 @@ extension Decoder {
             }
         }
         guard extra.isEmpty else {
-            throw WSSDocumentError.invalid(
-                "unknown fields: " + extra.sorted().joined(separator: ", "))
+            throw WSSDocumentError.unknownFields(extra.sorted(), path: wssObjectPath)
         }
     }
 }
@@ -82,7 +95,7 @@ struct WSSNativeImageDefinition: Codable, Equatable {
         let payload: WSSImageAsset.Payload
         if encoding == "rgba8" {
             guard bytes.count == width * height * 4 else {
-                throw WSSDocumentError.invalid("RGBA8 image length")
+                throw WSSDocumentError.invalidResource("RGBA8 image length: " + asset)
             }
             payload = .rgba8(bytes)
         } else {
@@ -95,7 +108,9 @@ struct WSSNativeImageDefinition: Codable, Equatable {
                     as? [CFString: Any],
                 properties[kCGImagePropertyPixelWidth] as? Int == width,
                 properties[kCGImagePropertyPixelHeight] as? Int == height
-            else { throw WSSDocumentError.invalid("native encoded image contract") }
+            else {
+                throw WSSDocumentError.invalidResource("native encoded image contract: " + asset)
+            }
             payload = .encoded(bytes)
         }
         return WSSImageAsset(
@@ -280,7 +295,9 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                 native = .ripple(ripple)
                 return
             }
-            guard type == "clouds" else { throw WSSDocumentError.effect(type) }
+            guard type == "clouds" else {
+                throw WSSDocumentError.effect(type, path: decoder.wssObjectPath)
+            }
             try decoder.fields([
                 "type", "velocity", "scale", "intensity", "density", "seed", "mask",
                 "primaryField", "secondaryField", "secondaryInfluence", "softness", "brightness",
@@ -579,7 +596,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         depthID: try c.decodeIfPresent(UUID.self, forKey: .depthID)))
                 _ = try makeNative()
             } else {
-                throw WSSDocumentError.invalid("unknown layer type " + type)
+                throw WSSDocumentError.unknownLayer(type, path: decoder.wssObjectPath)
             }
             self.name = name
         }
@@ -614,15 +631,16 @@ struct WSSSceneDocumentV1: Codable, Equatable {
     var canvas: Canvas
     var background: [Float]
     var layers: [Layer]
+    static let supportedVersion = 1
     enum CodingKeys: String, CodingKey { case format, version, title, canvas, background, layers }
     init(from decoder: Decoder) throws {
-        try decoder.fields(["format", "version", "title", "canvas", "background", "layers"])
         let c = try decoder.container(keyedBy: CodingKeys.self)
         guard try c.decode(String.self, forKey: .format) == "wss-scene" else {
             throw WSSDocumentError.invalid("expected format wss-scene")
         }
         let version = try c.decode(Int.self, forKey: .version)
-        guard version == 1 else { throw WSSDocumentError.version(version) }
+        guard version == Self.supportedVersion else { throw WSSDocumentError.version(version) }
+        try decoder.fields(["format", "version", "title", "canvas", "background", "layers"])
         title = try c.decode(String.self, forKey: .title)
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             title.utf8.count <= 1024
@@ -763,7 +781,7 @@ struct WSSNativeAssets: WSSImageAssetSource {
     func image(for id: WSSAssetID) throws -> WSSImageAsset {
         if let definition = imageDefinitions[id] { return try definition.load(self) }
         guard id.value.hasSuffix(".png") else {
-            throw WSSDocumentError.invalid("only PNG assets supported")
+            throw WSSDocumentError.invalidResource("only PNG assets supported: " + id.value)
         }
         let bytes = try read(id.value, limit: 128 * 1024 * 1024)
         guard bytes.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]),
@@ -773,7 +791,7 @@ struct WSSNativeAssets: WSSImageAssetSource {
             let w = props[kCGImagePropertyPixelWidth] as? Int,
             let h = props[kCGImagePropertyPixelHeight] as? Int,
             (1...8192).contains(w), (1...8192).contains(h), w * h <= 32 * 1024 * 1024
-        else { throw WSSDocumentError.invalid("PNG asset: " + id.value) }
+        else { throw WSSDocumentError.invalidResource("PNG asset: " + id.value) }
         return WSSImageAsset(width: w, height: h, payload: .encoded(bytes), mipmapped: true)
     }
 }

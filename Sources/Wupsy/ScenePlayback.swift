@@ -31,15 +31,8 @@ enum ScenePlayback {
 
     static func prepare(for wallpaper: Wallpaper) async throws -> PreparedScenePlayback {
         try requireAvailableBackend(for: wallpaper)
-        do {
-            return PreparedScenePlayback(
-                wss: try await WSSStaticPreparation.shared.prepare(wallpaper))
-        } catch let error as WSSSceneError {
-            if case .unsupported = error {
-                throw RuntimeDiagnostic.sceneUnsupported(error.localizedDescription)
-            }
-            throw error
-        }
+        return PreparedScenePlayback(
+            wss: try await WSSStaticPreparation.shared.prepare(wallpaper))
     }
 }
 

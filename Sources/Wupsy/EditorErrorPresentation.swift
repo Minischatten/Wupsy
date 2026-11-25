@@ -91,35 +91,10 @@ enum EditorErrorPresentation {
                 return EditorText.errorOperation.format(
                     error.localizedDescription, language: presentationLanguage)
             }
-        case let error as WSSDocumentError:
-            switch error {
-            case .version(let version):
-                return ImportText.wssVersion.format(Int64(version), language: presentationLanguage)
-            case .invalid(let evidence):
-                return detail(
-                    ImportText.wssInvalid.localized(language: presentationLanguage), evidence)
-            case .missingAsset(let evidence):
-                return detail(
-                    ImportText.invalidResource.localized(language: presentationLanguage), evidence)
-            case .unsafePath(let evidence):
-                return detail(
-                    ImportText.unsafePath.localized(language: presentationLanguage), evidence)
-            case .effect(let evidence):
-                return detail(
-                    ImportText.wssUnsupported.localized(language: presentationLanguage), evidence)
-            }
-        case let error as WSSSceneError:
-            switch error {
-            case .invalid(let evidence):
-                return detail(
-                    ImportText.wssInvalid.localized(language: presentationLanguage), evidence)
-            case .unsupported(let evidence):
-                return detail(
-                    ImportText.wssUnsupported.localized(language: presentationLanguage), evidence)
-            case .decodedImageBudget:
-                return ImportText.decodedBudget.localized(language: presentationLanguage)
-            }
         default:
+            if let wss = WSSFailurePresentation(error, language: presentationLanguage) {
+                return detail(wss.explanation, wss.technicalDetails)
+            }
             return EditorText.errorOperation.format(
                 error.localizedDescription, language: presentationLanguage)
         }

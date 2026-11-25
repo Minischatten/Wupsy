@@ -85,6 +85,15 @@ components are limited to 1,000,000. PNG origin/UV is top-left; the existing ima
 vertex mapping relates it to canvas coordinates. Raster density does not change
 logical geometry or animation speed.
 
+## Validation diagnostics
+
+The decoder reads the format marker and declared version before validating
+the root field set. It rejects unsupported versions and applies strict field
+validation to supported versions. Unknown fields and layer or effect types
+carry the object path in technical details. A higher version or unknown
+feature can prompt a conditional upgrade hint. Other validation failures
+report the applicable data or resource error.
+
 ## Fog masks
 
 The WSS v1 decoder accepts the historical `preset` strings `ground` and

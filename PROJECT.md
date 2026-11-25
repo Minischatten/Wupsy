@@ -66,6 +66,14 @@ DMG only for release preparation or on explicit request. Ordinary development
 tasks omit DMG creation, layout verification and checksum verification. Continue
 running the relevant local tests, build checks and app-bundle checks.
 
+## Native wallpaper errors
+
+Import, playback preparation and editor opening share localized WSS failure
+messages with copyable technical details. Only a higher declared WSS version
+or an unknown field, effect or layer type can suggest a newer Wupsy version.
+Invalid data, resource failures and storage errors retain separate guidance.
+See the [WSS format contract](WSS-SCENE-FORMAT.md).
+
 ## Settings and quick actions
 
 Open Settings from the menu bar extra or the Library’s three-dot menu.
