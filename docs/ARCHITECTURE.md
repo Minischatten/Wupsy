@@ -223,6 +223,20 @@ allocation separately from process footprint and WSS texture subtotals.
 Footprint summaries use successful samples only and report `null` when
 unavailable.
 
+After writing the report, the benchmark schedules `NSApp.terminate(nil)`
+for the next main-run-loop pass in default mode and returns. In Wupsy 0.7.0,
+the direct call from the SwiftUI benchmark task entered AppKit's modal
+termination loop while the delegate's main-actor task was still waiting to
+run. Scheduling the request outside that task lets the existing delegate
+complete its normal cleanup and reply to AppKit. The scheduling applies only
+to the benchmark.
+
+Release-bundle verification on macOS 27.2.1 ran the synthetic
+`WSS-Starfield-Shooting-Stars-v1` scene three times. Each process wrote a valid
+JSON report with GPU and memory samples, confirmed pause and resume, and
+exited with status 0. A separate launch without benchmark arguments used
+isolated user data and exited with status 0 after a normal AppKit Quit request.
+
 Virtualized GPU timings, allocations and dimensions describe the guest
 environment. The documented macOS 26 CI run did not confirm presentation,
 while the strict presentation test passed on a physical Mac with macOS 27.2.1.

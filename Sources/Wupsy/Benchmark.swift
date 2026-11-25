@@ -174,6 +174,9 @@ import Foundation
                 withJSONObject: result, options: [.prettyPrinted, .sortedKeys]
             ).write(to: URL(fileURLWithPath: reportPath), options: .atomic)
         } catch { print(error) }
-        NSApp.terminate(nil)
+        // Let this task return before AppKit waits for the delegate's async reply.
+        RunLoop.main.perform(inModes: [.default]) {
+            MainActor.assumeIsolated { NSApp.terminate(nil) }
+        }
     }
 }
