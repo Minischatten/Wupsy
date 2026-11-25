@@ -81,6 +81,8 @@ usage and memory figures. System CPU utilization and both GPU utilization
 scopes are omitted, including placeholder rows. GPU render duration retains
 its existing meaning. Closing a view stops its collection.
 See [measurement semantics and diagnosis views](docs/ARCHITECTURE.md#wss-performance-measurement).
+See [stage 4 resource comparison](docs/ARCHITECTURE.md#stage-4-resource-comparison)
+for the local A/B measurements and their limits.
 
 ## Interface size
 

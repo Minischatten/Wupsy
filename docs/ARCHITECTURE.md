@@ -312,6 +312,104 @@ were identified. System CPU and both GPU utilization scopes have no
 placeholder rows. The existing GPU render duration keeps its original
 meaning.
 
+### Stage 4 resource comparison
+
+The local comparison runs the actual desktop renderer, diagnostic panel, and
+live preview host in an optimized XCTest process. It does not measure the
+standalone app's cold-start footprint. Both sources were exported to temporary
+directories. The historical comparison uses `af1cb94`, the last commit
+before the opt-in collector, with the same desktop fixture and sampler. The
+checks use synthetic wallpaper files and separate test preferences.
+
+An external process samples `proc_pid_rusage(RUSAGE_INFO_V2)` once per second
+for cumulative user and system CPU time, physical footprint, and interrupt
+wakeups. On the test Mac the CPU counters used Mach units (`125/3` ns per
+tick). A CPU-bound calibration matched process CPU time after conversion.
+CPU utilization divides the change in CPU time by actual monotonic elapsed
+time, with 100% equivalent to one logical CPU. Wakeups are whole-process
+counters and do not identify individual timers or callbacks.
+
+The comparison does not enable Wupsy's diagnostic counters for any off
+condition. GPU durations, Metal allocations, frame times, presentation rates,
+WindowServer cost, and energy are outside the comparable external data.
+The comparison supports no quantitative conclusion about GPU performance
+regressions.
+
+On macOS 27.2.1 (Apple M4 Max, AC power) the fixed fixture was `WSS-Clouds-v2`. The desktop renderer
+used one screen, Balanced, Standard resolution, a 2560 × 1440 drawable, and
+30 target FPS. The editor reference and active runs kept the same preview
+open with a 640 × 360 drawable and 30 target FPS; both detail sections were expanded in the active
+condition. The same renderer instances were used across state changes.
+Each condition had three 15-second windows after five seconds of settling,
+plus a 12-second initial warm-up. Desktop rounds put A first and E last,
+alternated the order of B and C in the second round, and measured the
+editor series separately with the second pair reversed. The D results
+below use a dedicated repeat after one readiness assertion in the first
+harness found the preview paused before the settling period. The repeat
+warmed the panel once before opening the preview and verified visibility,
+unpaused playback, playback-clock advance, and stable drawable size at
+the measurement boundaries.
+
+The table gives medians of the three window averages with their ranges.
+Deltas are medians of within-round differences versus A, or versus D-off
+for D. CPU deltas are in percentage points of one logical CPU. Footprints
+are for the entire measured process.
+
+| Condition | CPU % (range) | Footprint MiB (range) | Interrupt wakeups/s (range) | Paired Δ CPU / MiB |
+| --- | ---: | ---: | ---: | ---: |
+| Historical desktop | 4.05 (3.39–4.50) | 305.56 (305.56–305.56) | 125.5 (124.6–126.1) | — |
+| A · Desktop, diagnosis off | 4.49 (3.83–4.83) | 318.69 (305.92–319.05) | 125.9 (125.0–126.7) | reference |
+| B · Desktop, compact panel | 4.57 (4.23–5.64) | 319.63 (318.36–319.64) | 126.1 (125.1–126.6) | +0.40 / +0.94 |
+| C · Desktop, expanded panel | 4.98 (4.95–5.70) | 319.86 (319.28–319.97) | 125.1 (124.5–126.0) | +1.12 / +1.17 |
+| E · Desktop, diagnosis closed again | 5.16 (5.02–5.31) | 319.05 (318.69–319.11) | 124.6 (124.6–125.4) | +0.54 / +0.36 |
+| D-off · Desktop and editor, both off | 7.68 (6.75–8.45) | 344.70 (341.38–344.72) | 249.7 (249.5–251.1) | reference |
+| D · Desktop and editor, both expanded | 8.99 (6.98–9.10) | 346.09 (344.65–346.73) | 250.9 (250.3–251.8) | +0.54 / +2.01 |
+
+Fresh A was 3.83% CPU and 305.92 MiB, within the historical CPU range and
+0.36 MiB over the historical footprint. Only one A window preceded first
+use of the panel. Later A windows include a warmed UI process. The first
+panel opening added 12.43 MiB above fresh A; 12.77 MiB of added footprint
+was still present at the first E. The warm B and C windows added roughly
+0.6–1.2 MiB over their paired A windows. The comparison cannot assign exact
+bytes to the panel itself.
+
+B added 0.09–0.81 CPU points versus A and C added 0.15–1.22. E also ran
+0.48–1.33 points above its paired A windows, with fewer interrupt wakeups.
+Because E always came later, the desktop data cannot separate diagnosis
+cost from order effects and normal background variation. Paired D windows
+added 0.23–1.42 CPU points and 1.39–3.27 MiB with the same editor preview
+running in D-off.
+These are local observations from short windows and one fixture.
+
+For the lifecycle check, the desktop renderer and editor preview stayed
+allocated while the harness cycled both diagnoses 40 times through compact,
+expanded, and closed states. The 55-second trace during repeated interaction
+ranged from 358.80 to 362.28 MiB. The closed-state footprint immediately
+before the cycles ended at 358.55 MiB. In the 50-second closed-state
+follow-up it stayed at 358.69 MiB, with 7.24% mean CPU versus 7.37%
+before the cycle. All 40 panel objects were released, and
+neither player retained a collector after a close. No continuing footprint
+growth was observed during the measured interval. The source of the footprint
+still held above a fresh process was not fully determined. Slower growth
+under longer or different workloads remains untested.
+
+Closing cancels the diagnosis sampling task, removes the desktop
+screen-change observation or editor player callback, and detaches the
+collector. In the off render path the optional collector remains absent, so
+no diagnostic clock reads, presentation handlers, GPU timestamp aggregation
+or resource queries are scheduled. This lifecycle check does not count
+individual callbacks in a system trace. It supports the shutdown behavior
+independently of the whole-process CPU and wakeup differences.
+
+The historical and repeated editor harnesses passed. The initial harness
+still completed every desktop window and lifecycle cycle despite the early
+editor readiness assertion. The stock local suite passed with 53 tests,
+zero failures, and one optional reference-fixture skip. Its strict Metal
+presentation probe confirmed presentation on the local Mac. The resource
+comparison did not cover macOS 26, VM, or physical multi-monitor setups.
+The measured CPU and memory overhead of active diagnostics was accepted
+without further optimization or functional changes.
+
 ### CLI benchmark output
 
 `--benchmark … --report …` explicitly enables collection on the first
