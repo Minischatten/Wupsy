@@ -68,6 +68,9 @@ import os
     private var presentationHistory = WSSDesktopFrameHistory()
     private let desktopGPU = OSAllocatedUnfairLock(initialState: (count: 0, draining: false))
     private var settleTask: Task<Void, Never>?
+    private var recoveryTask: Task<Void, Never>?
+    private var recoveryNeeded = false
+    private var recoveryAllowed = true
     private let pointerProvider: (() -> SIMD2<Float>?)?
     private var projection: WSSRenderProjection
     private let inFlight = DispatchSemaphore(value: 2)
@@ -184,6 +187,7 @@ import os
         if desktopFrozen {
             finishDesktopPause()
             desktopFrozen = false
+            cancelRecovery()
             presentationHistory.discardPending()
             resumeAtFrozenFrame = true
             resumeNeedsTrailAnchor = true
@@ -260,6 +264,7 @@ import os
             if let trail = frame.trail { trailContext.restore(trail) }
         }
         resetPerformanceWindow()
+        scheduleRecovery()
     }
 
     private func settleDesktopPauseIfReady() {
@@ -285,6 +290,7 @@ import os
         }
     }
     func stop() {
+        cancelRecovery()
         settleTask?.cancel()
         settleTask = nil
         presentationHistory = WSSDesktopFrameHistory()
@@ -317,31 +323,79 @@ import os
         setRenderResolution(resolution)
         view.needsDisplay = true
     }
-    private func resize() {
-        guard !stopped, !desktopFrozen else { return }
+    func setDesktopSurfaceAvailable(_ available: Bool) {
+        recoveryAllowed = available
+        if available {
+            scheduleRecovery()
+        } else {
+            recoveryTask?.cancel()
+            recoveryTask = nil
+        }
+    }
+
+    func requestDesktopRecovery() {
+        guard desktopFrozen, !stopped else { return }
+        recoveryNeeded = true
+        scheduleRecovery()
+    }
+
+    func desktopVisibilityChanged() { scheduleRecovery() }
+
+    func desktopGeometryChanged() { resize() }
+
+    private func cancelRecovery() {
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        recoveryNeeded = false
+    }
+
+    private func scheduleRecovery() {
+        guard recoveryNeeded, recoveryAllowed, desktopFrozen, !stopped, !pauseSettling,
+            recoveryTask == nil, view.window?.isVisible == true
+        else { return }
+        recoveryTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(35)) } catch { return }
+            guard let self else { return }
+            recoveryTask = nil
+            guard desktopFrozen, !stopped, recoveryAllowed,
+                view.window?.isVisible == true
+            else { return }
+            recoveryNeeded = !drawFrame(recovery: true)
+        }
+    }
+
+    private func desiredDrawableSize() -> CGSize {
         let bounds = view.bounds.size
         let backing =
             view.window != nil
             ? view.convertToBacking(view.bounds).size
             : CGSize(width: bounds.width * scale, height: bounds.height * scale)
-        let size = resolution.drawableSize(
-            bounds: bounds, backing: backing, maxDimension: maxDimension)
+        return resolution.drawableSize(bounds: bounds, backing: backing, maxDimension: maxDimension)
+    }
+
+    private func resize(recovery: Bool = false) {
+        guard !stopped else { return }
+        let size = desiredDrawableSize()
         guard size != view.drawableSize else { return }
+        if desktopFrozen, !recovery {
+            requestDesktopRecovery()
+            return
+        }
         resetPerformanceWindow()
         view.drawableSize = size
-        view.needsDisplay = true
+        if !recovery { view.needsDisplay = true }
     }
     nonisolated func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
-    nonisolated func draw(in view: MTKView) { MainActor.assumeIsolated { drawFrame() } }
-    private func drawFrame() {
-        guard !stopped, !desktopFrozen else { return }
-        resize()
-        guard inFlight.wait(timeout: .now()) == .success else { return }
+    nonisolated func draw(in view: MTKView) { MainActor.assumeIsolated { _ = drawFrame() } }
+    private func drawFrame(recovery: Bool = false) -> Bool {
+        guard !stopped, desktopFrozen == recovery else { return false }
+        resize(recovery: recovery)
+        guard inFlight.wait(timeout: .now()) == .success else { return false }
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
             let command = resources.queue.makeCommandBuffer()
         else {
             inFlight.signal()
-            return
+            return false
         }
         let frameResources = fogDragPreview ?? resources
         let background = frameResources.scene.background
@@ -372,7 +426,7 @@ import os
             renderFailed = true
             stop()
             onError(error.localizedDescription)
-            return
+            return false
         }
         if firstResumeFrame {
             resumeAtFrozenFrame = false
@@ -380,17 +434,18 @@ import os
         }
         if let encoding { metrics?.encoded(encoding) }
         let desktopFrameID: UInt64?
-        if desktopPlayback {
+        if desktopPlayback && !recovery {
             desktopFrameID = presentationHistory.submit(
                 .init(
                     time: time, trail: frameResources.trail == nil ? nil : trailContext.snapshot()))
-            desktopGPU.withLock { $0.count += 1 }
         } else {
             desktopFrameID = nil
         }
+        if desktopPlayback { desktopGPU.withLock { $0.count += 1 } }
         let semaphore = inFlight
         let retryTransitionFrame =
-            transitionStillPending && !resources.isAnimated && transitionDrawRetries > 0
+            !recovery && transitionStillPending && !resources.isAnimated
+            && transitionDrawRetries > 0
         if retryTransitionFrame { transitionDrawRetries -= 1 }
         let complete = frameCompletionHandler(
             retryTransitionFrame: retryTransitionFrame, encoding: encoding
@@ -398,10 +453,11 @@ import os
             semaphore.signal()
         }
         let desktopGPU = desktopGPU
+        let tracksGPU = desktopPlayback
         command.addCompletedHandler { [weak self, frameResources] buffer in
             _ = frameResources  // Retain the immutable scene/resources through GPU completion.
             complete(buffer)
-            if desktopFrameID != nil {
+            if tracksGPU {
                 let drained = desktopGPU.withLock { state in
                     state.count -= 1
                     return state.draining && state.count == 0
@@ -419,14 +475,30 @@ import os
                     desktopFramePresented(desktopFrameID, at: time)
                 }
             }
-        } else if onFirstFramePresented != nil {
+        } else if !recovery, onFirstFramePresented != nil {
             drawable.addPresentedHandler { [weak self] drawable in
                 self?.receivePresentation(at: drawable.presentedTime)
             }
         }
         if let metrics, let encoding {
-            drawable.addPresentedHandler { [weak metrics] drawable in
-                metrics?.presented(encoding, at: drawable.presentedTime)
+            if recovery {
+                let delivered = OSAllocatedUnfairLock(initialState: false)
+                let record: @Sendable (Double) -> Void = { [weak metrics] time in
+                    let first = delivered.withLock { recorded in
+                        defer { recorded = true }
+                        return !recorded
+                    }
+                    if first { metrics?.presented(encoding, at: time) }
+                }
+                drawable.addPresentedHandler { record($0.presentedTime) }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    record(0)
+                }
+            } else {
+                drawable.addPresentedHandler { [weak metrics] drawable in
+                    metrics?.presented(encoding, at: drawable.presentedTime)
+                }
             }
         }
         command.present(drawable)
@@ -434,6 +506,7 @@ import os
         if let metrics {
             metrics.submitted(width: drawable.texture.width, height: drawable.texture.height)
         }
+        return true
     }
 
     func frameCompletionHandler(

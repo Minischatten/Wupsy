@@ -21,6 +21,7 @@ import SwiftUI
     private(set) var snapshot: ScenePerformanceSnapshot?
     private(set) var details: Details?
     private var fallbackStatus: String?
+    private var pauseDetail: String?
 
     @Published var showsDetails = false {
         didSet {
@@ -49,7 +50,11 @@ import SwiftUI
     var status: String? {
         guard let player else { return fallbackStatus }
         switch player.rendererStatus {
-        case .paused: return ProductText.performancePaused.text
+        case .paused:
+            if let pauseDetail {
+                return ProductText.performancePaused.text + " · " + pauseDetail
+            }
+            return ProductText.performancePaused.text
         case .onDemand: return ProductText.performanceOnDemand.text
         case .running: return ProductText.performanceRunning.text
         case .stopped: return ProductText.playbackStopped.text
@@ -84,7 +89,7 @@ import SwiftUI
         resourceSampler.setDemand(active && showsDetails, for: resourceConsumer)
     }
 
-    func bind(_ candidate: WSSStaticPlayer?, fallback: String? = nil) {
+    func bind(_ candidate: WSSStaticPlayer?, fallback: String? = nil, pauseDetail: String? = nil) {
         let next = active ? candidate : nil
         if player !== next {
             player?.performanceInvalidated = nil
@@ -96,8 +101,9 @@ import SwiftUI
             }
             invalidate()
         }
-        if fallbackStatus != fallback {
+        if fallbackStatus != fallback || self.pauseDetail != pauseDetail {
             fallbackStatus = fallback
+            self.pauseDetail = pauseDetail
             publish()
         }
     }

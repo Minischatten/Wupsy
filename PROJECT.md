@@ -120,8 +120,34 @@ and resumed rendering on the same player. It received no presentation
 confirmations even during playback. Pixel-identical image retention was
 therefore outside the benchmark's evidence.
 
-Section 2 covers system events, display topology changes and any necessary
-recovery frames. Other wallpaper formats retain their existing pause behavior.
+Section 2 keeps native WSS display slots by display identity. Display sleep,
+system sleep and inactive sessions can overlap with manual pause. Returning
+from these events or changing drawable geometry can request a bounded
+frozen-time redraw. Ordinary visibility changes do not request new frames.
+
+Pause freezes the current desktop wallpaper and Resume continues its
+animation. Stop ends playback, discards pending wallpaper changes and
+clears manual pause. Explicitly applying the same or another wallpaper
+clears manual pause and starts the requested playback when other effective
+pause reasons allow it. Automatic Apply, reapply, playlist rotation and
+recovery preserve manual pause. Library preview and Editor playback remain
+independent. Other wallpaper formats retain their existing pause behavior.
+
+Section 2 was manually accepted. Single-display checks covered pause and
+resume, Spaces, Mission Control, display scaling, lock and unlock, and about
+ten seconds of system sleep. The visible frame and manual pause survived
+wake, and Resume continued playback immediately. Explicit Apply started
+playback directly after Stop and during manual pause. Basic playback and
+global pause and resume worked on both displays over AirPlay. The accepted
+automated run passed 151 tests, including strict Metal presentation.
+
+AirPlay latency limited visual verification. A complete wired multi-display
+check, including all display topology changes, remains open. The existing
+Cursor Trail clears its samples when the pointer leaves a display, which
+limited manual verification of frozen Trail history on the second display.
+This behavior predates Section 1. The next separate development task is to
+stop emitting samples outside the display, let existing samples expire,
+and begin a disconnected segment on reentry.
 See [desktop pause](docs/ARCHITECTURE.md#native-desktop-pause).
 
 ## Interface size

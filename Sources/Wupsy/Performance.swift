@@ -42,14 +42,14 @@ enum QualityProfile: String, CaseIterable, Identifiable, Codable {
             height: max(2, floor(source.height * scale / 2) * 2))
     }
 }
-enum PauseReason: String {
+enum PauseReason: String, CaseIterable {
     case manual = "Paused by you"
     case sleep = "Display asleep"
     case session = "Session inactive"
-    case battery = "On battery"
-    case lowPower = "Low Power Mode"
-    case thermal = "Cooling down"
     case memory = "Paused · critical memory pressure"
+    case thermal = "Cooling down"
+    case lowPower = "Low Power Mode"
+    case battery = "On battery"
 
     var title: String { displayName() }
     func displayName(language: String? = nil) -> String {
@@ -70,21 +70,31 @@ enum PauseReason: String {
 struct PlaybackConditions {
     var manual = false
     var sleeping = false
+    var systemSleeping = false
     var inactive = false
     var onBattery = false
     var lowPower = false
     var hot = false
     var memoryPressure = false
+    var surfaceUnavailable: Bool { sleeping || systemSleeping || inactive }
+
+    func reasons(conserve: Bool, pauseOnBattery: Bool) -> Set<PauseReason> {
+        var result: Set<PauseReason> = []
+        if manual { result.insert(.manual) }
+        if sleeping || systemSleeping { result.insert(.sleep) }
+        if inactive { result.insert(.session) }
+        if memoryPressure { result.insert(.memory) }
+        if conserve && hot { result.insert(.thermal) }
+        if conserve && lowPower { result.insert(.lowPower) }
+        if pauseOnBattery && onBattery { result.insert(.battery) }
+        return result
+    }
     func reason(conserve: Bool, pauseOnBattery: Bool) -> PauseReason? {
-        manual ? .manual : systemReason(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        let active = reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        return PauseReason.allCases.first(where: active.contains)
     }
     func systemReason(conserve: Bool, pauseOnBattery: Bool) -> PauseReason? {
-        if sleeping { return .sleep }
-        if inactive { return .session }
-        if memoryPressure { return .memory }
-        if conserve && hot { return .thermal }
-        if conserve && lowPower { return .lowPower }
-        if pauseOnBattery && onBattery { return .battery }
-        return nil
+        let active = reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        return PauseReason.allCases.first { $0 != .manual && active.contains($0) }
     }
 }

@@ -156,11 +156,11 @@ import XCTest
         lib.manuallyPaused = true
         let first = try item("first")
         let next = try item("next")
-        let a = lib.apply(first)
+        let a = lib.apply(first, source: .automatic)
         XCTAssertFalse(lib.preparing)
         XCTAssertTrue(lib.renderers.isEmpty)
         XCTAssertNil(defaults.string(forKey: "activeWallpaper"))
-        let b = lib.apply(next)
+        let b = lib.apply(next, source: .automatic)
         superseded(await a.outcome)
         lib.profile = .eco  // Internal rebuild must retain B's request.
         lib.manuallyPaused = false
@@ -216,7 +216,7 @@ import XCTest
     func testCallerCancellationStopsPendingRequest() async throws {
         let lib = try library()
         lib.manuallyPaused = true
-        let request = lib.apply(try item())
+        let request = lib.apply(try item(), source: .automatic)
         let waiter = Task { await request.outcome }
         waiter.cancel()
         superseded(await waiter.value)
@@ -285,13 +285,13 @@ import XCTest
         let lib = try library()
         lib.manuallyPaused = true
         let wallpaper = try item()
-        let a = lib.apply(wallpaper)
+        let a = lib.apply(wallpaper, source: .automatic)
         var missing = wallpaper
         missing.path = root.appendingPathComponent("missing").path
         failed(await lib.apply(missing).outcome)
         superseded(await a.outcome)
         XCTAssertNil(lib.active)
-        let b = lib.apply(wallpaper)
+        let b = lib.apply(wallpaper, source: .automatic)
         lib.stop()
         superseded(await b.outcome)
     }
@@ -352,7 +352,7 @@ import XCTest
         let lib = try library()
         accepted(await lib.apply(first).outcome)
         lib.manuallyPaused = true
-        let request = lib.apply(next)
+        let request = lib.apply(next, source: .automatic)
         lib.stop(preserveSelection: true)
         superseded(await request.outcome)
         let restarted = try library()
@@ -369,7 +369,7 @@ import XCTest
         var lib: Library? = Library(
             storage: root.appendingPathComponent("library.json"), defaults: defaults)
         lib?.manuallyPaused = true
-        let request = try XCTUnwrap(lib).apply(try item())
+        let request = try XCTUnwrap(lib).apply(try item(), source: .automatic)
         weak let released = lib
         lib = nil
         XCTAssertNil(released)

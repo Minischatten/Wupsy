@@ -12,6 +12,16 @@ import AppKit
         let renderer: Renderer
         let screen: NSScreen
     }
+    static func matchSlots<ID: Equatable>(current: [ID], target: [ID]) -> [Int?] {
+        var available = Array(current.indices)
+        return target.map { id in
+            guard let match = available.firstIndex(where: { current[$0] == id }) else {
+                return nil
+            }
+            return available.remove(at: match)
+        }
+    }
+
     static func number(_ screen: NSScreen) -> UInt32? {
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
             .uint32Value

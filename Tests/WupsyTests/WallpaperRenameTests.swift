@@ -207,7 +207,7 @@ import XCTest
 
     func testRenameDuringPendingApplyDoesNotCancelOrRestartRequest() async throws {
         library.manuallyPaused = true
-        let request = library.apply(entries[0])
+        let request = library.apply(entries[0], source: .automatic)
         try await library.rename(wallpaperID: entries[0].id, newTitle: "Pending 🌊")
         XCTAssertEqual(library.active?.title, "Pending 🌊")
         library.manuallyPaused = false

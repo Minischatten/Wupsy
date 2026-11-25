@@ -44,6 +44,7 @@ import SwiftUI
             updatePolicy()
         }
     }
+    private var clearingManualPauseForApply = false
     @Published var conserve = true {
         didSet {
             if revertingPreference { return }
@@ -86,7 +87,7 @@ import SwiftUI
             defer { admission.finish() }
 
             defaults.set(allDisplays, forKey: "allDisplays")
-            reapply()
+            displaysChanged()
         }
     }
     @Published var profile: QualityProfile = .original {
@@ -186,6 +187,10 @@ import SwiftUI
     private var conditions = PlaybackConditions()
     private var preparation: Task<Void, Never>?
     private var generation = UUID()
+    private var displayReconciliationPending = false
+    private var displayPreparation: Task<Void, Never>?
+    private var displayPreparationID = UUID()
+    private var disconnectedSceneTime: Double = 0
     private var deferredFrozenApply: (wallpaper: Wallpaper, request: WallpaperApplyRequest)?
     private var pendingApply: WallpaperApplyRequest?
     private var transitionRequest: WallpaperApplyRequest?
@@ -264,6 +269,12 @@ import SwiftUI
         favorites = Set(
             (defaults.stringArray(forKey: "favorites") ?? []).compactMap(UUID.init(uuidString:)))
         let workspace = NSWorkspace.shared.notificationCenter
+        workspace.addObserver(
+            self, selector: #selector(systemSleep), name: NSWorkspace.willSleepNotification,
+            object: nil)
+        workspace.addObserver(
+            self, selector: #selector(systemWake), name: NSWorkspace.didWakeNotification,
+            object: nil)
         workspace.addObserver(
             self, selector: #selector(screenSleep), name: NSWorkspace.screensDidSleepNotification,
             object: nil)
@@ -658,19 +669,30 @@ import SwiftUI
         }
 
         if source == .manual { onPlaybackCommand?(.manualApply) }
+        cancelDisplayPreparation()
+        let releasesFrozenCoverage =
+            transitionRequest != nil && renderers.contains(where: \.hasFrozenScene)
         cancelTransition()
         if pendingApply != nil { stopPlayback(preserveSelection: true) }
         let request = WallpaperApplyRequest()
         if removingWallpaper == item.id {
             reject(request, ProductText.operationWait.text)
+            if releasesFrozenCoverage { updatePolicy() }
             return request
         }
         guard item.kind == .scene || FileManager.default.fileExists(atPath: item.path) else {
             reject(
                 request, ProductText.wallpaperMissing.text)
+            if releasesFrozenCoverage { updatePolicy() }
             return request
         }
-        if manuallyPaused, !renderers.isEmpty, renderers.allSatisfy(\.hasFrozenScene) {
+        if source == .manual, manuallyPaused {
+            deferredFrozenApply?.request.finish(.superseded)
+            deferredFrozenApply = nil
+            clearingManualPauseForApply = true
+            manuallyPaused = false
+            clearingManualPauseForApply = false
+        } else if manuallyPaused, !renderers.isEmpty, renderers.allSatisfy(\.hasFrozenScene) {
             deferredFrozenApply?.request.finish(.superseded)
             deferredFrozenApply = (item, request)
             request.cancel = { [weak self, weak request] in
@@ -997,6 +1019,7 @@ import SwiftUI
         guard let item = committedItem ?? items.first(where: { $0.id == id }) ?? previous,
             item.id == id, item.kind == .scene
         else { throw ScenePlaybackError.notSceneWallpaper }
+        cancelDisplayPreparation()
         if pendingApply != nil || preparing || renderers.isEmpty {
             guard previous?.id == id else { throw CancellationError() }
             retargetPreparation(to: item)
@@ -1151,10 +1174,13 @@ import SwiftUI
         }
 
         onPlaybackCommand?(preserveSelection ? .shutdown : .stop)
-        stopPlayback(preserveSelection: preserveSelection)
+        stopPlayback(preserveSelection: preserveSelection, clearManualPause: !preserveSelection)
 
     }
-    private func stopPlayback(preserveSelection: Bool = false) {
+    private func stopPlayback(preserveSelection: Bool = false, clearManualPause: Bool = false) {
+        cancelDisplayPreparation()
+        disconnectedSceneTime = 0
+        displayReconciliationPending = false
         cancelTransition()
         replacementPreparationID = nil
         pendingApply?.finish(.superseded)
@@ -1170,6 +1196,7 @@ import SwiftUI
         renderers.removeAll()
         active = nil
         usingOptimizedVideo = false
+        if clearManualPause, manuallyPaused { manuallyPaused = false }
         playbackStatus = .stopped
     }
     private func retire(_ renderer: Renderer) {
@@ -1208,23 +1235,137 @@ import SwiftUI
 
         }
     }
-    @objc private func screenSleep() {
+    private func cancelDisplayPreparation() {
+        displayPreparationID = UUID()
+        displayPreparation?.cancel()
+        displayPreparation = nil
+    }
+
+    private func enabledScreens() -> [NSScreen] {
+        let screens = targetScreens()
+        return allDisplays ? screens : Array(screens.prefix(1))
+    }
+
+    @objc func displaysChanged() {
+        guard !maintenanceStopped, maintenance.allowsMutation, let item = active else { return }
+        guard item.sceneSource == .nativeWSS, pendingApply == nil else {
+            reapply()
+            return
+        }
+        let releasesFrozenCoverage =
+            transitionRequest != nil
+            && renderers.contains(where: \.hasFrozenScene)
+        if transitionRequest != nil { cancelTransition() }
+        guard !preparing else {
+            reapply()
+            return
+        }
+        reconcileDesktopDisplays(item)
+        if releasesFrozenCoverage { updatePolicy() }
+    }
+
+    private func reconcileDesktopDisplays(
+        _ item: Wallpaper, prepared: PreparedScenePlayback? = nil
+    ) {
+        let targets = enabledScreens()
+        let current = renderers
+        let matches = WSSDesktopRefreshTargets.matchSlots(
+            current: current.map { DesktopPerformancePanel.DisplayID($0.screen) },
+            target: targets.map { DesktopPerformancePanel.DisplayID($0) })
+        let retained = Set(matches.compactMap { $0 })
+        let template = current.compactMap { $0.scene as? WSSStaticPlayer }.first
+        let source = prepared ?? template.map { PreparedScenePlayback(wss: $0.resources) }
+        if let template { disconnectedSceneTime = template.elapsed }
+        let reasons = conditions.reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        let mayPrepare = Renderer.canRetainScene(for: reasons) && !conditions.surfaceUnavailable
+        let missing = matches.contains(nil)
+        if !missing { cancelDisplayPreparation() }
+
+        for (index, renderer) in current.enumerated() where !retained.contains(index) {
+            retire(renderer)
+        }
+        var result: [Renderer] = []
+        let ticket = generation
+        for (screen, index) in zip(targets, matches) {
+            if let index {
+                let renderer = current[index]
+                renderer.updateScreen(screen)
+                result.append(renderer)
+            } else if mayPrepare, let source {
+                let renderer = makeRenderer(
+                    item, screen: screen, mediaURL: item.url, quality: profile,
+                    playback: source, ticket: ticket,
+                    onError: { [weak self] error, renderer in
+                        self?.rendererFailed(error, ticket: ticket, renderer: renderer)
+                    })
+                renderer.startDesktopSlot(
+                    offset: disconnectedSceneTime, reasons: reasons, surfaceAvailable: true)
+                result.append(renderer)
+            }
+        }
+        if result.map(ObjectIdentifier.init) != current.map(ObjectIdentifier.init) {
+            renderers = result
+        }
+        displayReconciliationPending = result.count != targets.count || targets.isEmpty
+        if reasons.isEmpty {
+            playbackStatus = result.isEmpty ? .ready : .playing(displayCount: result.count)
+        }
+
+        if mayPrepare, missing, source == nil, displayPreparation == nil,
+            defaults.string(forKey: "activeWallpaper") == item.id.uuidString,
+            let admission = try? maintenance.beginMutation(kind: .runtime)
+        {
+            let id = displayPreparationID
+            displayPreparation = Task { [weak self] in
+                defer { admission.finish() }
+                await MaintenanceOperation.$id.withValue(admission.id) {
+                    guard let self else { return }
+                    defer {
+                        if self.displayPreparationID == id { self.displayPreparation = nil }
+                    }
+                    do {
+                        let prepared = try await self.scenePreparation(item)
+                        guard !Task.isCancelled, self.displayPreparationID == id,
+                            self.generation == ticket, self.active == item,
+                            self.transitionRequest == nil
+                        else { return }
+                        self.reconcileDesktopDisplays(item, prepared: prepared)
+                    } catch {
+                        guard !Task.isCancelled, self.displayPreparationID == id,
+                            self.generation == ticket, self.active == item
+                        else { return }
+                        self.presentWallpaperFailure(error, item: item, operation: .playbackError)
+                    }
+                }
+            }
+            if let displayPreparation { runtimeTasks.track(displayPreparation) }
+        }
+    }
+
+    @objc func systemSleep() {
+        conditions.systemSleeping = true
+        updatePolicy()
+    }
+    @objc func systemWake() {
+        conditions.systemSleeping = false
+        updatePolicy()
+    }
+    @objc func screenSleep() {
         conditions.sleeping = true
         updatePolicy()
     }
-    @objc private func screenWake() {
+    @objc func screenWake() {
         conditions.sleeping = false
         updatePolicy()
     }
-    @objc private func sessionInactive() {
+    @objc func sessionInactive() {
         conditions.inactive = true
         updatePolicy()
     }
-    @objc private func sessionActive() {
+    @objc func sessionActive() {
         conditions.inactive = false
         updatePolicy()
     }
-    @objc private func displaysChanged() { reapply() }
     @objc func updatePolicy() {
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
 
@@ -1238,6 +1379,8 @@ import SwiftUI
         }
         let reason = conditions.reason(conserve: conserve, pauseOnBattery: pauseOnBattery)
         if pauseReason != reason { pauseReason = reason }
+        // Apply will either replace the renderers or keep their frozen coverage during preparation.
+        if clearingManualPauseForApply { return }
         if reason != nil { cancelTransition() }
         if reason != nil, preparing {
             generation = UUID()
@@ -1245,11 +1388,12 @@ import SwiftUI
             preparation = nil
             preparing = false
         }
-        let retainingScenes =
-            manuallyPaused
-            && conditions.systemReason(conserve: conserve, pauseOnBattery: pauseOnBattery) == nil
-        for renderer in renderers {
-            renderer.setPaused(reason != nil, retainingScene: retainingScenes)
+        let reasons = conditions.reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        if !Renderer.canRetainScene(for: reasons) || conditions.surfaceUnavailable {
+            cancelDisplayPreparation()
+        }
+        for renderer in renderers where !(transitionRequest != nil && renderer.hasFrozenScene) {
+            renderer.applyPauseReasons(reasons, surfaceAvailable: !conditions.surfaceUnavailable)
         }
         if reason == nil, let deferred = deferredFrozenApply {
             deferredFrozenApply = nil
@@ -1258,6 +1402,14 @@ import SwiftUI
         }
         guard let active else {
             playbackStatus = .ready
+            return
+        }
+        if displayReconciliationPending, active.sceneSource == .nativeWSS,
+            pendingApply == nil, transitionRequest == nil, !preparing,
+            defaults.string(forKey: "activeWallpaper") == active.id.uuidString
+        {
+            reconcileDesktopDisplays(active)
+            if let reason { playbackStatus = .paused(reason) }
             return
         }
         if let reason {

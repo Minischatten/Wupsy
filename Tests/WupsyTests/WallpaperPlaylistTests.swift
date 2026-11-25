@@ -706,7 +706,9 @@ import XCTest
         playlist.activatePlaylist(id: b)
         let obsolete = try XCTUnwrap(requests.last)
         library.manuallyPaused = true
+        library.systemSleep()
         let manual = library.apply(entries[2])
+        XCTAssertFalse(library.manuallyPaused)
         obsolete.finish(.failed(ImportFailure.message("late")))
         await drain()
         XCTAssertNil(playlist.activePlaylistID)
@@ -1197,7 +1199,9 @@ import XCTest
         await fail()
         let obsolete = try XCTUnwrap(requests.last)
         library.manuallyPaused = true
+        library.systemSleep()
         let manual = library.apply(entries[2])
+        XCTAssertFalse(library.manuallyPaused)
         obsolete.finish(.accepted)
         await drain()
         XCTAssertNil(playlist.activePlaylistID)

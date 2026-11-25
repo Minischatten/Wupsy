@@ -92,7 +92,10 @@ import SwiftUI
             observedRenderer = renderer
             renderer?.performanceSceneChanged = { [weak self] in self?.reconcile() }
         }
-        diagnosis.bind(renderer?.scene as? WSSStaticPlayer, fallback: status())
+        diagnosis.bind(
+            renderer?.scene as? WSSStaticPlayer,
+            fallback: renderer?.effectivePauseReason?.title ?? status(),
+            pauseDetail: renderer?.effectivePauseReason?.title)
     }
 
     func resize() {

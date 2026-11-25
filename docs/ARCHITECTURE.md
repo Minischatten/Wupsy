@@ -67,10 +67,45 @@ and target FPS and collects no frame samples. The CLI benchmark records equal
 two-second playing, paused and resumed windows. Full Stop is measured
 separately for resource release.
 
-A new Apply while the old desktop remains frozen waits until Resume or Stop.
-Editor and Library previews keep their own playback behavior. Section 1 does
-not restore a lost surface after a display or system event. Other media kinds
-retain the original resource-release pause behavior.
+An explicit Apply clears manual pause, including when reapplying the same
+wallpaper. Native transitions can keep the old scene frozen until the
+replacement is ready. System pause reasons still apply. Automatic requests
+preserve manual pause and wait while the desktop is frozen. Stop discards
+pending requests and clears manual pause after teardown.
+Editor and Library previews keep their own playback behavior. Other media
+kinds retain the original resource-release pause behavior.
+
+The desktop combines global reasons with display-local reasons. Manual pause,
+display and system sleep, and an inactive session can overlap and keep the
+native scene retained. Battery, Low Power Mode, thermal and memory policy may
+release it even when a higher-priority reason is shown. Returning to an active
+surface resumes only when all effective reasons clear.
+
+Native topology reconciliation matches slots by display number, with screen
+object identity as a fallback. Retained slots keep the window, player,
+resources and Trail state. Removed slots stop. New slots reuse prepared
+resources where available, inherit the scene time and start with empty Trail
+history. After a full disconnect, resources are prepared again and the saved
+time is used. Work from obsolete preparation is ignored.
+
+A drawable size change, a newly frozen slot or a return from display sleep,
+system sleep or an inactive session can request one paused recovery draw.
+Geometry requests coalesce over 35 ms. The explicit draw uses frozen time and
+does not advance Trail. If a drawable is unavailable, the request waits for
+a later relevant event. A still-ordered window can attempt recovery even
+while covered. An ordinary occlusion or Spaces change only reconsiders an
+already pending request. Resume and Stop discard pending
+recovery. There is no retained screenshot or continuous paused loop. A surface
+loss without a relevant event is outside this detection path. Recovery frames
+count in diagnostics, including when a presentation confirmation is absent.
+Section 2 was accepted. AirPlay confirmed basic playback and global pause
+and resume on both displays, with noticeable latency. A complete wired
+multi-display topology check remains open.
+
+Cursor Trail currently resets its samples on the next advancing frame when
+the pointer leaves a display's frame. This behavior predates desktop pause.
+Allowing the samples to fade after an exit would require aging them while
+outside the display and starting a disconnected segment on reentry.
 
 ### Apply outcomes
 

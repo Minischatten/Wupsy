@@ -53,6 +53,154 @@ import XCTest
         XCTAssertFalse(previous.hasLiveResources)
     }
 
+    func testDesktopTopologyPreservesExistingSlotAndFreezesAdditionalSlot() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        var screens = [fixture.screen]
+        let library = fixture.library(screens: { screens })
+        defer { library.stop() }
+        library.allDisplays = true
+        try await accepted(library.apply(fixture.animatedScene))
+        let original = try XCTUnwrap(library.renderers.first)
+        let player = try XCTUnwrap(original.scene as? WSSStaticPlayer)
+        library.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(250))
+        let time = player.elapsed
+
+        // Two target slots on the same physical screen simulate topology, not presentation.
+        screens.append(fixture.screen)
+        library.displaysChanged()
+        XCTAssertEqual(library.renderers.count, 2)
+        XCTAssertTrue(library.renderers.first === original)
+        XCTAssertTrue(original.scene === player)
+        let added = try XCTUnwrap(library.renderers.last)
+        let newPlayer = try XCTUnwrap(added.scene as? WSSStaticPlayer)
+        XCTAssertFalse(newPlayer === player)
+        XCTAssertTrue(newPlayer.resources === player.resources)
+        XCTAssertTrue(newPlayer.desktopFrozen)
+        XCTAssertEqual(newPlayer.elapsed, time)
+        XCTAssertEqual(added.effectivePauseReason, .manual)
+        XCTAssertTrue(library.manuallyPaused)
+
+        screens.removeLast()
+        library.displaysChanged()
+        XCTAssertEqual(library.renderers.count, 1)
+        XCTAssertTrue(library.renderers.first === original)
+        XCTAssertTrue(original.scene === player)
+        XCTAssertEqual(player.elapsed, time)
+        XCTAssertTrue(added.stopped)
+        XCTAssertFalse(added.hasLiveResources)
+        screens.removeAll()
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.isEmpty)
+        XCTAssertTrue(original.stopped)
+        screens = [fixture.screen]
+        library.displaysChanged()
+        for _ in 0..<100 where library.renderers.isEmpty {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let reconnected = try XCTUnwrap(library.renderers.first?.scene as? WSSStaticPlayer)
+        XCTAssertFalse(reconnected === player)
+        XCTAssertTrue(reconnected.desktopFrozen)
+        XCTAssertEqual(reconnected.elapsed, time)
+        XCTAssertEqual(
+            WSSDesktopRefreshTargets.matchSlots(current: [41, 52], target: [52, 41, 63]),
+            [1, 0, nil])
+    }
+
+    func testSystemAndDisplayReasonsDoNotClearManualPause() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        let renderer = try XCTUnwrap(library.renderers.first)
+        let player = try XCTUnwrap(renderer.scene as? WSSStaticPlayer)
+        library.manuallyPaused = true
+        library.systemSleep()
+        library.screenSleep()
+        library.sessionInactive()
+        XCTAssertEqual(renderer.globalPauseReasons, [.manual, .sleep, .session])
+        library.systemWake()
+        XCTAssertEqual(renderer.globalPauseReasons, [.manual, .sleep, .session])
+        library.screenWake()
+        XCTAssertEqual(renderer.globalPauseReasons, [.manual, .session])
+        library.sessionActive()
+        XCTAssertEqual(renderer.effectivePauseReason, .manual)
+        XCTAssertTrue(renderer.scene === player)
+        XCTAssertTrue(player.desktopFrozen)
+
+        renderer.setDisplayPauseReasons([.manual])
+        library.manuallyPaused = false
+        XCTAssertTrue(player.desktopFrozen)
+        renderer.setDisplayPauseReasons([])
+        XCTAssertFalse(player.desktopFrozen)
+        XCTAssertTrue(renderer.scene === player)
+    }
+
+    func testFrozenGeometryRequestsOneRecoveryAndStopCancelsAnother() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        let trailConfiguration = WSSTrailConfiguration(colors: [.init(r: 1, g: 1, b: 1)])
+        var manifest = fixture.scenes.document()
+        var layers = try XCTUnwrap(manifest["layers"] as? [[String: Any]])
+        let trailLayer = WSSSceneDocumentV1.Layer(
+            content: .trail(trailConfiguration, visible: true))
+        layers.append(
+            try XCTUnwrap(
+                JSONSerialization.jsonObject(with: JSONEncoder().encode(trailLayer))
+                    as? [String: Any]))
+        manifest["layers"] = layers
+        let trailWallpaper = try WallpaperImporter.resolve(
+            fixture.scenes.fixture(manifest, name: "Recovery Trail"))
+        try await accepted(library.apply(trailWallpaper))
+        let renderer = try XCTUnwrap(library.renderers.first)
+        let player = try XCTUnwrap(renderer.scene as? WSSStaticPlayer)
+        renderer.window.level = .floating
+        let origin = fixture.screen.visibleFrame.origin
+        renderer.window.setFrame(
+            CGRect(x: origin.x + 30, y: origin.y + 40, width: 300, height: 220), display: true)
+        renderer.window.orderFrontRegardless()
+        XCTAssertTrue(renderer.window.isVisible)
+        let metrics = try XCTUnwrap(player.startMeasuring())
+        library.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(250))
+        let time = player.elapsed
+        var trail = try WSSTrailSimulation(configuration: trailConfiguration)
+        trail.update(time: time - 0.1, pointer: .init(20, 20))
+        trail.update(time: time, pointer: .init(50, 50))
+        let samples = trail.samples
+        player.trailContext.restore([1: trail])
+        let start = metrics.snapshot().frames
+        renderer.window.setFrame(
+            CGRect(x: origin.x + 30, y: origin.y + 40, width: 410, height: 300), display: true)
+        player.view.frame.size = CGSize(width: 410, height: 300)
+        player.desktopGeometryChanged()
+        player.requestDesktopRecovery()
+        player.requestDesktopRecovery()
+        for _ in 0..<100 where metrics.snapshot().frames == start {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let submitted = try XCTUnwrap(player.performanceSnapshot())
+        XCTAssertEqual(submitted.completions.frames, start + 1)
+        XCTAssertEqual(submitted.frameWindow?.submissions, 1)
+        XCTAssertEqual(player.elapsed, time)
+        XCTAssertEqual(player.trailContext.snapshot()[1]?.samples, samples)
+        for _ in 0..<5 { player.view.draw() }
+        try await Task.sleep(for: .milliseconds(400))
+        let quiet = try XCTUnwrap(player.performanceSnapshot()?.frameWindow)
+        XCTAssertEqual(quiet.submissions, 0)
+        XCTAssertEqual(quiet.gpuCompletionsPerSecond, 0)
+        XCTAssertEqual(metrics.snapshot().frames, start + 1)
+        player.requestDesktopRecovery()
+        library.stop()
+        try await Task.sleep(for: .milliseconds(70))
+        XCTAssertEqual(metrics.snapshot().frames, start + 1)
+        XCTAssertTrue(renderer.stopped)
+    }
+
     func testDesktopPauseKeepsVisiblePlayerAndDefersApply() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
@@ -98,8 +246,8 @@ import XCTest
         library.manuallyPaused = true
         library.manuallyPaused = false
         library.manuallyPaused = true
-        let replaced = library.apply(fixture.image)
-        let queued = library.apply(fixture.secondImage)
+        let replaced = library.apply(fixture.image, source: .automatic)
+        let queued = library.apply(fixture.secondImage, source: .automatic)
         guard case .superseded = await replaced.outcome else {
             return XCTFail("Expected the newer deferred apply to replace the first")
         }
@@ -114,13 +262,151 @@ import XCTest
         try await accepted(library.apply(fixture.animatedScene))
         let last = try XCTUnwrap(library.renderers.first)
         library.manuallyPaused = true
-        let cancelled = library.apply(fixture.image)
+        let cancelled = library.apply(fixture.image, source: .automatic)
         library.stop()
         guard case .superseded = await cancelled.outcome else {
             return XCTFail("Expected Stop to cancel the deferred apply")
         }
         XCTAssertFalse(last.hasLiveResources)
         XCTAssertFalse(last.window.isVisible)
+    }
+
+    func testApplyStartsAfterStoppingPausedPlayback() async throws {
+        try await assertApplyAfterStop(manuallyPaused: true, sameWallpaper: false)
+    }
+
+    func testReapplyingSameWallpaperStartsAfterStoppingPausedPlayback() async throws {
+        try await assertApplyAfterStop(manuallyPaused: true, sameWallpaper: true)
+    }
+
+    func testApplyStartsAfterStoppingRunningPlayback() async throws {
+        try await assertApplyAfterStop(manuallyPaused: false, sameWallpaper: false)
+    }
+
+    func testExplicitApplyStartsDifferentWallpaperFromManualPause() async throws {
+        try await assertExplicitApplyFromManualPause(sameWallpaper: false)
+    }
+
+    func testExplicitApplyRestartsSameWallpaperFromManualPause() async throws {
+        try await assertExplicitApplyFromManualPause(sameWallpaper: true)
+    }
+
+    private func assertExplicitApplyFromManualPause(sameWallpaper: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        let previous = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = true
+
+        let next = sameWallpaper ? fixture.animatedScene : fixture.staticScene
+        let request = library.apply(next)
+
+        XCTAssertFalse(library.manuallyPaused)
+        XCTAssertFalse(fixture.store.defaults.bool(forKey: "manuallyPaused"))
+        XCTAssertNil(library.pauseReason)
+        XCTAssertTrue(library.renderers.first === previous)
+        XCTAssertTrue(previous.hasFrozenScene)
+        XCTAssertTrue(previous.window.isVisible)
+        library.updatePolicy()
+        XCTAssertTrue(previous.hasFrozenScene)
+        try await accepted(request)
+        XCTAssertEqual(library.active?.id, next.id)
+        XCTAssertEqual(library.playbackStatus, .playing(displayCount: 1))
+        XCTAssertTrue(previous.stopped)
+    }
+
+    func testAutomaticReapplyKeepsManualPause() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        library.manuallyPaused = true
+
+        library.profile = .balanced
+
+        XCTAssertTrue(library.manuallyPaused)
+        XCTAssertEqual(library.active?.id, fixture.animatedScene.id)
+        XCTAssertEqual(library.playbackStatus, .paused(.manual))
+    }
+
+    func testExplicitApplyClearsOnlyManualPauseWhileSystemSleeps() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        library.manuallyPaused = true
+        library.systemSleep()
+
+        let request = library.apply(fixture.staticScene)
+
+        XCTAssertFalse(library.manuallyPaused)
+        XCTAssertEqual(library.pauseReason, .sleep)
+        XCTAssertEqual(library.playbackStatus, .paused(.sleep))
+        XCTAssertEqual(library.active?.id, fixture.staticScene.id)
+        XCTAssertTrue(library.renderers.isEmpty)
+        library.systemWake()
+        try await accepted(request)
+        XCTAssertEqual(library.playbackStatus, .playing(displayCount: 1))
+    }
+
+    private func assertApplyAfterStop(manuallyPaused: Bool, sameWallpaper: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        let previous = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = manuallyPaused
+
+        library.stop()
+
+        XCTAssertFalse(library.manuallyPaused)
+        XCTAssertFalse(fixture.store.defaults.bool(forKey: "manuallyPaused"))
+        XCTAssertNil(library.pauseReason)
+        XCTAssertNil(library.active)
+        XCTAssertTrue(library.renderers.isEmpty)
+        XCTAssertEqual(library.playbackStatus, .stopped)
+        XCTAssertFalse(previous.window.isVisible)
+
+        let next = sameWallpaper ? fixture.animatedScene : fixture.staticScene
+        let request = library.apply(next)
+        guard library.pauseReason == nil else { return XCTFail("Apply stayed paused after Stop") }
+        try await accepted(request)
+        XCTAssertEqual(library.active?.id, next.id)
+        XCTAssertEqual(library.playbackStatus, .playing(displayCount: 1))
+        XCTAssertFalse(library.renderers.first === previous)
+        XCTAssertEqual(library.renderers.first?.window.isVisible, true)
+    }
+
+    func testApplyAfterStopWaitsForActiveSystemPauseReason() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        try await accepted(library.apply(fixture.animatedScene))
+        library.manuallyPaused = true
+        library.systemSleep()
+
+        library.stop()
+
+        XCTAssertFalse(library.manuallyPaused)
+        XCTAssertEqual(library.pauseReason, .sleep)
+        XCTAssertEqual(library.playbackStatus, .stopped)
+        XCTAssertNil(library.active)
+        XCTAssertTrue(library.renderers.isEmpty)
+
+        let request = library.apply(fixture.staticScene)
+        XCTAssertEqual(library.active?.id, fixture.staticScene.id)
+        XCTAssertEqual(library.playbackStatus, .paused(.sleep))
+        XCTAssertTrue(library.renderers.isEmpty)
+        library.systemWake()
+        guard library.pauseReason == nil else { return XCTFail("Apply stayed paused after wake") }
+        try await accepted(request)
+        XCTAssertEqual(library.playbackStatus, .playing(displayCount: 1))
     }
 
     func testRetainedDesktopPauseCanStillReleaseUnderSystemPolicy() async throws {

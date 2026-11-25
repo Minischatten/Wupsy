@@ -31,7 +31,7 @@ enum RendererReadiness: Equatable {
 }
 
 @MainActor final class Renderer: NSObject, WKNavigationDelegate {
-    let screen: NSScreen
+    private(set) var screen: NSScreen
     let wallpaper: Wallpaper
     let window: DesktopWindow
     let mediaURL: URL
@@ -120,6 +120,9 @@ enum RendererReadiness: Equatable {
         window.backgroundColor = .black
         window.contentView = nil
         window.setFrame(screen.frame, display: true)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(desktopOcclusionChanged),
+            name: NSWindow.didChangeOcclusionStateNotification, object: window)
         if !initiallyPaused { setPaused(false) }
     }
     private func report(_ diagnostic: RuntimeDiagnostic) {
@@ -322,7 +325,7 @@ enum RendererReadiness: Equatable {
         sceneRenderResolution = resolution
         scene?.setRenderResolution(resolution)
     }
-    private func installScene(_ prepared: PreparedScenePlayback) {
+    private func installScene(_ prepared: PreparedScenePlayback, initiallyFrozen: Bool = false) {
         let fps = profile == .original ? sceneFPS : min(sceneFPS, Int(profile.fps))
         let onFirstFramePresented: (@MainActor () -> Void)?
         if onReadiness != nil || transitionStill != nil {
@@ -359,7 +362,12 @@ enum RendererReadiness: Equatable {
             Task { @MainActor [weak self] in self?.drawTransitionFrame() }
         } else {
             window.contentView = player.view
-            player.play()
+            if initiallyFrozen, let native = player as? WSSStaticPlayer {
+                native.setDesktopSurfaceAvailable(surfaceAvailable)
+                native.pauseDesktop()
+            } else {
+                player.play()
+            }
         }
     }
     private func loadWeb() {
@@ -428,6 +436,65 @@ enum RendererReadiness: Equatable {
         window.contentView = nil
         window.orderOut(nil)
     }
+    private(set) var globalPauseReasons: Set<PauseReason> = []
+    private(set) var displayPauseReasons: Set<PauseReason> = []
+    var effectivePauseReason: PauseReason? {
+        PauseReason.allCases.first {
+            globalPauseReasons.contains($0) || displayPauseReasons.contains($0)
+        }
+    }
+    private var surfaceAvailable = true
+
+    func applyPauseReasons(_ reasons: Set<PauseReason>, surfaceAvailable: Bool) {
+        let before = effectivePauseReason
+        globalPauseReasons = reasons
+        let recovered = !self.surfaceAvailable && surfaceAvailable
+        self.surfaceAvailable = surfaceAvailable
+        let effective = globalPauseReasons.union(displayPauseReasons)
+        setPaused(!effective.isEmpty, retainingScene: Self.canRetainScene(for: effective))
+        if let player = scene as? WSSStaticPlayer {
+            player.setDesktopSurfaceAvailable(surfaceAvailable)
+            if recovered { player.requestDesktopRecovery() }
+        }
+        if before != effectivePauseReason { performanceSceneChanged?() }
+    }
+
+    func setDisplayPauseReasons(_ reasons: Set<PauseReason>) {
+        displayPauseReasons = reasons
+        applyPauseReasons(globalPauseReasons, surfaceAvailable: surfaceAvailable)
+        performanceSceneChanged?()
+    }
+
+    static func canRetainScene(for reasons: Set<PauseReason>) -> Bool {
+        reasons.isSubset(of: [.manual, .sleep, .session])
+    }
+
+    func updateScreen(_ screen: NSScreen) {
+        self.screen = screen
+        if window.frame != screen.frame { window.setFrame(screen.frame, display: true) }
+        (scene as? WSSStaticPlayer)?.desktopGeometryChanged()
+    }
+
+    func startDesktopSlot(
+        offset: Double, reasons: Set<PauseReason>, surfaceAvailable: Bool
+    ) {
+        sceneTime = offset
+        globalPauseReasons = reasons
+        self.surfaceAvailable = surfaceAvailable
+        if !reasons.isEmpty, let preparedScene {
+            self.preparedScene = nil
+            installScene(preparedScene, initiallyFrozen: true)
+            window.orderBack(nil)
+            (scene as? WSSStaticPlayer)?.requestDesktopRecovery()
+        } else {
+            setPaused(false)
+        }
+    }
+
+    @objc private func desktopOcclusionChanged() {
+        (scene as? WSSStaticPlayer)?.desktopVisibilityChanged()
+    }
+
     var hasFrozenScene: Bool { (scene as? WSSStaticPlayer)?.desktopFrozen == true }
 
     func setPaused(_ value: Bool, retainingScene: Bool = false) {
@@ -465,6 +532,7 @@ enum RendererReadiness: Equatable {
         await runtimeTasks.cancelAndDrain()
     }
     func stop() {
+        NotificationCenter.default.removeObserver(self)
         stopped = true
         paused = true
         releaseResources()

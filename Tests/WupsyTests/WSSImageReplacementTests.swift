@@ -205,7 +205,7 @@ import XCTest
         let library = Library(storage: store.storage, defaults: defaults, restoreOnLaunch: false)
         defer { library.stop() }
         library.manuallyPaused = true
-        let request = library.apply(item)
+        let request = library.apply(item, source: .automatic)
         _ = try await library.publishWSSDraft(snapshot(project, target))
         XCTAssertEqual(library.active?.kind, .scene)
         XCTAssertEqual(library.items.count, 1)
