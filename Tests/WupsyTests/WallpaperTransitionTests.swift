@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import MetalKit
 import XCTest
 
@@ -111,7 +112,8 @@ import XCTest
     func testSystemAndDisplayReasonsDoNotClearManualPause() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
-        let library = fixture.library()
+        var screens = [fixture.screen]
+        let library = fixture.library(screens: { screens })
         defer { library.stop() }
         try await accepted(library.apply(fixture.animatedScene))
         let renderer = try XCTUnwrap(library.renderers.first)
@@ -120,12 +122,27 @@ import XCTest
         library.systemSleep()
         library.screenSleep()
         library.sessionInactive()
+        let frozenTime = player.elapsed
+        var trail = try WSSTrailSimulation(configuration: .init(colors: [.init(r: 1, g: 1, b: 1)]))
+        trail.update(time: frozenTime, pointer: .init(20, 20))
+        player.trailContext.restore([1: trail])
         XCTAssertEqual(renderer.globalPauseReasons, [.manual, .sleep, .session])
+        screens = []
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.isEmpty)
+        XCTAssertFalse(renderer.stopped)
         library.systemWake()
         XCTAssertEqual(renderer.globalPauseReasons, [.manual, .sleep, .session])
         library.screenWake()
-        XCTAssertEqual(renderer.globalPauseReasons, [.manual, .session])
+        XCTAssertEqual(renderer.globalPauseReasons, [.manual, .sleep, .session])
+        screens = [fixture.screen]
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.isEmpty)
         library.sessionActive()
+        XCTAssertTrue(library.renderers.first === renderer)
+        XCTAssertEqual(player.elapsed, frozenTime)
+        XCTAssertEqual(player.trailContext.snapshot()[1]?.samples, trail.samples)
+        library.finishWakeTransition()
         XCTAssertEqual(renderer.effectivePauseReason, .manual)
         XCTAssertTrue(renderer.scene === player)
         XCTAssertTrue(player.desktopFrozen)
@@ -587,6 +604,237 @@ import XCTest
         }
     }
 
+    func testImageAndGIFPauseRetainViewsAndReconcileDisplaySlots() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let wallpaper = try animatedGIF(fixture)
+        var screens = [fixture.screen]
+        let library = fixture.library(screens: { screens })
+        defer { library.stop() }
+        library.allDisplays = true
+        try await accepted(library.apply(fixture.image))
+        let imageRenderer = try XCTUnwrap(library.renderers.first)
+        let image = try XCTUnwrap(imageRenderer.window.contentView as? NSImageView)
+        library.manuallyPaused = true
+        XCTAssertTrue(imageRenderer.hasFrozenDesktop)
+        XCTAssertTrue(imageRenderer.window.isVisible)
+        XCTAssertTrue(imageRenderer.window.contentView === image)
+        let automatic = library.apply(fixture.image, source: .automatic)
+        XCTAssertTrue(library.renderers.first === imageRenderer)
+        let explicit = library.apply(wallpaper)
+        try await accepted(explicit)
+        guard case .superseded = await automatic.outcome else {
+            return XCTFail("Expected supersession")
+        }
+        XCTAssertTrue(imageRenderer.stopped)
+        XCTAssertFalse(library.manuallyPaused)
+        let renderer = try XCTUnwrap(library.renderers.first)
+        let gif = try XCTUnwrap(renderer.gif)
+        let first = try XCTUnwrap(gif.view.image)
+        for _ in 0..<100 where gif.view.image === first {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let second = try XCTUnwrap(gif.view.image)
+        XCTAssertFalse(first === second)
+        library.manuallyPaused = true
+        library.systemSleep()
+        library.systemWake()
+        library.finishWakeTransition()
+        XCTAssertTrue(renderer.paused)
+        screens.append(fixture.screen)
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.first === renderer)
+        XCTAssertEqual(library.renderers.count, 2)
+        let added = try XCTUnwrap(library.renderers.last)
+        XCTAssertTrue(added.hasFrozenDesktop)
+        let addedImage = try XCTUnwrap(added.gif?.view.image)
+        let pausedCPU = Benchmark.cpuSeconds()
+        for _ in 0..<4 {
+            try await Task.sleep(for: .milliseconds(180))
+            XCTAssertTrue(gif.view.image === second)
+            XCTAssertTrue(added.gif?.view.image === addedImage)
+        }
+        let pausedMilliseconds = (Benchmark.cpuSeconds() - pausedCPU) * 1000
+        screens.removeLast()
+        library.displaysChanged()
+        XCTAssertTrue(added.stopped)
+        XCTAssertFalse(added.hasLiveResources)
+        library.manuallyPaused = false
+        XCTAssertTrue(gif.view.image === second)
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertTrue(gif.view.image === second)
+        for _ in 0..<100 where gif.view.image === second {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(gif.view.image === second)
+        let playingCPU = Benchmark.cpuSeconds()
+        var current = gif.view.image
+        var replacements = 0
+        for _ in 0..<4 {
+            try await Task.sleep(for: .milliseconds(180))
+            if gif.view.image !== current { replacements += 1 }
+            current = gif.view.image
+        }
+        XCTAssertGreaterThan(replacements, 0)
+        let playingMilliseconds = (Benchmark.cpuSeconds() - playingCPU) * 1000
+        print(
+            "Wupsy GIF in 720 ms: playing=\(replacements) replacements, \(playingMilliseconds) ms CPU; paused=0 replacements, \(pausedMilliseconds) ms CPU"
+        )
+        library.manuallyPaused = true
+        library.stop()
+        XCTAssertFalse(renderer.hasLiveResources)
+        XCTAssertNil(gif.view.image)
+    }
+
+    func testRecordedWakeTopologyPreservesBothPausedGIFs() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let wallpaper = try animatedGIF(fixture)
+        var ids: [UInt32] = [2, 5]
+        let library = fixture.library(
+            screens: { ids.map { _ in fixture.screen } },
+            displaySlotID: { _, index in .number(ids[index]) })
+        defer { library.stop() }
+        library.allDisplays = true
+        try await accepted(library.apply(wallpaper))
+        let original = library.renderers
+        let players = try original.map { try XCTUnwrap($0.gif) }
+        let first = players.map { $0.view.image }
+        for _ in 0..<100 where zip(players, first).contains(where: { $0.view.image === $1 }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        library.manuallyPaused = true
+        let frozenFrames = players.map(\.lastFrame)
+        let frozenRemaining = players.map { $0.frameEnd - $0.position }
+        let images = players.map { $0.view.image }
+        XCTAssertFalse(zip(first, images).contains(where: { $0 === $1 }))
+
+        library.systemSleep()
+        library.screenSleep()
+        ids = [12]
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.isEmpty)
+        XCTAssertTrue(original.allSatisfy { !$0.stopped && !$0.window.isVisible })
+        library.screenWake()
+        library.systemWake()
+        XCTAssertTrue(library.renderers.isEmpty)
+        for targets: [UInt32] in [[2], [2, 5], [2], [2, 5]] {
+            ids = targets
+            library.displaysChanged()
+            XCTAssertEqual(library.renderers.map(\.desktopSlotID), targets.map { .number($0) })
+            XCTAssertTrue(library.renderers.first === original[0])
+            if targets.count == 2 {
+                XCTAssertTrue(library.renderers.last === original[1])
+            } else {
+                XCTAssertFalse(original[1].window.isVisible)
+            }
+        }
+        library.finishWakeTransition()
+        XCTAssertEqual(players.map(\.lastFrame), frozenFrames)
+        XCTAssertEqual(players.map { $0.frameEnd - $0.position }, frozenRemaining)
+        XCTAssertTrue(zip(players, images).allSatisfy { $0.view.image === $1 })
+        XCTAssertTrue(library.manuallyPaused)
+        XCTAssertTrue(library.renderers.allSatisfy { $0.window.isVisible && !$0.stopped })
+    }
+
+    func testWakeTransitionHandlesNewAndRemovedSlotsAndResumesWithoutManualPause() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        var ids: [UInt32] = [2]
+        let library = fixture.library(
+            screens: { ids.map { _ in fixture.screen } },
+            displaySlotID: { _, index in .number(ids[index]) })
+        defer { library.stop() }
+        library.allDisplays = true
+        try await accepted(library.apply(fixture.image))
+        let original = try XCTUnwrap(library.renderers.first)
+        let view = original.window.contentView
+        for returnID: UInt32 in [2, 2, 5] {
+            library.systemSleep()
+            ids = []
+            library.displaysChanged()
+            library.systemWake()
+            XCTAssertTrue(library.renderers.isEmpty)
+            XCTAssertFalse(original.stopped)
+            ids = [returnID]
+            library.displaysChanged()
+            if returnID == 2 {
+                XCTAssertTrue(library.renderers.first === original)
+                XCTAssertTrue(original.paused)
+                XCTAssertTrue(original.window.contentView === view)
+            } else {
+                XCTAssertTrue(library.renderers.isEmpty)
+            }
+            library.finishWakeTransition()
+            XCTAssertEqual(library.playbackStatus, .playing(displayCount: 1))
+            XCTAssertEqual(library.renderers.first?.desktopSlotID, .number(returnID))
+        }
+        XCTAssertTrue(original.stopped)
+        XCTAssertFalse(original.hasLiveResources)
+        let replacement = try XCTUnwrap(library.renderers.first)
+        ids = []
+        library.displaysChanged()
+        XCTAssertTrue(replacement.stopped)
+    }
+
+    func testParkedSlotsAreReleasedOnStopApplyAndCriticalPressure() async throws {
+        for action in ["stop", "apply", "pressure"] {
+            let fixture = try Fixture()
+            defer { fixture.cleanUp() }
+            var screens = [fixture.screen]
+            let library = fixture.library(screens: { screens })
+            defer { library.stop() }
+            try await accepted(library.apply(fixture.image))
+            let original = try XCTUnwrap(library.renderers.first)
+            library.manuallyPaused = true
+            library.systemSleep()
+            screens = []
+            library.displaysChanged()
+            XCTAssertFalse(original.stopped)
+            XCTAssertTrue(original.hasLiveResources)
+            screens = [fixture.screen]
+            switch action {
+            case "stop":
+                library.stop()
+                library.systemWake()
+            case "apply":
+                let request = library.apply(fixture.secondImage)
+                library.systemWake()
+                try await accepted(request)
+                XCTAssertEqual(library.active?.id, fixture.secondImage.id)
+            default:
+                library.handleCriticalMemoryPressure()
+                library.systemWake()
+                library.finishWakeTransition()
+            }
+            XCTAssertTrue(original.stopped)
+            XCTAssertFalse(original.hasLiveResources)
+            XCTAssertFalse(library.renderers.contains { $0 === original })
+        }
+    }
+
+    private func animatedGIF(_ fixture: Fixture) throws -> Wallpaper {
+        let url = try fixture.store.file("frames.gif", bytes: Data())
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithURL(
+                url as CFURL, "com.compuserve.gif" as CFString, 3, nil))
+        for (color, delay) in [(NSColor.red, 0.2), (.green, 0.65), (.blue, 0.4)] {
+            let frame = NSImage(size: CGSize(width: 8, height: 8), flipped: false) { rect in
+                color.setFill()
+                rect.fill()
+                return true
+            }
+            let image = try XCTUnwrap(frame.cgImage(forProposedRect: nil, context: nil, hints: nil))
+            CGImageDestinationAddImage(
+                destination, image,
+                [
+                    kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]
+                ] as CFDictionary)
+        }
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return try WallpaperImporter.resolve(url)
+    }
+
     private func accepted(_ request: WallpaperApplyRequest) async throws {
         guard case .accepted = await request.outcome else {
             throw ImportFailure.message("Expected an accepted Apply request")
@@ -622,6 +870,10 @@ import XCTest
 
         @MainActor func library(
             screens: (() -> [NSScreen])? = nil,
+            displaySlotID:
+                @escaping @MainActor (NSScreen, Int) -> DesktopPerformancePanel.DisplayID = {
+                    screen, _ in DesktopPerformancePanel.DisplayID(screen)
+                },
             rendererStart: @escaping @MainActor (Renderer, Int) throws -> Void = { renderer, _ in
                 renderer.setPaused(false)
             },
@@ -633,6 +885,7 @@ import XCTest
                 maintenance: MaintenanceCoordinator(), storage: store.storage,
                 defaults: store.defaults,
                 restoreOnLaunch: false, targetScreens: screens ?? { [screen] },
+                displaySlotID: displaySlotID,
                 rendererStart: rendererStart, scenePreparation: scenePreparation)
         }
 

@@ -32,6 +32,7 @@ enum RendererReadiness: Equatable {
 
 @MainActor final class Renderer: NSObject, WKNavigationDelegate {
     private(set) var screen: NSScreen
+    var desktopSlotID: DesktopPerformancePanel.DisplayID
     let wallpaper: Wallpaper
     let window: DesktopWindow
     let mediaURL: URL
@@ -93,6 +94,7 @@ enum RendererReadiness: Equatable {
         onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
         onReadiness: ((RendererReadiness) -> Void)? = nil, onError: @escaping (String) -> Void
     ) {
+        self.desktopSlotID = DesktopPerformancePanel.DisplayID(screen)
         self.maintenance = maintenance ?? .shared
         self.preparedScene = scenePlayback
         self.sceneRenderResolution = sceneRenderResolution
@@ -168,18 +170,15 @@ enum RendererReadiness: Equatable {
             self.player = player
             view.video.player = player
             window.contentView = view
-            if resumeTime > .zero {
+            // A new paused slot needs a frame without starting the playback clock.
+            if paused {
+                player.seek(to: resumeTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            } else if resumeTime > .zero {
                 player.seek(
                     to: resumeTime, toleranceBefore: CMTime(seconds: 0.2, preferredTimescale: 600),
                     toleranceAfter: CMTime(seconds: 0.2, preferredTimescale: 600))
             }
-            player.play()
-            let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.checkVideoHealth() }
-            }
-            timer.tolerance = 0.2
-            RunLoop.main.add(timer, forMode: .common)
-            healthTimer = timer
+            if !paused { playVideo(player) }
         case .image:
             let view = NSImageView(frame: NSRect(origin: .zero, size: window.frame.size))
             view.imageScaling = .scaleProportionallyUpOrDown
@@ -187,7 +186,7 @@ enum RendererReadiness: Equatable {
             imageTask = Task { [weak self, weak view] in
                 guard let self else { return }
                 let image = await ImageLoader.shared.image(wallpaper.url, maxPixel: imagePixelLimit)
-                guard !Task.isCancelled, !paused, let view, window.contentView === view else {
+                guard !Task.isCancelled, let view, window.contentView === view else {
                     return
                 }
                 guard let image else {
@@ -240,7 +239,7 @@ enum RendererReadiness: Equatable {
                         fps: profile.fps)
                     gif = animation
                     window.contentView = animation.view
-                    animation.play()
+                    if paused { animation.pause() } else { animation.play() }
                 } catch { report(.capturing(error)) }
             } else {
                 loadWeb()
@@ -383,6 +382,16 @@ enum RendererReadiness: Equatable {
             wallpaper.url,
             allowingReadAccessTo: URL(fileURLWithPath: wallpaper.root, isDirectory: true))
     }
+    private func playVideo(_ player: AVQueuePlayer) {
+        player.play()
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkVideoHealth() }
+        }
+        timer.tolerance = 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        healthTimer = timer
+    }
+
     func checkVideoHealth() {
         guard !paused, !stopped, let player else { return }
         let failed =
@@ -469,6 +478,12 @@ enum RendererReadiness: Equatable {
         reasons.isSubset(of: [.manual, .sleep, .session])
     }
 
+    func hideDesktopSlot() { window.orderOut(nil) }
+
+    func showDesktopSlot() {
+        if !stopped, window.contentView != nil { window.orderBack(nil) }
+    }
+
     func updateScreen(_ screen: NSScreen) {
         self.screen = screen
         if window.frame != screen.frame { window.setFrame(screen.frame, display: true) }
@@ -486,6 +501,9 @@ enum RendererReadiness: Equatable {
             installScene(preparedScene, initiallyFrozen: true)
             window.orderBack(nil)
             (scene as? WSSStaticPlayer)?.requestDesktopRecovery()
+        } else if !reasons.isEmpty {
+            load()
+            if !stopped, window.contentView != nil { window.orderBack(nil) }
         } else {
             setPaused(false)
         }
@@ -497,13 +515,22 @@ enum RendererReadiness: Equatable {
 
     var hasFrozenScene: Bool { (scene as? WSSStaticPlayer)?.desktopFrozen == true }
 
+    var hasFrozenDesktop: Bool {
+        hasFrozenScene
+            || (paused && hasRetainedMedia)
+    }
+
+    private var hasRetainedMedia: Bool {
+        player != nil || gif != nil || (wallpaper.kind == .image && window.contentView != nil)
+    }
+
     func setPaused(_ value: Bool, retainingScene: Bool = false) {
         guard !stopped else { return }
         if transitionPrepared && !value { return }
         if paused == value {
             if value {
                 preparedScene = nil
-                if hasFrozenScene, !retainingScene {
+                if hasFrozenDesktop, !retainingScene {
                     releaseResources()
                     finishReadiness(.cancelled)
                 }
@@ -517,13 +544,22 @@ enum RendererReadiness: Equatable {
                 player.rendererStatus != .failed, player.rendererStatus != .stopped
             {
                 player.pauseDesktop()
+            } else if retainingScene, hasRetainedMedia {
+                player?.pause()
+                healthTimer?.invalidate()
+                healthTimer = nil
+                gif?.pause()
             } else {
                 releaseResources()
                 finishReadiness(.cancelled)
             }
         } else if let scene {
             scene.play()
-        } else {
+        } else if let player {
+            playVideo(player)
+        } else if let gif {
+            gif.play()
+        } else if !hasRetainedMedia {
             load()
         }
     }

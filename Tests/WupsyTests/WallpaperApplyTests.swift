@@ -167,7 +167,7 @@ import XCTest
         accepted(await b.outcome)
         XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), next.id.uuidString)
         lib.manuallyPaused = true
-        XCTAssertTrue(lib.renderers.allSatisfy { !$0.hasLiveResources })
+        XCTAssertTrue(lib.renderers.allSatisfy(\.hasFrozenDesktop))
         accepted(await b.outcome)
     }
     func testPartialDisplayStartupFailureStopsEveryRendererWithoutAcceptance() async throws {
@@ -186,7 +186,8 @@ import XCTest
         XCTAssertTrue(lib.renderers.isEmpty)
         XCTAssertNil(defaults.string(forKey: "activeWallpaper"))
     }
-    func testNoTargetsFailsAndInternalRebuildDoesNotChangeTerminalOutcome() async throws {
+    func testDisplayDisconnectKeepsAcceptedOutcomeAndExplicitApplyWithoutTargetsFails() async throws
+    {
         var connected = true
         let screen = try XCTUnwrap(NSScreen.screens.first)
         let lib = try library(screens: { connected ? [screen] : [] })
@@ -195,7 +196,9 @@ import XCTest
         accepted(await request.outcome)
         connected = false
         lib.allDisplays = false
-        try await waitUntil { lib.message != nil }
+        XCTAssertTrue(lib.renderers.isEmpty)
+        XCTAssertEqual(lib.playbackStatus, .ready)
+        XCTAssertNil(lib.message)
         accepted(await request.outcome)
         XCTAssertEqual(defaults.string(forKey: "activeWallpaper"), wallpaper.id.uuidString)
         failed(await lib.apply(wallpaper).outcome)

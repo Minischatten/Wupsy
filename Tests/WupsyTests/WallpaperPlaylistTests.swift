@@ -106,7 +106,7 @@ import XCTest
         library = Library(
             maintenance: maintenance,
             storage: root.appendingPathComponent("library.json"), defaults: defaults)
-        library.manuallyPaused = true
+        library.systemSleep()
         playlist = controller(realApply: true)
         let id = try create("Paused maintenance")
         playlist.activatePlaylist(id: id)
@@ -1119,27 +1119,91 @@ import XCTest
         XCTAssertNotNil(playlist.error)
         XCTAssertEqual(try store.load(), old)
     }
-    func testRealApplyWaitsForResumeAndRotatesThenStops() async throws {
+    func testExplicitActivationClearsManualPauseAndRotatesThenStops() async throws {
         playlist.shutdown()
         playlist = controller(realApply: true)
         let a = try create(order: [0, 1])
+        _ = await library.apply(entries[2]).outcome
         library.manuallyPaused = true
         playlist.activatePlaylist(id: a)
-        XCTAssertNil(playlist.activePlaylistID)
-        XCTAssertEqual(playlist.pendingActivationID, a)
-        clock.advance(100)
-        XCTAssertEqual(clock.count, 0)
-        library.manuallyPaused = false
+        XCTAssertFalse(library.manuallyPaused)
         try await waitUntil { self.playlist.activePlaylistID == a }
+        XCTAssertNil(playlist.pendingActivationID)
+        XCTAssertNil(playlist.pendingWallpaperID)
+        XCTAssertEqual(library.active?.id, entries[0].id)
         clock.advance(5)
         try await waitUntil {
             self.playlist.state.playback?.currentWallpaperID == self.entries[1].id
         }
+        library.manuallyPaused = true
         library.stop()
+        XCTAssertFalse(library.manuallyPaused)
         XCTAssertNil(library.active)
         XCTAssertNil(playlist.activePlaylistID)
         XCTAssertEqual(playlist.state.definitions.count, 1)
     }
+
+    func testExplicitActivationWaitsForSystemPauseAndStopCancelsIt() async throws {
+        playlist.shutdown()
+        playlist = controller(realApply: true)
+        let id = try create()
+        _ = await library.apply(entries[2]).outcome
+        library.manuallyPaused = true
+        library.systemSleep()
+        playlist.activatePlaylist(id: id)
+        XCTAssertFalse(library.manuallyPaused)
+        XCTAssertEqual(library.pauseReason, .sleep)
+        XCTAssertEqual(playlist.pendingActivationID, id)
+        XCTAssertNil(playlist.activePlaylistID)
+        XCTAssertEqual(clock.count, 0)
+        library.systemWake()
+        try await waitUntil { self.playlist.activePlaylistID == id }
+        XCTAssertNil(playlist.pendingActivationID)
+
+        let other = try create("B", order: [2, 1])
+        library.systemSleep()
+        playlist.activatePlaylist(id: other)
+        XCTAssertEqual(playlist.pendingActivationID, other)
+        library.stop()
+        library.systemWake()
+        XCTAssertNil(playlist.pendingActivationID)
+        XCTAssertNil(playlist.pendingWallpaperID)
+        XCTAssertNil(playlist.activePlaylistID)
+        XCTAssertNil(library.active)
+    }
+
+    func testAutomaticRestorationAndRotationKeepManualPause() async throws {
+        playlist.shutdown()
+        playlist = controller(realApply: true)
+        let id = try create()
+        playlist.activatePlaylist(id: id)
+        try await waitUntil { self.playlist.activePlaylistID == id }
+        let renderer = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = true
+        playlist.shutdown()
+        playlist = controller(restore: true, realApply: true)
+        XCTAssertTrue(library.manuallyPaused)
+        XCTAssertEqual(playlist.pendingActivationID, id)
+        XCTAssertTrue(library.renderers.first === renderer)
+        XCTAssertEqual(clock.count, 0)
+        library.manuallyPaused = false
+        try await waitUntil { self.playlist.pendingActivationID == nil }
+        XCTAssertEqual(playlist.activePlaylistID, id)
+
+        let restored = try XCTUnwrap(library.renderers.first)
+        library.manuallyPaused = true
+        try playlist.remove(entries[0].id, from: id)
+        XCTAssertTrue(library.manuallyPaused)
+        XCTAssertTrue(library.renderers.first === restored)
+        XCTAssertEqual(playlist.pendingWallpaperID, entries[1].id)
+        XCTAssertEqual(clock.count, 0)
+        library.manuallyPaused = false
+        try await waitUntil {
+            self.playlist.state.playback?.currentWallpaperID == self.entries[1].id
+        }
+        XCTAssertNil(playlist.pendingWallpaperID)
+    }
+
     func testRealInternalReapplyFreezesRemainingInterval() async throws {
         playlist.shutdown()
         playlist = controller(realApply: true)

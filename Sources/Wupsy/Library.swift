@@ -191,6 +191,11 @@ import SwiftUI
     private var displayPreparation: Task<Void, Never>?
     private var displayPreparationID = UUID()
     private var disconnectedSceneTime: Double = 0
+    private var wakeTransition = false
+    private var parkedDesktopSlots: [Renderer] = []
+    private var wakeDeadline: ContinuousClock.Instant?
+    private var wakeCompletion: Task<Void, Never>?
+
     private var deferredFrozenApply: (wallpaper: Wallpaper, request: WallpaperApplyRequest)?
     private var pendingApply: WallpaperApplyRequest?
     private var transitionRequest: WallpaperApplyRequest?
@@ -213,6 +218,7 @@ import SwiftUI
     private let storage: URL
     private let defaults: UserDefaults
     private let targetScreens: () -> [NSScreen]
+    private let displaySlotID: @MainActor (NSScreen, Int) -> DesktopPerformancePanel.DisplayID
     private let rendererStart: @MainActor (Renderer, Int) throws -> Void
     private let draftPreview: ((WSSLoadedEditorProject) async -> Bool)?
     private let scenePreparation: (Wallpaper) async throws -> PreparedScenePlayback
@@ -223,6 +229,9 @@ import SwiftUI
         beforeMovePersistence: @escaping () throws -> Void = {},
         storage: URL? = nil, defaults: UserDefaults = .standard, restoreOnLaunch: Bool = true,
         targetScreens: @escaping () -> [NSScreen] = { NSScreen.screens },
+        displaySlotID: @escaping @MainActor (NSScreen, Int) -> DesktopPerformancePanel.DisplayID = {
+            screen, _ in DesktopPerformancePanel.DisplayID(screen)
+        },
         rendererStart: @escaping @MainActor (Renderer, Int) throws -> Void = { renderer, _ in
             renderer.setPaused(false)
         },
@@ -235,6 +244,7 @@ import SwiftUI
         self.beforeLibraryPublication = beforeLibraryPublication
         self.maintenance = maintenance ?? .shared
         self.targetScreens = targetScreens
+        self.displaySlotID = displaySlotID
         self.rendererStart = rendererStart
         self.scenePreparation = scenePreparation
         self.draftPreview = draftPreview
@@ -294,7 +304,7 @@ import SwiftUI
             self, selector: #selector(updatePolicy),
             name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(
-            self, selector: #selector(displaysChanged),
+            self, selector: #selector(displayConfigurationChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         let pressure = DispatchSource.makeMemoryPressureSource(
             eventMask: [.normal, .warning, .critical], queue: .main)
@@ -302,11 +312,7 @@ import SwiftUI
             guard let self, let pressure else { return }
             let event = pressure.data
             if event.contains(.critical) {
-                self.pressureRecovery.critical()
-                self.conditions.memoryPressure = true
-                Task { await ImageLoader.shared.clear() }
-                self.updatePolicy()
-                self.startMemoryRecovery()
+                self.handleCriticalMemoryPressure()
             } else {
                 if event.contains(.warning) { Task { await ImageLoader.shared.clear() } }
                 if self.conditions.memoryPressure { self.startMemoryRecovery() }
@@ -354,6 +360,14 @@ import SwiftUI
         playbackEvents.append(PlaybackActivity(time: time, event: event))
         if playbackEvents.count > 50 { playbackEvents.removeFirst(playbackEvents.count - 50) }
     }
+    func handleCriticalMemoryPressure() {
+        pressureRecovery.critical()
+        conditions.memoryPressure = true
+        Task { await ImageLoader.shared.clear() }
+        updatePolicy()
+        startMemoryRecovery()
+    }
+
     private func startMemoryRecovery() {
         guard memoryRecovery == nil else { return }
         memoryRecovery = Task { [weak self] in
@@ -671,7 +685,7 @@ import SwiftUI
         if source == .manual { onPlaybackCommand?(.manualApply) }
         cancelDisplayPreparation()
         let releasesFrozenCoverage =
-            transitionRequest != nil && renderers.contains(where: \.hasFrozenScene)
+            transitionRequest != nil && renderers.contains(where: \.hasFrozenDesktop)
         cancelTransition()
         if pendingApply != nil { stopPlayback(preserveSelection: true) }
         let request = WallpaperApplyRequest()
@@ -686,13 +700,17 @@ import SwiftUI
             if releasesFrozenCoverage { updatePolicy() }
             return request
         }
-        if source == .manual, manuallyPaused {
+        if source.clearsManualPause { cancelWakeTransition() }
+        let existingSlots = renderers + parkedDesktopSlots
+        if source.clearsManualPause, manuallyPaused {
             deferredFrozenApply?.request.finish(.superseded)
             deferredFrozenApply = nil
             clearingManualPauseForApply = true
             manuallyPaused = false
             clearingManualPauseForApply = false
-        } else if manuallyPaused, !renderers.isEmpty, renderers.allSatisfy(\.hasFrozenScene) {
+        } else if manuallyPaused, !existingSlots.isEmpty,
+            existingSlots.allSatisfy(\.hasFrozenDesktop)
+        {
             deferredFrozenApply?.request.finish(.superseded)
             deferredFrozenApply = (item, request)
             request.cancel = { [weak self, weak request] in
@@ -760,7 +778,11 @@ import SwiftUI
             await MaintenanceOperation.$id.withValue(admission.id) {
                 var candidates: [Renderer] = []
                 var candidateFailure: RuntimeDiagnostic?
-                defer { for renderer in candidates { retire(renderer) } }
+                defer {
+                    for renderer in candidates {
+                        retire(renderer)
+                    }
+                }
                 do {
                     guard !screens.isEmpty else {
                         throw ImportFailure.message(ProductText.noDisplay.text)
@@ -771,7 +793,7 @@ import SwiftUI
                     for (index, screen) in screens.enumerated() {
                         let renderer = makeRenderer(
                             item, screen: screen, mediaURL: item.url, quality: quality,
-                            playback: scene, ticket: ticket,
+                            playback: scene, ticket: ticket, slotID: displaySlotID(screen, index),
                             onError: {
                                 [weak self, weak transition = request] diagnostic, renderer in
                                 guard let self else { return }
@@ -898,7 +920,10 @@ import SwiftUI
                 self.showProductError(text, presentation: .playbackError)
                 self.messagePresentation = diagnostic.localized()
                 self.recordPlayback(.diagnostic(diagnostic))
-                if !renderer.hasTransitionStill { self.manuallyPaused = true }
+                if !renderer.hasTransitionStill {
+                    if renderer.wallpaper.kind != .scene { renderer.setPaused(true) }
+                    self.manuallyPaused = true
+                }
             }
         }
     }
@@ -924,7 +949,10 @@ import SwiftUI
                         ? try await scenePreparation(item) : nil
                     let url = try await optimizer.preparedURL(
                         for: item, profile: quality,
-                        protectedURLs: { [weak self] in self?.renderers.map(\.mediaURL) ?? [] })
+                        protectedURLs: { [weak self] in
+                            self.map { ($0.renderers + $0.parkedDesktopSlots).map(\.mediaURL) }
+                                ?? []
+                        })
                     try Task.checkCancellation()
                     guard generation == ticket else { return }
                     let current = currentPlaybackRecord(item)
@@ -945,6 +973,7 @@ import SwiftUI
                         let renderer = makeRenderer(
                             item, screen: screen, mediaURL: url, quality: quality,
                             playback: scenePlayback, ticket: ticket,
+                            slotID: displaySlotID(screen, index),
                             onError: { [weak self] error, renderer in
                                 self?.rendererFailed(error, ticket: ticket, renderer: renderer)
                             })
@@ -983,7 +1012,7 @@ import SwiftUI
     // Shared native player/window construction. Refresh never enters apply() or emits a playlist command.
     private func makeRenderer(
         _ item: Wallpaper, screen: NSScreen, mediaURL: URL, quality: QualityProfile,
-        playback: PreparedScenePlayback?, ticket: UUID,
+        playback: PreparedScenePlayback?, ticket: UUID, slotID: DesktopPerformancePanel.DisplayID,
         onError: @escaping (RuntimeDiagnostic, Renderer) -> Void
     ) -> Renderer {
         weak var owner: Renderer?
@@ -1005,6 +1034,7 @@ import SwiftUI
                 onError(.failure(message), owner)
             })
         owner = renderer
+        renderer.desktopSlotID = slotID
         return renderer
     }
 
@@ -1049,6 +1079,7 @@ import SwiftUI
                 let renderer = makeRenderer(
                     item, screen: target.screen, mediaURL: item.url,
                     quality: profile, playback: playback, ticket: ticket,
+                    slotID: target.renderer.desktopSlotID,
                     onError: { [weak self] diagnostic, renderer in
                         if installing {
                             startupFailure = diagnostic.technicalDescription
@@ -1065,7 +1096,9 @@ import SwiftUI
             try verifyCurrent()
         } catch {
             installing = false
-            for (_, renderer) in replacements { retire(renderer) }
+            for (_, renderer) in replacements {
+                retire(renderer)
+            }
             throw error
         }
         let old = targets.map(\.renderer)
@@ -1174,10 +1207,14 @@ import SwiftUI
         }
 
         onPlaybackCommand?(preserveSelection ? .shutdown : .stop)
-        stopPlayback(preserveSelection: preserveSelection, clearManualPause: !preserveSelection)
+        stopPlayback(
+            preserveSelection: preserveSelection, clearManualPause: !preserveSelection)
 
     }
-    private func stopPlayback(preserveSelection: Bool = false, clearManualPause: Bool = false) {
+    private func stopPlayback(
+        preserveSelection: Bool = false, clearManualPause: Bool = false
+    ) {
+        cancelWakeTransition()
         cancelDisplayPreparation()
         disconnectedSceneTime = 0
         displayReconciliationPending = false
@@ -1230,7 +1267,8 @@ import SwiftUI
                 return
             }
             do {
-                try makeVideoOptimizer().trim(to: 0, excluding: renderers.map(\.mediaURL))
+                try makeVideoOptimizer().trim(
+                    to: 0, excluding: (renderers + parkedDesktopSlots).map(\.mediaURL))
             } catch { showProductError(error.localizedDescription, presentation: .cacheError) }
 
         }
@@ -1246,15 +1284,20 @@ import SwiftUI
         return allDisplays ? screens : Array(screens.prefix(1))
     }
 
-    @objc func displaysChanged() {
+    @objc private func displayConfigurationChanged() {
+        displaysChanged()
+        scheduleWakeCompletion()
+    }
+
+    func displaysChanged() {
         guard !maintenanceStopped, maintenance.allowsMutation, let item = active else { return }
-        guard item.sceneSource == .nativeWSS, pendingApply == nil else {
+        guard item.supportsRetainedDesktop, pendingApply == nil else {
             reapply()
             return
         }
         let releasesFrozenCoverage =
             transitionRequest != nil
-            && renderers.contains(where: \.hasFrozenScene)
+            && renderers.contains(where: \.hasFrozenDesktop)
         if transitionRequest != nil { cancelTransition() }
         guard !preparing else {
             reapply()
@@ -1268,33 +1311,60 @@ import SwiftUI
         _ item: Wallpaper, prepared: PreparedScenePlayback? = nil
     ) {
         let targets = enabledScreens()
-        let current = renderers
+        let current = renderers + parkedDesktopSlots
+        let targetIDs = targets.enumerated().map { displaySlotID($0.element, $0.offset) }
         let matches = WSSDesktopRefreshTargets.matchSlots(
-            current: current.map { DesktopPerformancePanel.DisplayID($0.screen) },
-            target: targets.map { DesktopPerformancePanel.DisplayID($0) })
+            current: current.map(\.desktopSlotID), target: targetIDs)
         let retained = Set(matches.compactMap { $0 })
         let template = current.compactMap { $0.scene as? WSSStaticPlayer }.first
         let source = prepared ?? template.map { PreparedScenePlayback(wss: $0.resources) }
+        let mediaURL = current.first?.mediaURL ?? item.url
         if let template { disconnectedSceneTime = template.elapsed }
-        let reasons = conditions.reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
-        let mayPrepare = Renderer.canRetainScene(for: reasons) && !conditions.surfaceUnavailable
+        let reasons = desktopPauseReasons
+        let mayPrepare =
+            !wakeTransition && Renderer.canRetainScene(for: reasons)
+            && !conditions.surfaceUnavailable
         let missing = matches.contains(nil)
         if !missing { cancelDisplayPreparation() }
 
-        for (index, renderer) in current.enumerated() where !retained.contains(index) {
-            retire(renderer)
+        let previouslyParked = Set(parkedDesktopSlots.map(ObjectIdentifier.init))
+        var parked: [Renderer] = []
+        for (index, renderer) in current.enumerated()
+        where !retained.contains(index)
+            || (conditions.surfaceUnavailable
+                && previouslyParked.contains(ObjectIdentifier(renderer)))
+        {
+            if wakeTransition && Renderer.canRetainScene(for: reasons) {
+                if !previouslyParked.contains(ObjectIdentifier(renderer)) {
+                    renderer.applyPauseReasons(reasons, surfaceAvailable: false)
+                    renderer.hideDesktopSlot()
+                }
+                parked.append(renderer)
+            } else {
+                retire(renderer)
+            }
         }
+        let parkedIDs = Set(parked.map(ObjectIdentifier.init))
+        parkedDesktopSlots = parked
         var result: [Renderer] = []
         let ticket = generation
-        for (screen, index) in zip(targets, matches) {
-            if let index {
+        for (targetIndex, screen) in targets.enumerated() {
+            if let index = matches[targetIndex] {
                 let renderer = current[index]
+                guard !parkedIDs.contains(ObjectIdentifier(renderer)), !renderer.stopped else {
+                    continue
+                }
                 renderer.updateScreen(screen)
+                if previouslyParked.contains(ObjectIdentifier(renderer)) {
+                    renderer.showDesktopSlot()
+                    renderer.applyPauseReasons(
+                        reasons, surfaceAvailable: !conditions.surfaceUnavailable)
+                }
                 result.append(renderer)
-            } else if mayPrepare, let source {
+            } else if mayPrepare, source != nil || item.kind != .scene {
                 let renderer = makeRenderer(
-                    item, screen: screen, mediaURL: item.url, quality: profile,
-                    playback: source, ticket: ticket,
+                    item, screen: screen, mediaURL: mediaURL, quality: profile,
+                    playback: source, ticket: ticket, slotID: targetIDs[targetIndex],
                     onError: { [weak self] error, renderer in
                         self?.rendererFailed(error, ticket: ticket, renderer: renderer)
                     })
@@ -1303,15 +1373,16 @@ import SwiftUI
                 result.append(renderer)
             }
         }
-        if result.map(ObjectIdentifier.init) != current.map(ObjectIdentifier.init) {
+        if result.map(ObjectIdentifier.init) != renderers.map(ObjectIdentifier.init) {
             renderers = result
         }
+        if item.kind == .video, !result.isEmpty { usingOptimizedVideo = mediaURL != item.url }
         displayReconciliationPending = result.count != targets.count || targets.isEmpty
         if reasons.isEmpty {
             playbackStatus = result.isEmpty ? .ready : .playing(displayCount: result.count)
         }
 
-        if mayPrepare, missing, source == nil, displayPreparation == nil,
+        if item.kind == .scene, mayPrepare, missing, source == nil, displayPreparation == nil,
             defaults.string(forKey: "activeWallpaper") == item.id.uuidString,
             let admission = try? maintenance.beginMutation(kind: .runtime)
         {
@@ -1329,7 +1400,8 @@ import SwiftUI
                             self.generation == ticket, self.active == item,
                             self.transitionRequest == nil
                         else { return }
-                        self.reconcileDesktopDisplays(item, prepared: prepared)
+                        self.reconcileDesktopDisplays(
+                            item, prepared: prepared)
                     } catch {
                         guard !Task.isCancelled, self.displayPreparationID == id,
                             self.generation == ticket, self.active == item
@@ -1342,29 +1414,110 @@ import SwiftUI
         }
     }
 
+    private var desktopPauseReasons: Set<PauseReason> {
+        var reasons = conditions.reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        if wakeTransition { reasons.insert(.sleep) }
+        return reasons
+    }
+
+    private func beginWakeTransition() {
+        guard active?.supportsRetainedDesktop == true else { return }
+        wakeTransition = true
+        wakeCompletion?.cancel()
+        wakeCompletion = nil
+        wakeDeadline = nil
+    }
+
+    private func scheduleWakeCompletion() {
+        guard wakeTransition else { return }
+        if conditions.surfaceUnavailable {
+            guard !parkedDesktopSlots.isEmpty, wakeCompletion == nil else { return }
+            // Bound retention even when a display sleeps without the whole Mac sleeping.
+            wakeCompletion = Task { [weak self] in
+                do { try await SuspendingClock().sleep(for: .seconds(30)) } catch { return }
+                guard let self, !Task.isCancelled else { return }
+                self.wakeCompletion = nil
+                if self.conditions.surfaceUnavailable {
+                    self.releaseParkedSlots()
+                } else {
+                    self.scheduleWakeCompletion()
+                }
+            }
+            return
+        }
+        let now = ContinuousClock.now
+        let deadline = wakeDeadline ?? now.advanced(by: .seconds(15))
+        wakeDeadline = deadline
+        // Late display notifications extend the quiet interval, within the wake deadline.
+        let finish = min(deadline, now.advanced(by: .seconds(5)))
+        wakeCompletion?.cancel()
+        wakeCompletion = Task { [weak self] in
+            do { try await ContinuousClock().sleep(until: finish) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            self.wakeCompletion = nil
+            if self.conditions.surfaceUnavailable {
+                self.scheduleWakeCompletion()
+            } else {
+                self.finishWakeTransition()
+            }
+        }
+    }
+
+    func finishWakeTransition() {
+        guard wakeTransition, !conditions.surfaceUnavailable else { return }
+        if let active, active.supportsRetainedDesktop, pendingApply == nil, !preparing {
+            reconcileDesktopDisplays(active)
+        }
+        cancelWakeTransition()
+        displaysChanged()
+        updatePolicy()
+    }
+
+    private func releaseParkedSlots() {
+        let parked = parkedDesktopSlots
+        parkedDesktopSlots.removeAll()
+        for renderer in parked { retire(renderer) }
+    }
+
+    private func cancelWakeTransition() {
+        wakeCompletion?.cancel()
+        wakeCompletion = nil
+        wakeDeadline = nil
+        wakeTransition = false
+        releaseParkedSlots()
+    }
+
     @objc func systemSleep() {
+        beginWakeTransition()
         conditions.systemSleeping = true
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func systemWake() {
         conditions.systemSleeping = false
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func screenSleep() {
+        beginWakeTransition()
         conditions.sleeping = true
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func screenWake() {
         conditions.sleeping = false
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func sessionInactive() {
         conditions.inactive = true
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func sessionActive() {
         conditions.inactive = false
         updatePolicy()
+        scheduleWakeCompletion()
     }
     @objc func updatePolicy() {
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
@@ -1377,7 +1530,8 @@ import SwiftUI
         {
             conditions.onBattery = (type as String) == kIOPSBatteryPowerValue
         }
-        let reason = conditions.reason(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        let reasons = desktopPauseReasons
+        let reason = PauseReason.allCases.first(where: reasons.contains)
         if pauseReason != reason { pauseReason = reason }
         // Apply will either replace the renderers or keep their frozen coverage during preparation.
         if clearingManualPauseForApply { return }
@@ -1388,11 +1542,13 @@ import SwiftUI
             preparation = nil
             preparing = false
         }
-        let reasons = conditions.reasons(conserve: conserve, pauseOnBattery: pauseOnBattery)
+        if !Renderer.canRetainScene(for: reasons) {
+            releaseParkedSlots()
+        }
         if !Renderer.canRetainScene(for: reasons) || conditions.surfaceUnavailable {
             cancelDisplayPreparation()
         }
-        for renderer in renderers where !(transitionRequest != nil && renderer.hasFrozenScene) {
+        for renderer in renderers where !(transitionRequest != nil && renderer.hasFrozenDesktop) {
             renderer.applyPauseReasons(reasons, surfaceAvailable: !conditions.surfaceUnavailable)
         }
         if reason == nil, let deferred = deferredFrozenApply {
@@ -1404,7 +1560,7 @@ import SwiftUI
             playbackStatus = .ready
             return
         }
-        if displayReconciliationPending, active.sceneSource == .nativeWSS,
+        if displayReconciliationPending, active.supportsRetainedDesktop,
             pendingApply == nil, transitionRequest == nil, !preparing,
             defaults.string(forKey: "activeWallpaper") == active.id.uuidString
         {
@@ -1416,7 +1572,7 @@ import SwiftUI
             playbackStatus = .paused(reason)
             return
         }
-        if renderers.isEmpty, !preparing {
+        if renderers.isEmpty, !preparing, !wakeTransition {
             prepare(active)
             return
         }

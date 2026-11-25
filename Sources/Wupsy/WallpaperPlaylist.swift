@@ -177,7 +177,7 @@ struct WallpaperPlaylistStore {
     private let store: WallpaperPlaylistStore
     private let scheduler: any PlaylistScheduling
     private let defaults: UserDefaults
-    private let apply: @MainActor (Wallpaper) -> WallpaperApplyRequest
+    private let apply: @MainActor (Wallpaper, WallpaperApplySource) -> WallpaperApplyRequest
     private var subscriptions: Set<AnyCancellable> = []
     private var timer: AnyCancellable?
     private var deadline: TimeInterval?
@@ -283,15 +283,15 @@ struct WallpaperPlaylistStore {
         store = WallpaperPlaylistStore(url: storage)
         self.defaults = defaults
         self.scheduler = scheduler ?? PlaylistScheduler()
-        self.apply =
-            apply ?? { [weak library] wallpaper in
-                guard let library else {
-                    let request = WallpaperApplyRequest()
-                    request.finish(.superseded)
-                    return request
-                }
-                return library.apply(wallpaper, source: .automatic)
+        self.apply = { [weak library] wallpaper, source in
+            if let apply { return apply(wallpaper) }
+            guard let library else {
+                let request = WallpaperApplyRequest()
+                request.finish(.superseded)
+                return request
             }
+            return library.apply(wallpaper, source: source)
+        }
         refreshAvailable(library.items)
         do {
             guard library.isLibraryReadable else {
@@ -344,7 +344,7 @@ struct WallpaperPlaylistStore {
                 beginApply(
                     state.playback?.currentWallpaperID ?? nextCandidate(id, current: nil)
                         ?? value.wallpaperIDs[0],
-                    purpose: .activation(id, nil))
+                    purpose: .activation(id, nil), source: .restoration)
             } else {
                 library.restorePlayback()
             }
@@ -533,7 +533,7 @@ struct WallpaperPlaylistStore {
         let target = activePlaylistID == id ? state.playback?.currentWallpaperID : nil
         beginApply(
             target ?? nextCandidate(id, current: nil) ?? value.wallpaperIDs[0],
-            purpose: .activation(id, recovery))
+            purpose: .activation(id, recovery), source: .playlistActivation)
     }
     func deactivatePlaylist(id: UUID) {
         guard activePlaylistID == id || pendingActivationID == id else { return }
@@ -663,7 +663,9 @@ struct WallpaperPlaylistStore {
         pendingActivationID = nil
         recovering = false
     }
-    private func beginApply(_ wallpaperID: UUID, purpose: Purpose) {
+    private func beginApply(
+        _ wallpaperID: UUID, purpose: Purpose, source: WallpaperApplySource = .automatic
+    ) {
         guard !shuttingDown, let admission = try? maintenance.beginMutation(kind: .runtime) else {
             return
         }
@@ -680,7 +682,7 @@ struct WallpaperPlaylistStore {
         let ticket = generation
         pendingWallpaperID = wallpaperID
         let reservedBag = shuffleBag
-        let request = apply(wallpaper)
+        let request = apply(wallpaper, source)
         self.request = request
         operation = Task { [weak self] in
             defer { admission.finish() }

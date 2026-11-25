@@ -29,6 +29,7 @@ import XCTest
     }
     private func library(
         profile: QualityProfile = .original,
+        screens: (() -> [NSScreen])? = nil,
         removeFile: @escaping (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) throws -> Library {
         let screen = try XCTUnwrap(NSScreen.screens.first)
@@ -37,7 +38,7 @@ import XCTest
         let value = Library(
             maintenance: MaintenanceCoordinator(),
             storage: root.appendingPathComponent("library.json"),
-            defaults: defaults, restoreOnLaunch: false, targetScreens: { [screen] },
+            defaults: defaults, restoreOnLaunch: false, targetScreens: screens ?? { [screen] },
             makeVideoOptimizer: { VideoOptimizer(directory: directory, removeFile: removeFile) })
         libraries.append(value)
         return value
@@ -47,7 +48,7 @@ import XCTest
         try bytes.write(to: url)
         return url
     }
-    private func video() async throws -> Wallpaper {
+    private func video(frames: Int = 4, fps: Int32 = 120) async throws -> Wallpaper {
         let url = root.appendingPathComponent(UUID().uuidString + ".mp4")
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(
@@ -74,16 +75,16 @@ import XCTest
             try XCTUnwrap(CVPixelBufferGetBaseAddress(pixels)), 255,
             CVPixelBufferGetDataSize(pixels))
         CVPixelBufferUnlockBaseAddress(pixels, [])
-        for index in 0..<4 {
+        for index in 0..<frames {
             for _ in 0..<200 where !input.isReadyForMoreMediaData {
                 try await Task.sleep(nanoseconds: 5_000_000)
             }
             XCTAssertTrue(input.isReadyForMoreMediaData)
             XCTAssertTrue(
                 adaptor.append(
-                    pixels, withPresentationTime: CMTime(value: Int64(index), timescale: 120)))
+                    pixels, withPresentationTime: CMTime(value: Int64(index), timescale: fps)))
         }
-        writer.endSession(atSourceTime: CMTime(value: 4, timescale: 120))
+        writer.endSession(atSourceTime: CMTime(value: Int64(frames), timescale: fps))
         input.markAsFinished()
         await writer.finishWriting()
         XCTAssertEqual(writer.status, .completed, String(describing: writer.error))
@@ -97,6 +98,144 @@ import XCTest
         }
         return try XCTUnwrap(library.renderers.first)
     }
+    func testVideoFrozenPlaybackRetainsLayerAndStopsDeliveringFrames() async throws {
+        let item = try await video(frames: 48, fps: 12)
+        let library = try library()
+        let renderer = try await apply(item, to: library)
+        defer { library.stop() }
+        let player = try XCTUnwrap(renderer.player)
+        let view = try XCTUnwrap(renderer.window.contentView as? VideoView)
+        let looper = try XCTUnwrap(renderer.looper)
+        let still = Renderer(
+            wallpaper: item, screen: renderer.screen, initiallyPaused: true,
+            onError: { XCTFail($0) })
+        defer { still.stop() }
+        still.startDesktopSlot(offset: 0, reasons: [.manual], surfaceAvailable: true)
+        let stillView = try XCTUnwrap(still.window.contentView as? VideoView)
+        for _ in 0..<100 where !stillView.video.isReadyForDisplay {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(stillView.video.isReadyForDisplay)
+        XCTAssertEqual(still.player?.rate, 0)
+        XCTAssertEqual(still.player?.currentTime(), .zero)
+        for _ in 0..<100 where !player.currentTime().isNumeric || player.currentTime().seconds < 0.1
+        {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let itemOutput = AVPlayerItemVideoOutput(pixelBufferAttributes: nil)
+        let current = try XCTUnwrap(player.currentItem)
+        current.add(itemOutput)
+        func measureDelivery() async throws -> (frames: Int, cpuMilliseconds: Double) {
+            let cpu = Benchmark.cpuSeconds()
+            var count = 0
+            for _ in 0..<30 {
+                let time = itemOutput.itemTime(forHostTime: CACurrentMediaTime())
+                if time.isNumeric, itemOutput.hasNewPixelBuffer(forItemTime: time),
+                    itemOutput.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: nil) != nil
+                {
+                    count += 1
+                }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            return (count, (Benchmark.cpuSeconds() - cpu) * 1000)
+        }
+        let playing = try await measureDelivery()
+        XCTAssertGreaterThan(playing.frames, 2)
+        for _ in 0..<2 {
+            library.manuallyPaused = true
+            try await Task.sleep(for: .milliseconds(50))
+            let frozenTime = player.currentTime()
+            let paused = try await measureDelivery()
+            print("Wupsy video output per 30 polls: playing=\(playing), paused=\(paused)")
+            XCTAssertLessThanOrEqual(paused.frames, 1)
+            XCTAssertEqual(player.rate, 0)
+            XCTAssertEqual(player.currentTime(), frozenTime)
+            XCTAssertTrue(renderer.player === player)
+            XCTAssertTrue(renderer.looper === looper)
+            XCTAssertTrue(view.video.player === player)
+            XCTAssertTrue(renderer.window.isVisible)
+            library.manuallyPaused = false
+            try await Task.sleep(for: .milliseconds(160))
+            XCTAssertGreaterThan(player.currentTime().seconds, frozenTime.seconds)
+        }
+        library.manuallyPaused = true
+        library.stop()
+        XCTAssertNil(renderer.player)
+        XCTAssertNil(renderer.looper)
+        XCTAssertNil(view.video.player)
+    }
+
+    func testVideoRetainsPausedPositionAndPlayerThroughDisplayLossOnWake() async throws {
+        let item = try await video(frames: 48, fps: 12)
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        var screens = [screen]
+        let library = try library(screens: { screens })
+        let renderer = try await apply(item, to: library)
+        defer { library.stop() }
+        let player = try XCTUnwrap(renderer.player)
+        for _ in 0..<100 where !player.currentTime().isNumeric || player.currentTime().seconds < 0.1
+        {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        library.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(50))
+        let position = player.currentTime()
+        XCTAssertGreaterThan(position.seconds, 0)
+        library.systemSleep()
+        screens = []
+        library.displaysChanged()
+        XCTAssertTrue(library.renderers.isEmpty)
+        XCTAssertFalse(renderer.window.isVisible)
+        XCTAssertTrue(renderer.player === player)
+
+        library.systemWake()
+        screens = [screen]
+        library.displaysChanged()
+        library.finishWakeTransition()
+        XCTAssertTrue(library.renderers.first === renderer)
+        XCTAssertTrue(renderer.player === player)
+        XCTAssertEqual(player.currentTime(), position)
+        XCTAssertEqual(player.rate, 0)
+        XCTAssertTrue(renderer.window.isVisible)
+    }
+
+    func testVideoPauseBeforeAndAfterLoopBoundary() async throws {
+        let item = try await video(frames: 24, fps: 24)
+        let library = try library()
+        let renderer = try await apply(item, to: library)
+        defer { library.stop() }
+        let player = try XCTUnwrap(renderer.player)
+        let looper = try XCTUnwrap(renderer.looper)
+        for _ in 0..<200 where !player.currentTime().isNumeric || player.currentTime().seconds < 0.8
+        {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertGreaterThanOrEqual(player.currentTime().seconds, 0.8)
+        library.manuallyPaused = true
+        let previous = try XCTUnwrap(player.currentItem)
+        try await Task.sleep(for: .milliseconds(50))
+        let beforeBoundary = player.currentTime()
+        try await Task.sleep(for: .milliseconds(270))
+        XCTAssertTrue(player.currentItem === previous)
+        XCTAssertEqual(player.currentTime(), beforeBoundary)
+
+        library.manuallyPaused = false
+        for _ in 0..<100 where player.currentItem === previous {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let next = try XCTUnwrap(player.currentItem)
+        XCTAssertFalse(next === previous)
+        library.manuallyPaused = true
+        try await Task.sleep(for: .milliseconds(50))
+        let afterBoundary = player.currentTime()
+        XCTAssertLessThan(afterBoundary.seconds, 0.3)
+        try await Task.sleep(for: .milliseconds(160))
+        XCTAssertEqual(player.currentTime(), afterBoundary)
+        XCTAssertTrue(player.currentItem === next)
+        XCTAssertTrue(renderer.looper === looper)
+        XCTAssertTrue(renderer.player === player)
+    }
+
     func testOriginalVideoCacheClearKeepsPlayerSelectionAndActivePreference() async throws {
         let item = try await video()
         let library = try library()

@@ -33,8 +33,10 @@ struct GIFTimeline {
     private let maxPixel: Int
     private let minimumInterval: Double
     private var timer: Timer?
-    private var start: TimeInterval = 0
-    private var lastFrame = -1
+    private var start: TimeInterval?
+    private(set) var position: TimeInterval = 0
+    private(set) var frameEnd: TimeInterval = 0
+    private(set) var lastFrame = -1
     init(url: URL, size: CGSize, maxPixel: Int, fps: Int32) throws {
         guard
             let source = CGImageSourceCreateWithURL(
@@ -59,12 +61,46 @@ struct GIFTimeline {
         view.imageScaling = .scaleProportionallyUpOrDown
     }
     func play() {
-        start = ProcessInfo.processInfo.systemUptime
-        tick()
+        guard start == nil else { return }
+        start = ProcessInfo.processInfo.systemUptime - position
+        if lastFrame < 0 {
+            tick()
+        } else if timeline.ends.count > 1 {
+            schedule(after: frameEnd - position)
+        }
+    }
+    func pause() {
+        if let start {
+            let elapsed = ProcessInfo.processInfo.systemUptime - start
+            // A timer may be overdue. Keep the displayed frame until it can advance.
+            position = min(elapsed, frameEnd)
+        }
+        start = nil
+        timer?.invalidate()
+        timer = nil
+        if lastFrame < 0 {
+            frameEnd = timeline.ends[0]
+            showFrame(0)
+        }
     }
     private func tick() {
+        guard let start else { return }
         let elapsed = ProcessInfo.processInfo.systemUptime - start
         let index = timeline.index(at: elapsed)
+        let untilNext =
+            timeline.ends[index] - elapsed.truncatingRemainder(dividingBy: timeline.duration)
+        frameEnd = elapsed + untilNext
+        showFrame(index)
+        guard timeline.ends.count > 1 else { return }
+        schedule(after: untilNext)
+    }
+    private func schedule(after delay: TimeInterval) {
+        timer = Timer.scheduledTimer(
+            withTimeInterval: max(minimumInterval, delay), repeats: false
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
+        timer?.tolerance = 0.003
+    }
+    private func showFrame(_ index: Int) {
         if index != lastFrame {
             autoreleasepool {
                 if let cg = CGImageSourceCreateThumbnailAtIndex(
@@ -81,17 +117,13 @@ struct GIFTimeline {
             }
             lastFrame = index
         }
-        guard timeline.ends.count > 1 else { return }
-        let untilNext =
-            timeline.ends[index] - elapsed.truncatingRemainder(dividingBy: timeline.duration)
-        timer = Timer.scheduledTimer(
-            withTimeInterval: max(minimumInterval, untilNext), repeats: false
-        ) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
-        timer?.tolerance = 0.003
     }
     func stop() {
         timer?.invalidate()
         timer = nil
+        start = nil
+        position = 0
+        lastFrame = -1
         view.image = nil
     }
     deinit { timer?.invalidate() }

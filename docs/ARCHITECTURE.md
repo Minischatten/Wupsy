@@ -71,9 +71,11 @@ An explicit Apply clears manual pause, including when reapplying the same
 wallpaper. Native transitions can keep the old scene frozen until the
 replacement is ready. System pause reasons still apply. Automatic requests
 preserve manual pause and wait while the desktop is frozen. Stop discards
-pending requests and clears manual pause after teardown.
-Editor and Library previews keep their own playback behavior. Other media
-kinds retain the original resource-release pause behavior.
+pending requests and clears manual pause after teardown. Explicit playlist
+activation also clears manual pause through Apply, while keeping the
+playlist's ownership of the request. Rotation, restoration and recovery
+continue to respect manual pause.
+Editor and Library previews keep their own playback behavior.
 
 The desktop combines global reasons with display-local reasons. Manual pause,
 display and system sleep, and an inactive session can overlap and keep the
@@ -108,6 +110,80 @@ on advancing frames, and reentry starts a separate segment without filling
 missed emission slots. Frozen recovery frames leave the history and its
 scene time intact. Resuming outside the display disconnects the anchor
 and lets the remaining samples expire normally.
+
+### Image, video and GIF desktop pause
+
+Static images retain their window and image view. A decode already in flight
+may finish while paused if its view still belongs to the renderer. Video
+retains its AVQueuePlayer, AVPlayerLooper and AVPlayerLayer. Pause sets the
+playback rate to zero and stops the periodic health check. Resume starts
+the same queue and health check without seeking. AVFoundation manages the
+display surface and any queued decoder work.
+
+GIF keeps the displayed image and freezes its playback clock. Pause
+invalidates the frame timer. Resume schedules the remaining display time
+before drawing another frame. An overdue frame keeps its deadline at the
+next frame boundary, so pause time cannot advance the timeline.
+
+Images, videos and GIFs use the same display-slot reconciliation and pause
+reasons as native scenes. New paused video and GIF slots start with their
+own initial frame. Aligning a new video to another slot would require a
+seek across independent looping queues, and GIF frames are tied to the
+local timer. Retained slots keep their positions. Resource relief may
+discard the visible surface and GIF position. If all displays disconnect,
+new media slots have no preceding player to restore. Video may use the
+original source after a full disconnect.
+
+During a sleep and wake transition, missing slots for retained formats are
+parked while their playback remains paused. Their windows are ordered out.
+The existing display matcher can reattach the same renderer to a returning
+display ID once the surface is available. WSS uses its existing frozen
+recovery draw. GIF timing, video position and still-image resources stay
+with their respective players. Unmatched targets wait until stabilization
+completes, which also prevents allocating a renderer for a transient display.
+
+One cancellable task finishes the transition after five seconds without a
+display configuration notification, bounded by fifteen seconds after wake
+when the session and surfaces are available. The observed HDMI trace
+contained topology changes over roughly seven seconds, with a final gap
+of about three seconds. During prolonged surface unavailability, parked slots
+are released after 30 seconds of awake time. At completion, still-missing slots are released
+and genuinely new targets follow regular startup. Stop, explicit Apply
+and internal playback replacement discard parked slots. Resource relief
+policies release parked slots immediately. Media playback that was running
+before sleep resumes after stabilization once all pause reasons clear.
+HTML playback and the library window lifecycle are unchanged.
+
+Section 3 passed manual acceptance. Physical HDMI verification confirmed both original GIF players retained
+their exact frame index and remaining frame time through stabilization
+and resumed on those same players. The library window was visible after
+wake in the retest. The earlier visibility issue remains unexplained.
+The cleaned ARM64 release passed a further sleep and wake check, and a
+wallpaper change kept coverage on both physical displays. The final manual
+check confirmed direct playlist activation during manual pause.
+
+The local activity probe counts new AVPlayerItemVideoOutput buffers and
+observed GIF image replacements, and samples CPU time for the test process.
+The CPU readings include test polling and other work in the process.
+VideoToolbox services, WindowServer, GPU utilization and hardware power
+are outside this measurement. The physical checks above cover visible
+frame retention separately.
+
+### HTML wallpaper pause analysis
+
+The HTML renderer loads local content in a nonpersistent WKWebView and
+requires user action for media playback. It currently unloads on pause.
+WebKit's public media suspension API can stop audio and video playback,
+but its contract does not freeze JavaScript timers, Web Animations, Canvas
+or WebGL. WebKit may throttle hidden pages, which neither preserves a
+visible paused desktop nor guarantees that all work has stopped.
+
+An opt-in protocol for authored wallpaper pages could stop their own timers,
+animation callbacks, CSS/Web Animations, Web Audio and Canvas/WebGL updates
+while retaining the loaded page and its current image. This requires page
+cooperation and representative WebContent and GPU measurements. Keep the
+existing unload behavior for arbitrary pages until a reliable pause
+contract can be verified.
 
 ### Apply outcomes
 

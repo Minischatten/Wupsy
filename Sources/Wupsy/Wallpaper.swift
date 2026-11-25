@@ -7,6 +7,14 @@ struct ManagedWallpaperLocation: Codable, Hashable {
 }
 enum SceneSource: String, Codable, Hashable { case nativeWSS }
 struct Wallpaper: Identifiable, Codable, Hashable {
+    var supportsRetainedDesktop: Bool {
+        switch kind {
+        case .image, .video: return true
+        case .web: return url.pathExtension.lowercased() == "gif"
+        case .scene: return sceneSource == .nativeWSS
+        }
+    }
+
     enum Ownership: String, Codable { case external, managed }
     var id = UUID()
     var title: String

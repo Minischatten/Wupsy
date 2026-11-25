@@ -40,7 +40,11 @@ enum WallpaperApplyOutcome {
 }
 
 /// Distinguishes user intent from automation and startup without changing acceptance.
-enum WallpaperApplySource { case manual, automatic, restoration }
+enum WallpaperApplySource {
+    case manual, playlistActivation, automatic, restoration
+
+    var clearsManualPause: Bool { self == .manual || self == .playlistActivation }
+}
 enum WallpaperPlaybackCommand {
     case manualApply, stop, shutdown
     case remove(UUID)

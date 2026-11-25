@@ -131,7 +131,7 @@ clears manual pause. Explicitly applying the same or another wallpaper
 clears manual pause and starts the requested playback when other effective
 pause reasons allow it. Automatic Apply, reapply, playlist rotation and
 recovery preserve manual pause. Library preview and Editor playback remain
-independent. Other wallpaper formats retain their existing pause behavior.
+independent.
 
 Section 2 was manually accepted. Single-display checks covered pause and
 resume, Spaces, Mission Control, display scaling, lock and unlock, and about
@@ -153,6 +153,47 @@ was manually accepted in a multi-display setup and is complete. The
 accepted automated run passed 85 tests, including strict Metal presentation,
 with two optional export tests skipped.
 See [desktop pause](docs/ARCHITECTURE.md#native-desktop-pause).
+
+Section 3 is complete. It extends retained desktop pause to static images, videos and
+animated GIFs. Video keeps its queue, looper and layer while the playback
+rate is zero and the health timer is stopped. GIF retains the visible image
+and its remaining frame time without a timer. Display reconciliation keeps
+existing players and starts new paused video and GIF slots at the beginning.
+Both formats retain the existing resource relief policy. HTML wallpaper
+continues to unload on pause.
+
+The HDMI wake trace showed that both original display slots were retired
+before wake, while their display IDs later returned unchanged. The last
+return was about seven seconds after system wake. A wake transition now parks
+missing slots with their windows hidden and retains their paused players.
+It completes after five quiet seconds and at most fifteen seconds after
+the system, displays and session are available. Slots still missing at
+completion are retired. New displays use the normal initial state after
+the transition. Parked slots are released after 30 seconds of awake time
+if the surfaces remain unavailable.
+
+The physical two-display HDMI retest passed. Both original GIF players
+survived the temporary display and the TV's second disappearance. Both
+retained the same frame and remaining frame time, stayed manually paused
+through stabilization, and continued on the same players on resume.
+Resources were released at application quit. The library window was
+visible after wake. Earlier traces showed its identity surviving temporary
+geometry and display changes, and the cause of the earlier visibility
+issue remains undetermined. The temporary diagnostics have been removed.
+
+The cleaned ARM64 release passed a physical sleep and wake retest. A
+wallpaper change on both physical displays also passed. The second display
+kept wallpaper coverage throughout the transition.
+
+Explicit playlist activation uses the same manual-pause handoff as an
+explicit wallpaper Apply. Existing system pause reasons still apply.
+Playlist rotation, startup restoration and automatic recovery preserve
+manual pause. Manual acceptance confirmed that explicit playlist activation
+started playback directly from manual pause. The final targeted run passed
+133 tests, including strict Metal presentation. The ARM64 release, bundle,
+signature, format and German and English localization checks passed.
+
+Automatic fullscreen pause is the next development step.
 
 ## Interface size
 
