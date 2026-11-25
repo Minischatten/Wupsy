@@ -283,6 +283,20 @@ import XCTest
                 try await Task.sleep(for: .milliseconds(20))
             }
             XCTAssertEqual(results, [.ready], "Visible WSS, animated=\(animated)")
+            // Give both Metal handlers time to report before closing the measurement window.
+            try await Task.sleep(for: .seconds(1))
+            let frameWindow = try XCTUnwrap(player.performanceSnapshot()?.frameWindow)
+            XCTAssertGreaterThan(frameWindow.confirmedPresentations, 0, "Visible WSS presentation")
+            let presentedRate = try XCTUnwrap(frameWindow.presentedFPS)
+            print(
+                "Visible WSS animated=\(animated), target FPS=\(player.view.preferredFramesPerSecond), "
+                    + "presented FPS=\(presentedRate), confirmations=\(frameWindow.confirmedPresentations), "
+                    + "GPU completions/s=\(frameWindow.gpuCompletionsPerSecond), "
+                    + "CPU encoding ms=\(String(describing: frameWindow.averageCPUMilliseconds)) "
+                    + "(n=\(frameWindow.cpuSamples)), "
+                    + "GPU ms=\(String(describing: frameWindow.averageGPUMilliseconds)) "
+                    + "(n=\(frameWindow.gpu.gpuSamples))"
+            )
             await renderer.stopAndDrainForMaintenance()
             XCTAssertEqual(results, [.ready])
             XCTAssertNil(player.view.delegate)

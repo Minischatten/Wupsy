@@ -35,6 +35,10 @@ Use injected roots/preferences and synthetic fixtures; preserve Undo-owned asset
 Invalid/unsupported projects fail explicitly rather than being regenerated or converted.
 Do not infer cleanup ownership from plausible names or paths.
 
+## Git
+
+**All Git commit messages must be written in English.**
+
 ## Documentation routes
 
 - Product, usage and content: [README](README.md), [scene support](SCENE-SUPPORT.md).
@@ -68,7 +72,8 @@ Library window.
 
 ## WSS performance diagnosis
 
-Stage 1 provides explicit per-player measurement and CLI benchmark reporting.
+Stage 2 adds CPU encoding duration, GPU timing and confirmed Metal presentation
+rate to the opt-in per-player measurement and CLI benchmark reporting.
 Ordinary playback starts with collection disabled. The later Desktop and Editor
 diagnosis views will own activation while open, without an additional settings
 switch. See [measurement semantics and benchmark output](docs/ARCHITECTURE.md#wss-performance-measurement).

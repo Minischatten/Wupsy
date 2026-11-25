@@ -91,6 +91,7 @@ import Foundation
             try await Task.sleep(for: .seconds(3))
             let seconds = min(60, max(5, Double(argument("--seconds") ?? "12") ?? 12))
             let sceneStart = collector?.snapshot()
+            _ = collector?.takeFrameWindow()
             let start = ProcessInfo.processInfo.systemUptime
             let cpu = cpuSeconds()
             var memory: [Double] = []
@@ -113,6 +114,15 @@ import Foundation
                     sceneMeasurement(
                         start: sceneStart, end: snapshot?.completions, seconds: sampleDuration)
                 ) { _, value in value }
+                let frames = snapshot?.frameWindow
+                result["sceneTargetFPS"] = snapshot?.targetFPS as Any? ?? NSNull()
+                result["sceneFrameWindowSeconds"] = frames?.seconds as Any? ?? NSNull()
+                result["sceneCPUEncodingAverageMilliseconds"] =
+                    frames?.averageCPUMilliseconds as Any? ?? NSNull()
+                result["sceneCPUEncodingValidSamples"] = frames?.cpuSamples as Any? ?? NSNull()
+                result["scenePresentedFPS"] = frames?.presentedFPS as Any? ?? NSNull()
+                result["sceneConfirmedPresentations"] =
+                    frames?.confirmedPresentations as Any? ?? NSNull()
                 result["sceneMetalAllocatedBytes"] =
                     scene?.metalAllocation()?.bytes
                     as Any? ?? NSNull()

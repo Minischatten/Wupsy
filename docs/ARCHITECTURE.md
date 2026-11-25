@@ -184,7 +184,7 @@ resource lifetimes, errors and transition readiness.
 
 A session snapshot contains the current player state, configured drawable size
 in pixels and the actual texture size of the most recently submitted frame
-during this activation, when available. The paused state describes the playback
+in the current measurement generation, when available. The paused state describes the playback
 gate. On-demand means playback is enabled for a static scene. Running means
 continuous playback is requested. Failed records a reported render failure.
 Preparing and system pause reasons remain with the existing playback owners.
@@ -193,7 +193,44 @@ None of these states confirms presentation.
 Completion totals count successful Metal command buffers. A GPU sample
 requires finite timestamps with a positive start and a later end. Its duration
 covers the command buffer. GPU averages divide by the number of valid GPU
-samples. Presentation FPS and CPU encoding times are outside stage 1.
+samples. These cumulative totals retain the stage 1 benchmark semantics.
+
+### Frame measurement windows
+
+An explicit performance snapshot closes the current measurement window and
+starts the next one. Its elapsed time comes from the monotonic host clock
+(`CACurrentMediaTime`). The caller can take a snapshot about once per second.
+The player does not schedule sampling.
+
+- **Target FPS** is the Metal view's configured preference.
+- **CPU encoding duration** is elapsed host time around a successful
+  `WSSStaticResources.encode` call. Drawable acquisition, playback-clock and
+  pointer lookup, submission and failed or skipped encodes are outside the
+  timing sample.
+- **GPU completions per second** counts successful completion callbacks
+  received during the window. **GPU time** averages only successful buffers
+  with valid start and end timestamps. A late successful completion in the
+  same generation counts in the receiving window.
+- **Confirmed presented FPS** counts positive, finite Metal drawable
+  presentation timestamps inside the window, divided by its elapsed time.
+  A callback for a frame submitted earlier can count if its presentation
+  occurred inside the current window. A timestamp older than the open
+  window is discarded. Closed snapshots are final.
+
+If any frames were submitted during the window or could still be pending at
+its start, zero confirmations means presentation FPS is unavailable. A window
+with no such activity can report measured zero. CPU and GPU duration averages
+are unavailable without valid samples. These metrics describe different stages
+of the pipeline, so their samples and rates can differ.
+
+Each player has its own measurement session. Pause, resume, replacement of
+prepared scene resources, and render-target or preview policy changes open a
+new measurement generation. Stop or deactivation retires the sampler. Late
+callbacks from an earlier generation cannot populate current frame windows.
+Existing cumulative completion totals stay scoped to the activation for
+benchmark compatibility. Frame windows hold fixed-size counters, with no
+per-frame history, readbacks or GPU waits. CPU aggregation stays on the
+main actor. Metal callbacks aggregate directly without scheduling a task.
 
 Process footprint is the current process's Darwin `TASK_VM_INFO.phys_footprint`.
 Failed or truncated queries yield an unavailable value. Metal allocation is
@@ -218,10 +255,18 @@ completions reports a frame count and rate of zero.
 `sceneDrawableWidth` and `sceneDrawableHeight` retain the configured target
 size. The new `sceneSubmittedDrawableWidth` and
 `sceneSubmittedDrawableHeight` report the most recently submitted drawable
-observed since activation. `sceneMetalAllocatedBytes` reports device
+observed in the current measurement generation. `sceneMetalAllocatedBytes` reports device
 allocation separately from process footprint and WSS texture subtotals.
 Footprint summaries use successful samples only and report `null` when
 unavailable.
+
+The report also includes `sceneTargetFPS`, `sceneFrameWindowSeconds`,
+`sceneCPUEncodingAverageMilliseconds`, `sceneCPUEncodingValidSamples`,
+`scenePresentedFPS` and `sceneConfirmedPresentations`. The stage 2 window starts
+after warmup and may be shortened by a measurement generation reset. The
+existing GPU throughput and sample fields continue to use their original
+benchmark interval. A missing presentation rate is JSON `null` even when
+GPU completions are available.
 
 After writing the report, the benchmark schedules `NSApp.terminate(nil)`
 for the next main-run-loop pass in default mode and returns. In Wupsy 0.7.0,

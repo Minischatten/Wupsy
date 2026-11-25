@@ -32,7 +32,8 @@ import MetalKit
         guard let metrics else { return nil }
         return ScenePerformanceSnapshot(
             sessionID: sessionID, status: rendererStatus, targetDrawableSize: view.drawableSize,
-            submittedDrawableSize: metrics.submittedDrawableSize, completions: metrics.snapshot())
+            submittedDrawableSize: metrics.submittedDrawableSize, completions: metrics.snapshot(),
+            targetFPS: view.preferredFramesPerSecond, frameWindow: metrics.takeFrameWindow())
     }
 
     func metalAllocation() -> PerformanceMemory.DeviceAllocation? {
@@ -135,6 +136,7 @@ import MetalKit
     func updateTransforms(_ candidate: WSSStaticResources) -> Bool {
         guard !stopped, resources.sharesPreparedResources(with: candidate) else { return false }
         fogDragPreview = nil
+        if resources !== candidate { metrics?.resetFrameWindow() }
         resources = candidate
         if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
@@ -157,6 +159,7 @@ import MetalKit
     }
     func play() {
         guard !stopped else { return }
+        if paused { metrics?.resetFrameWindow() }
         paused = false
         trailContext.reset()
         clock.play(now: ProcessInfo.processInfo.systemUptime)
@@ -174,6 +177,7 @@ import MetalKit
     }
     func pause() {
         guard !stopped, !paused else { return }
+        metrics?.resetFrameWindow()
         paused = true
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         view.isPaused = true
@@ -211,6 +215,7 @@ import MetalKit
         projection: WSSRenderProjection
     ) {
         guard !stopped else { return }
+        metrics?.resetFrameWindow()
         self.maxDimension = maxDimension
         self.projection = projection
         view.preferredFramesPerSecond = fps
@@ -227,6 +232,7 @@ import MetalKit
         let size = resolution.drawableSize(
             bounds: bounds, backing: backing, maxDimension: maxDimension)
         guard size != view.drawableSize else { return }
+        metrics?.resetFrameWindow()
         view.drawableSize = size
         view.needsDisplay = true
     }
@@ -247,12 +253,15 @@ import MetalKit
         pass.colorAttachments[0].clearColor = MTLClearColorMake(
             Double(background.x), Double(background.y), Double(background.z), 1)
         pass.colorAttachments[0].storeAction = .store
+        let time = elapsed
+        let pointer = resources.trail == nil || paused ? nil : currentPointer()
+        let metrics = metrics
+        let encoding = metrics?.beginEncoding()
         do {
             try frameResources.encode(
-                command: command, descriptor: pass, size: view.drawableSize, time: elapsed,
+                command: command, descriptor: pass, size: view.drawableSize, time: time,
                 rippleContext: rippleContext, trailContext: trailContext,
-                pointer: resources.trail == nil || paused
-                    ? nil : currentPointer(),
+                pointer: pointer,
                 projection: projection, advanceTrail: !paused,
                 stormContext: stormContext,
                 lightingContext: lightingContext)
@@ -263,11 +272,14 @@ import MetalKit
             onError(error.localizedDescription)
             return
         }
+        if let encoding { metrics?.encoded(encoding) }
         let semaphore = inFlight
         let retryTransitionFrame =
             transitionStillPending && !resources.scene.isAnimated && transitionDrawRetries > 0
         if retryTransitionFrame { transitionDrawRetries -= 1 }
-        let complete = frameCompletionHandler(retryTransitionFrame: retryTransitionFrame) {
+        let complete = frameCompletionHandler(
+            retryTransitionFrame: retryTransitionFrame, encoding: encoding
+        ) {
             semaphore.signal()
         }
         command.addCompletedHandler { [frameResources] buffer in
@@ -279,6 +291,11 @@ import MetalKit
                 self?.receivePresentation(at: drawable.presentedTime)
             }
         }
+        if let metrics, let encoding {
+            drawable.addPresentedHandler { [weak metrics] drawable in
+                metrics?.presented(encoding, at: drawable.presentedTime)
+            }
+        }
         command.present(drawable)
         command.commit()
         if let metrics {
@@ -287,15 +304,17 @@ import MetalKit
     }
 
     func frameCompletionHandler(
-        retryTransitionFrame: Bool, releaseSlot: @escaping @Sendable () -> Void
+        retryTransitionFrame: Bool, encoding: SceneMetrics.Encoding? = nil,
+        releaseSlot: @escaping @Sendable () -> Void
     ) -> @Sendable (MTLCommandBuffer) -> Void {
         let metrics = metrics
         return { [weak self, weak metrics] buffer in
-            metrics?.completed(buffer)
+            metrics?.completed(buffer, encoding: encoding)
             releaseSlot()
             if buffer.status == .error {
                 Task { @MainActor in
                     guard let self, !self.stopped else { return }
+                    self.metrics?.resetFrameWindow()
                     self.renderFailed = true
                     if let onDiagnostic = self.onDiagnostic {
                         onDiagnostic(.wssGPU)
