@@ -72,11 +72,15 @@ Library window.
 
 ## WSS performance diagnosis
 
-Stage 2 adds CPU encoding duration, GPU timing and confirmed Metal presentation
-rate to the opt-in per-player measurement and CLI benchmark reporting.
-Ordinary playback starts with collection disabled. The later Desktop and Editor
-diagnosis views will own activation while open, without an additional settings
-switch. See [measurement semantics and benchmark output](docs/ARCHITECTURE.md#wss-performance-measurement).
+Open Performance Diagnostics from the Library’s three-dot menu for desktop
+playback, or use the gauge button inside the Editor’s live preview. Both views
+are optional and sample independently while open. The desktop panel starts
+closed, selects a display independently of its own position, and can join
+eligible full-screen Spaces. Expanded details include Wupsy process CPU
+usage and memory figures. System CPU utilization and both GPU utilization
+scopes are omitted, including placeholder rows. GPU render duration retains
+its existing meaning. Closing a view stops its collection.
+See [measurement semantics and diagnosis views](docs/ARCHITECTURE.md#wss-performance-measurement).
 
 ## Interface size
 

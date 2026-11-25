@@ -240,6 +240,78 @@ footprint on unified memory. Sample it once per device when reporting several
 sessions. The reported device allocation and the existing WSS texture
 subtotals describe different scopes.
 
+### Diagnosis views
+
+The Library’s three-dot menu opens one nonactivating AppKit panel. It starts
+closed on every launch and remains visible when another app becomes active.
+Only this panel has floating level
+and the public AppKit `canJoinAllSpaces` and `canJoinAllApplications`
+behaviors. It stays nonactivating and requests no Space switch. AppKit can
+include eligible overlays in another app's full-screen Space. Visibility
+still depends on the compositor and the other app's window mode and
+layer. Exclusive display capture and higher-level surfaces, including some
+games and protected content, can cover the panel. Its frame origin and disclosure are
+local preferences. Restoring the panel clamps it to the retained display’s
+visible frame or centers it on the fallback display. The selected display is
+independent of panel placement. While open, display identity retains the
+selection across a renderer replacement. Removing the selected display selects
+the first remaining renderer, if available. Non-WSS desktop renderers show
+the playback status with WSS frame measurements unavailable. Display
+selection and position recovery were tested with simulated topology changes.
+Physical multi-monitor configurations, including moving the panel between
+displays and disconnecting a display, remain unverified in practice.
+
+The Editor’s live preview has its own gauge button and a separately saved
+disclosure. Enlarging and returning the preview moves the same diagnosis view
+with its preview surface. If presentation recreates the preview player, the
+diagnosis switches to that player. Closing the editor or turning the diagnosis
+off releases its session. Closing the desktop panel detaches its selected
+renderer and cancels its sampler. Regular quit closes the panel with the
+existing playback cleanup.
+
+Both views consume the existing snapshots about once per second. Play, pause,
+replacement and other generation resets invalidate the displayed frame data
+immediately. Expanded details count visible entries in the rendered scene and
+effective prepared image stages and effect layers. A layer can count once as
+a layer and once as an effect. Neutral stages, hidden entries and zero-opacity
+image effects do not count as effective. Temporary weather and pointer activity
+do not change the meaning of this count. The pixel dimensions of the submitted
+drawable and the configured render target appear separately. The disclosure
+label and icon share one keyboard- and accessibility-operable button.
+Process memory (physical footprint), Metal memory (device allocations), and
+process CPU usage appear below session values. On unified memory the two
+memory readings can overlap and must not be added.
+
+Process CPU uses successive public `getrusage(RUSAGE_SELF)` readings and
+monotonic elapsed time. The numerator is user plus kernel CPU seconds.
+One logical CPU fully used during the interval represents 100%. Concurrent
+work can exceed 100%. The value describes Wupsy as a process, with no
+attribution to a preview, display, or helper process. The first reading and
+intervals without a valid pair are unavailable. In a VM it measures guest
+process accounting.
+
+Open, expanded diagnosis views share one on-demand resource sample per
+second. The process CPU and footprint queries run once per interval, and
+Metal allocations are cached once per device in that interval. Closing the
+last expanded view clears the CPU baseline and cache. No resource query
+runs with both details sections closed. Frame measurement continues for an
+open diagnosis whose details are collapsed.
+
+#### Utilization metrics and scope decisions
+
+| Scope | Public interface and meaning | Reliability, compatibility and cost |
+| --- | --- | --- |
+| Wupsy CPU | Darwin `getrusage(RUSAGE_SELF)`, CPU-time delta over host elapsed time. | Available throughout Wupsy's macOS support range. Reliable process accounting, averaged over the actual interval. One shared syscall per sample. |
+| System CPU | Public Mach `host_statistics` with `HOST_CPU_LOAD_INFO`; delta of user, system and nice ticks divided by the delta of all ticks including idle. | Available throughout the supported macOS range. Coarse aggregate across logical CPUs, 0–100%, with guest-wide figures inside a VM. One additional Mach call per sample and wrap-aware tick differences. Deliberately omitted because the diagnosis focuses on Wupsy. |
+| Wupsy GPU | Metal command-buffer timestamps and optional device counter sample buffers. | Timestamps measure buffer duration. Hardware counters are device- and stage-dependent and do not provide a process-wide percentage. Counter sampling and resolving add GPU commands and collection overhead. No suitable public low-overhead process utilization interface was identified. |
+| System GPU | Activity Monitor and Instruments expose diagnostics as tools. Public Metal counters instrument submitted work. | No suitable public API was identified for periodically reading total GPU utilization across apps and engines. Metal counter support varies by device and VM. The overhead of a compliant system-wide sampler therefore cannot be quantified from these APIs. |
+
+Wupsy process CPU usage remains in the expanded diagnosis. The diagnosis
+omits process and system GPU utilization because no suitable public APIs
+were identified. System CPU and both GPU utilization scopes have no
+placeholder rows. The existing GPU render duration keeps its original
+meaning.
+
 ### CLI benchmark output
 
 `--benchmark … --report …` explicitly enables collection on the first

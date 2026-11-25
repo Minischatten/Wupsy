@@ -42,7 +42,10 @@ enum RendererReadiness: Equatable {
     private(set) var looper: AVPlayerLooper?
     private(set) var web: WKWebView?
     private(set) var gif: GIFPlayer?
-    private(set) var scene: (any ScenePlaybackSession)?
+    private(set) var scene: (any ScenePlaybackSession)? {
+        didSet { performanceSceneChanged?() }
+    }
+    var performanceSceneChanged: (() -> Void)?
     var measuresPerformance = false {
         didSet {
             if measuresPerformance {

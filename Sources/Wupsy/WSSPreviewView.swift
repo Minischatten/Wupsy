@@ -44,7 +44,10 @@ struct WSSPreviewRenderPolicy: Equatable {
 @MainActor final class WSSPreviewSurface: NSView {
     // Local safety limit, intentionally not a product/format contract or preference.
     static let drawableLimit = 2560
-    private(set) var player: WSSStaticPlayer?
+    private(set) var player: WSSStaticPlayer? {
+        didSet { performancePlayerChanged?() }
+    }
+    var performancePlayerChanged: (() -> Void)?
     var measuresPerformance = false {
         didSet {
             if measuresPerformance {

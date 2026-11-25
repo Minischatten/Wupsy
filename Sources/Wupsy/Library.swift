@@ -22,7 +22,10 @@ import SwiftUI
     @Published private(set) var messagePresentation: String?
     @Published var importFailureReport: ImportFailureReport?
     @Published private(set) var playbackStatus: LibraryPlaybackStatus = .ready {
-        didSet { if oldValue != playbackStatus { recordPlayback(.status(playbackStatus)) } }
+        didSet {
+            if oldValue != playbackStatus { recordPlayback(.status(playbackStatus)) }
+            desktopPerformance?.reconcile()
+        }
     }
     var status: String { playbackStatus.title }
     @Published private(set) var playbackEvents: [PlaybackActivity] = []
@@ -145,7 +148,38 @@ import SwiftUI
     @Published private(set) var preparing = false
     @Published private(set) var active: Wallpaper?
     @Published private(set) var usingOptimizedVideo = false
-    private(set) var renderers: [Renderer] = []
+    private(set) var renderers: [Renderer] = [] {
+        didSet { desktopPerformance?.reconcile() }
+    }
+    private var desktopPerformance: DesktopPerformancePanel?
+
+    func openPerformancePanel() {
+        if desktopPerformance == nil {
+            desktopPerformance = DesktopPerformancePanel(
+                defaults: defaults, targets: { [weak self] in self?.performanceTargets() ?? [] },
+                status: { [weak self] in self?.playbackStatus.title })
+        }
+        desktopPerformance?.open()
+    }
+
+    func closePerformancePanel() { desktopPerformance?.close() }
+
+    private func performanceTargets() -> [(DesktopPerformancePanel.Choice, Renderer)] {
+        let screens = targetScreens()
+        return screens.enumerated().compactMap { index, screen in
+            let id = DesktopPerformancePanel.DisplayID(screen)
+            guard
+                let renderer = renderers.first(where: {
+                    !$0.stopped && DesktopPerformancePanel.DisplayID($0.screen) == id
+                })
+            else { return nil }
+            let name =
+                screens.filter { $0.localizedName == screen.localizedName }.count > 1
+                ? ProductText.performanceDisplayName.format(screen.localizedName, Int64(index + 1))
+                : screen.localizedName
+            return (.init(id: id, name: name), renderer)
+        }
+    }
     @Published private(set) var pauseReason: PauseReason?
     var onPlaybackCommand: ((WallpaperPlaybackCommand) -> Void)?
     var isLibraryReadable: Bool { storageLoadError == nil }

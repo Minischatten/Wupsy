@@ -81,7 +81,10 @@ struct WupsyApp: App {
                 save: { try await library.saveWSSManifest($0) },
                 saveAs: { try await library.saveWSSAs($0) },
                 publishDraft: { try await library.publishWSSDraft($0) },
-                onTermination: { library.stop(preserveSelection: true) },
+                onTermination: {
+                    library.closePerformancePanel()
+                    library.stop(preserveSelection: true)
+                },
                 presentation: .live()))
         _playlist = StateObject(
             wrappedValue: WallpaperPlaylist(

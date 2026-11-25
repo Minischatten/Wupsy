@@ -335,17 +335,13 @@ struct WSSEditorView: View {
                 .wupsyFont(.caption).foregroundStyle(.secondary).wupsyPadding(.horizontal, 10)
             }
             GeometryReader { geometry in
-                let fitted = WSSPreviewGeometry.fit(
-                    canvas: CGSize(
-                        width: document.project.scene.width, height: document.project.scene.height),
-                    available: geometry.size)
                 ZStack {
                     Color.black.opacity(0.85)
                     if let error = document.previewError {
                         Text(error).wupsyFont(.caption).padding()
                     } else {
-                        WSSPreviewView(document: document).frame(
-                            width: fitted.width, height: fitted.height)
+                        WSSPreviewView(document: document)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                     }
                 }.frame(width: geometry.size.width, height: geometry.size.height)
             }

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 extension WSSPreviewSurface {
     convenience init(document: WSSEditorDocument) {
@@ -15,6 +16,12 @@ extension WSSPreviewSurface {
 // neither presentation creates another player or another resource preparation.
 @MainActor final class WSSPreviewHost: NSView, NSWindowDelegate {
     let surface: WSSPreviewSurface
+    let performanceDiagnosis: PerformanceDiagnosis
+    private lazy var performanceOverlay = NSHostingView(
+        rootView: EditorPerformanceOverlay(
+            diagnosis: performanceDiagnosis, toggle: { [weak self] in self?.togglePerformance() },
+            metrics: interfaceMetrics))
+    private var performanceConstraints: [NSLayoutConstraint] = []
     private weak var document: WSSEditorDocument?
     private(set) var expandedWindow: NSWindow?
     private var expandedContent: WSSExpandedPreviewContent?
@@ -25,10 +32,13 @@ extension WSSPreviewSurface {
             guard interfaceMetrics != oldValue else { return }
             placeholder.font = .systemFont(ofSize: interfaceMetrics.points(NSFont.systemFontSize))
             expandedContent?.interfaceMetrics = interfaceMetrics
+            performanceOverlay.rootView.metrics = interfaceMetrics
         }
     }
 
-    init(document: WSSEditorDocument) {
+    init(document: WSSEditorDocument, performanceDefaults: UserDefaults = .standard) {
+        performanceDiagnosis = PerformanceDiagnosis(
+            defaults: performanceDefaults, detailsKey: "performance.editor.details")
         self.document = document
         surface = WSSPreviewSurface(document: document)
         super.init(frame: .zero)
@@ -37,6 +47,7 @@ extension WSSPreviewSurface {
         placeholder.textColor = .secondaryLabelColor
         placeholder.isHidden = true
         addSubview(placeholder)
+        attachPerformanceOverlay(to: self, top: 8)
         document.displayFogDrift = { [weak self] resources in
             self?.surface.player?.updateFogDragPreview(resources)
         }
@@ -44,6 +55,43 @@ extension WSSPreviewSurface {
         document.stopPreview = { [weak self] in self?.shutdown() }
     }
     required init?(coder: NSCoder) { fatalError() }
+    func togglePerformance() {
+        guard !stopped else { return }
+        let enabled = !performanceDiagnosis.active
+        performanceDiagnosis.setActive(enabled)
+        surface.performancePlayerChanged =
+            enabled ? { [weak self] in self?.bindPerformance() } : nil
+        bindPerformance()
+    }
+
+    private func bindPerformance() {
+        performanceDiagnosis.bind(surface.player)
+    }
+
+    private func attachPerformanceOverlay(to view: NSView, top: CGFloat) {
+        NSLayoutConstraint.deactivate(performanceConstraints)
+        performanceOverlay.removeFromSuperview()
+        performanceOverlay.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(performanceOverlay)
+        performanceConstraints = [
+            performanceOverlay.topAnchor.constraint(equalTo: view.topAnchor, constant: top),
+            performanceOverlay.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor, constant: -8),
+            performanceOverlay.leadingAnchor.constraint(
+                greaterThanOrEqualTo: view.leadingAnchor, constant: 8),
+            performanceOverlay.bottomAnchor.constraint(
+                lessThanOrEqualTo: view.bottomAnchor, constant: -8),
+        ]
+        NSLayoutConstraint.activate(performanceConstraints)
+    }
+
+    fileprivate func updatePerformanceLayout(_ size: CGSize, top: CGFloat) {
+        let available = CGSize(
+            width: max(0, size.width - 16), height: max(0, size.height - top - 8))
+        guard performanceOverlay.rootView.availableSize != available else { return }
+        performanceOverlay.rootView.availableSize = available
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window != nil, document?.previewExpanded == true, expandedWindow == nil, !stopped {
@@ -58,6 +106,7 @@ extension WSSPreviewSurface {
     override func layout() {
         super.layout()
         if expandedWindow == nil, let document {
+            updatePerformanceLayout(bounds.size, top: 8)
             let fit = WSSPreviewGeometry.fit(
                 canvas: CGSize(
                     width: document.project.scene.width, height: document.project.scene.height),
@@ -102,6 +151,7 @@ extension WSSPreviewSurface {
                 target: self)
             expandedContent = content
             content.interfaceMetrics = interfaceMetrics
+            attachPerformanceOverlay(to: content, top: 54)
             enlarged.contentView = content
             enlarged.delegate = self
             content.update(playing: document.playing, current: document.previewIsCurrent)
@@ -130,6 +180,7 @@ extension WSSPreviewSurface {
             document?.previewExpanded = false
             if !stopped {
                 addSubview(surface, positioned: .below, relativeTo: placeholder)
+                attachPerformanceOverlay(to: self, top: 8)
                 needsLayout = true
                 layoutSubtreeIfNeeded()
             }
@@ -145,6 +196,11 @@ extension WSSPreviewSurface {
     func shutdown() {
         guard !stopped else { return }
         stopped = true
+        surface.performancePlayerChanged = nil
+        performanceDiagnosis.setActive(false)
+        NSLayoutConstraint.deactivate(performanceConstraints)
+        performanceConstraints = []
+        performanceOverlay.removeFromSuperview()
         restore()
         surface.shutdown()
         surface.removeFromSuperview()
@@ -156,6 +212,7 @@ extension WSSPreviewSurface {
 @MainActor private final class WSSExpandedPreviewContent: NSView {
     private let surface: WSSPreviewSurface
     private let canvas: CGSize
+    private weak var target: WSSPreviewHost?
     private let play: NSButton
     private let close: NSButton
     private let status = NSTextField(labelWithString: EditorText.livePreview.text)
@@ -174,6 +231,7 @@ extension WSSPreviewSurface {
     init(surface: WSSPreviewSurface, canvas: CGSize, target: WSSPreviewHost) {
         self.surface = surface
         self.canvas = canvas
+        self.target = target
         play = NSButton(
             title: ProductText.pause.text, target: target,
             action: #selector(WSSPreviewHost.togglePlayback(_:)))
@@ -200,6 +258,7 @@ extension WSSPreviewSurface {
     }
     override func layout() {
         super.layout()
+        target?.updatePerformanceLayout(bounds.size, top: 54)
         let pad = interfaceMetrics.spacing(12)
         let buttonHeight = interfaceMetrics.target(26)
         let closeWidth =

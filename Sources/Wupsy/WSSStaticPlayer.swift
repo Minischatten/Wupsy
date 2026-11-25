@@ -5,6 +5,7 @@ import MetalKit
     let view: MTKView
     private(set) lazy var sessionID = UUID()
     private(set) var metrics: SceneMetrics?
+    var performanceInvalidated: (() -> Void)?
     private var renderFailed = false
 
     var rendererStatus: SceneRendererStatus {
@@ -26,6 +27,13 @@ import MetalKit
     func stopMeasuring() {
         metrics?.deactivate()
         metrics = nil
+        performanceInvalidated?()
+    }
+
+    private func resetPerformanceWindow() {
+        guard let metrics else { return }
+        metrics.resetFrameWindow()
+        performanceInvalidated?()
     }
 
     func performanceSnapshot() -> ScenePerformanceSnapshot? {
@@ -136,7 +144,7 @@ import MetalKit
     func updateTransforms(_ candidate: WSSStaticResources) -> Bool {
         guard !stopped, resources.sharesPreparedResources(with: candidate) else { return false }
         fogDragPreview = nil
-        if resources !== candidate { metrics?.resetFrameWindow() }
+        if resources !== candidate { resetPerformanceWindow() }
         resources = candidate
         if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
@@ -159,7 +167,7 @@ import MetalKit
     }
     func play() {
         guard !stopped else { return }
-        if paused { metrics?.resetFrameWindow() }
+        if paused { resetPerformanceWindow() }
         paused = false
         trailContext.reset()
         clock.play(now: ProcessInfo.processInfo.systemUptime)
@@ -177,7 +185,7 @@ import MetalKit
     }
     func pause() {
         guard !stopped, !paused else { return }
-        metrics?.resetFrameWindow()
+        resetPerformanceWindow()
         paused = true
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         view.isPaused = true
@@ -215,7 +223,7 @@ import MetalKit
         projection: WSSRenderProjection
     ) {
         guard !stopped else { return }
-        metrics?.resetFrameWindow()
+        resetPerformanceWindow()
         self.maxDimension = maxDimension
         self.projection = projection
         view.preferredFramesPerSecond = fps
@@ -232,7 +240,7 @@ import MetalKit
         let size = resolution.drawableSize(
             bounds: bounds, backing: backing, maxDimension: maxDimension)
         guard size != view.drawableSize else { return }
-        metrics?.resetFrameWindow()
+        resetPerformanceWindow()
         view.drawableSize = size
         view.needsDisplay = true
     }
@@ -314,7 +322,7 @@ import MetalKit
             if buffer.status == .error {
                 Task { @MainActor in
                     guard let self, !self.stopped else { return }
-                    self.metrics?.resetFrameWindow()
+                    self.resetPerformanceWindow()
                     self.renderFailed = true
                     if let onDiagnostic = self.onDiagnostic {
                         onDiagnostic(.wssGPU)

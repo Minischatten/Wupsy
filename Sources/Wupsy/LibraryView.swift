@@ -558,6 +558,11 @@ struct LibraryView: View {
                         }.buttonStyle(.plain)
                         Spacer()
                         Menu {
+                            Button(ProductText.performanceTitle.text) {
+                                library.openPerformancePanel()
+                            }
+                            .accessibilityIdentifier("desktop-performance-menu")
+                            Divider()
                             Button(ProductText.clearOptimized.text) { library.clearCache() }
                                 .help(ProductText.clearCacheHelp.text)
                                 .accessibilityHint(ProductText.clearCacheHelp.text)
