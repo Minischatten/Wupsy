@@ -58,6 +58,15 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Release README requirements
+
+Before every release, review README.md and README.de.md for accuracy,
+completeness and consistency with each other. Update both to match the
+features shipping in that release. Keep general product descriptions
+version-independent where possible and omit separate lists of unreleased
+features. Document unreleased work in this guide or the relevant technical
+documentation.
+
 ## Development builds for manual acceptance
 
 A complete, directly launchable ARM64 Release app is sufficient for manual
@@ -141,8 +150,11 @@ playback directly after Stop and during manual pause. Basic playback and
 global pause and resume worked on both displays over AirPlay. The accepted
 automated run passed 151 tests, including strict Metal presentation.
 
-AirPlay latency limited visual verification. A complete wired multi-display
-check, including all display topology changes, remains open.
+AirPlay latency limited visual verification in Section 2. Later physical
+two-display HDMI checks in Section 3 confirmed GIF pause and resume through
+sleep, wake and temporary display loss, as well as a wallpaper change with
+coverage retained on the second display. Other wired display-topology
+scenarios remain unverified.
 
 The subsequent Cursor Trail change lets existing samples fade on their own
 display after the pointer leaves. Reentry starts a disconnected segment at
@@ -193,7 +205,11 @@ started playback directly from manual pause. The final targeted run passed
 133 tests, including strict Metal presentation. The ARM64 release, bundle,
 signature, format and German and English localization checks passed.
 
-Automatic fullscreen pause is the next development step.
+Automatic fullscreen pause is deferred. The practical check on macOS 27.2.1
+did not yield a sufficiently reliable fullscreen signal after the KVO fix.
+
+Library arrow-key navigation passed manual acceptance. It follows the visible
+wallpaper grid and changes the selection and preview without applying a wallpaper.
 
 ## Interface size
 

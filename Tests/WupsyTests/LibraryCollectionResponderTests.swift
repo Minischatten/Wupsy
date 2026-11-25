@@ -32,6 +32,36 @@ import XCTest
                 charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
         window.sendEvent(event)
     }
+    private func pressArrow(
+        in window: NSWindow, code: UInt16 = 123, characters: String = "\u{f702}",
+        modifiers: NSEvent.ModifierFlags = [], repeatKey: Bool = false
+    ) throws {
+        let event = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: characters,
+                charactersIgnoringModifiers: characters, isARepeat: repeatKey, keyCode: code))
+        window.sendEvent(event)
+    }
+
+    func testCollectionConsumesArrowsAndRepeatsWithoutDispatchingOtherCommands() throws {
+        let window = window()
+        defer { window.close() }
+        let target = LibraryCollectionKeyView(frame: .zero)
+        window.contentView!.addSubview(target)
+        XCTAssertTrue(window.makeFirstResponder(target))
+        var directions: [LibraryGridDirection] = []
+        target.navigate = { directions.append($0) }
+        target.remove = { XCTFail("Arrow triggered removal") }
+        target.rename = { XCTFail("Arrow triggered rename") }
+        try pressArrow(in: window)
+        try pressArrow(in: window, code: 124, characters: "\u{f703}", repeatKey: true)
+        try pressArrow(in: window, code: 126, characters: "\u{f700}")
+        try pressArrow(in: window, code: 125, characters: "\u{f701}")
+        try pressArrow(in: window, modifiers: .shift)
+        XCTAssertEqual(directions, [.left, .right, .up, .down])
+    }
+
     func testHostedCollectionDispatchesBackspaceAndReturn() async throws {
         let window = window()
         defer { window.close() }
@@ -101,6 +131,7 @@ import XCTest
         var renames = 0
         target.remove = { removes += 1 }
         target.rename = { renames += 1 }
+        target.navigate = { _ in XCTFail("Field editor redirected an arrow") }
         XCTAssertTrue(window.makeFirstResponder(target))
         let field = NSTextField(frame: NSRect(x: 10, y: 10, width: 200, height: 24))
         field.stringValue = "Search"
@@ -108,6 +139,9 @@ import XCTest
         XCTAssertTrue(window.makeFirstResponder(field))
         let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
         editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
+        try pressArrow(in: window)
+        XCTAssertEqual(editor.selectedRange().location, 5)
+        editor.setSelectedRange(NSRange(location: 6, length: 0))
         try delete(in: window)
         XCTAssertEqual(editor.string, "Searc")
         try pressReturn(in: window)
@@ -124,9 +158,11 @@ import XCTest
         window.contentView!.addSubview(button)
         var renames = 0
         target.rename = { renames += 1 }
+        target.navigate = { _ in XCTFail("Button redirected an arrow") }
         XCTAssertTrue(window.makeFirstResponder(target))
         XCTAssertTrue(window.makeFirstResponder(button))
         XCTAssertTrue(window.firstResponder === button)
+        try pressArrow(in: window)
         try pressReturn(in: window)
         XCTAssertEqual(renames, 0)
     }

@@ -134,6 +134,7 @@ struct WallpaperCard: View {
     let select: () -> Void
     let apply: () -> Void
     let favorite: () -> Void
+    var navigate: ((LibraryGridDirection) -> Void)? = nil
     var reorderItem: LibraryReorderItem? = nil
     @State private var hovered = false
     private var border: Color {
@@ -176,18 +177,27 @@ struct WallpaperCard: View {
                 RoundedRectangle(cornerRadius: 12).stroke(border, lineWidth: isSelected ? 1.5 : 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain).simultaneousGesture(TapGesture(count: 2).onEnded { apply() }).onHover
-        { hovered = $0 }.help(ProductText.cardClickHelp.text)
-            .overlay(alignment: .topTrailing) {
-                Button(action: favorite) {
-                    Image(systemName: isFavorite ? "heart.fill" : "heart").wupsyFont(size: 11)
-                        .foregroundStyle(isFavorite ? WupsyTheme.lavender : .white.opacity(0.85))
-                        .wupsyControlFrame(width: 27, height: 27).background(
-                            .black.opacity(0.45), in: Circle())
-                }
-                .buttonStyle(.plain).wupsyPadding(.all, 7).help(
-                    isFavorite ? ProductText.removeFavorite.text : ProductText.addFavorite.text
-                ).accessibilityLabel(ProductText.favoriteTitle.format(item.title))
+        }
+        .onKeyPress(keys: Set(LibraryGridDirection.allCases.map(\.key)), phases: [.down, .repeat]) {
+            guard $0.modifiers.intersection([.command, .control, .option, .shift]).isEmpty,
+                let navigate, let direction = LibraryGridDirection(key: $0.key)
+            else { return .ignored }
+            navigate(direction)
+            return .handled
+        }
+        .buttonStyle(.plain).simultaneousGesture(TapGesture(count: 2).onEnded { apply() }).onHover {
+            hovered = $0
+        }.help(ProductText.cardClickHelp.text)
+        .overlay(alignment: .topTrailing) {
+            Button(action: favorite) {
+                Image(systemName: isFavorite ? "heart.fill" : "heart").wupsyFont(size: 11)
+                    .foregroundStyle(isFavorite ? WupsyTheme.lavender : .white.opacity(0.85))
+                    .wupsyControlFrame(width: 27, height: 27).background(
+                        .black.opacity(0.45), in: Circle())
             }
+            .buttonStyle(.plain).wupsyPadding(.all, 7).help(
+                isFavorite ? ProductText.removeFavorite.text : ProductText.addFavorite.text
+            ).accessibilityLabel(ProductText.favoriteTitle.format(item.title))
+        }
     }
 }

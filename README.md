@@ -3,66 +3,73 @@
 <p align="center"><img src="Brand/Wupsy-Logo-v2.png" width="112" alt="Wupsy icon"></p>
 <h1 align="center">Wupsy</h1>
 
-Wupsy brings animated wallpapers, a built-in wallpaper editor and desktop widgets to **macOS 14+ on Apple silicon**. Create and edit your own animated wallpapers, play videos, images, GIFs and local web content, and arrange widgets on your desktop. Wupsy is a native SwiftUI/AppKit app, originally based on Ambient and substantially extended with its own wallpaper editor and native scene features; see [license and origin](#license-and-origin).
+Wupsy is a native macOS app for animated desktop wallpapers, custom scenes and desktop widgets. Play videos, GIFs or local web projects, turn your own images into animated wallpapers in the built-in editor, and organize them in a library with favorites and playlists.
 
-**Early preview:** compatibility and performance are evolving. Wupsy 0.5.0 is ad-hoc signed, not Developer ID signed or notarized. No fixed CPU, memory or battery budget is promised.
+## Download and install
 
-The minimum deployment target is macOS 14; the provided app is built for Apple silicon (ARM64). Practical validation has been performed on macOS 26 and 27; macOS 14 and 15 have not been verified.
+Wupsy requires **Apple silicon (ARM64)** and targets **macOS 14 or later**. Wupsy has been tested on macOS 26 and 27. macOS 14 and 15 have not been verified. The current download uses an ad-hoc signature and has no Apple Developer ID signature or notarization.
 
-## Features
+1. Download the `.dmg` and its matching `.dmg.sha256` file from the **Assets** section. [Latest GitHub release](https://github.com/Minischatten/Wupsy/releases/latest)
+2. In Terminal, go to the folder containing both files and run the command below. Replace `<version>` with the version in the downloaded filename. Continue when the checksum reports `OK`.
 
-- Original-quality looping video, with optional Balanced/Eco conversion and a bounded completed-copy cache.
-- Native Flow, Ripple and Clouds image effects, Rain and CursorTrail layers.
-- Built-in editor for native Wupsy projects, with masks, Flow direction/region painting, live preview, Undo/Redo, Save and Save As.
-- Managed library imports, favorites, named playlists, manual backup and restore.
-- Clock, date, CPU, estimated memory and network widgets; movable desktop layout and offline custom HTML/CSS widgets.
-- Multiple displays, launch at login, sleep-aware playback and bounded video recovery.
+   ```sh
+   shasum -a 256 -c "Wupsy-<version>.dmg.sha256"
+   ```
+
+3. Open the disk image, copy `Wupsy.app` to **Applications**, wait for the copy to finish, then eject the disk image and open the copied app. If macOS blocks the app, you can approve it under **System Settings → Privacy & Security**.
+
+The sections below describe the current release. You can also [build from source](#build).
+
+## Library and desktop playback
+
+- **Import and organize.** Use **Add wallpaper** or drop files into the library. Search and filter your collection, mark favorites, rename a selected wallpaper with Return, and drag cards to change their saved order. Imports copy content into the managed library. Reimporting creates a separate copy. Removing a managed entry deletes its local copy.
+- **Playlists.** Create named playlists with their own interval and sequential or shuffle playback. Activation requires at least two distinct available wallpapers. Pause holds the remaining interval. Applying a wallpaper manually or choosing Stop ends rotation and keeps the playlist definition. Deleting a playlist keeps its wallpapers in the library.
+- **Playback.** Apply a wallpaper from the library and use Pause or Resume from the menu bar. Stop is available in the library. Closing the library window leaves playback running. Quit Wupsy from the menu bar to end it. For eligible image and WSS changes, Wupsy keeps the previous wallpaper if preparation fails. Video playback can make limited recovery attempts after a playback problem.
+- **Displays and settings.** Play on the main display or enable **All Displays**. Playback responds to sleep and wake. Settings include pause on battery, power saving, launch at login, update checks, and interface sizes of 100%, 125% and 150%. The library offers video quality and WSS resolution and frame-rate controls.
+
+## Supported wallpaper formats
+
+| Type | Files and projects | Playback |
+| --- | --- | --- |
+| Static image | PNG, JPEG / JPG, HEIC, TIFF | Static wallpaper |
+| Animated GIF | GIF | Animated wallpaper |
+| Video | MP4, MOV, M4V | Looping playback with Original, Balanced and Eco options |
+| Local web | HTML file or folder containing `index.html` | HTML, CSS, JavaScript and local resources |
+| Native WSS scene | Project folder containing `scene.wss.json`, or the manifest with its project assets | Native editor, live preview and animated desktop playback |
+
+GIF animation, MP4 playback with quality settings, and local web wallpapers were tested on macOS 26 and 27. PNG and JPEG were also tested with automatic wallpaper changes. Video requires a macOS-compatible codec such as H.264 or HEVC. MOV and M4V are accepted by the importer and have not yet been tested. Balanced and Eco can create optimized copies in a size-limited cache.
+
+Web wallpapers play local projects on the desktop. Their scripts may access the network. WSS projects require their referenced assets. Wallpaper Engine projects, PKG/TEX files and arbitrary external shaders are unsupported. Older Wupsy versions may reject scenes that use newer features. Use only content you have permission to use. Personal wallpaper photos and masks are not included. [Scene support](SCENE-SUPPORT.md) · [WSS format](WSS-SCENE-FORMAT.md)
 
 ## Built-in wallpaper editor
 
-Start with your own PNG or JPEG image, or open an existing native Wupsy project. Arrange image layers, move, resize and rotate them, and add Flow for directional motion, Ripple for wave distortion or Clouds for animated cloud patterns. Paint masks to choose where supported effects appear, and paint Flow directions and regions to control movement. Rain and pointer-driven CursorTrail can be added as separate layers.
+Create a WSS scene, open an existing project, or open a managed static wallpaper as an editable draft. The editor accepts PNG, JPEG, HEIC and TIFF files that contain exactly one image. It converts them to standard sRGB PNG. HDR and wide-gamut fidelity are lost in this conversion. The first save of a draft can add a new scene or replace the library entry while keeping its order, favorite status and playlist references. Imported originals remain intact.
 
-Use the static editing canvas to arrange the layout and Live Preview to check the animation. Undo/Redo lets you revise edits; Save and Save As keep your work as editable native projects. Imported originals remain unchanged. See [the editor guide](docs/EDITOR.md) for workflows and limitations. The editor works with native Wupsy scenes.
+Arrange, rename, show or hide layers. Move, resize and rotate image layers, adjust opacity, and combine image effects in an ordered stack. Paint masks for supported effects to choose where they appear. With Flow you can also paint movement directions and regions. Use the static canvas to arrange the scene and Live Preview to check animation. Undo and Redo let you revise edits. Use Smooth Anchor to align the handles of a selected Bézier anchor on a Music Notes path. Save updates the project, Save As creates an independent copy, and Revert restores the last saved scene. The macOS color panel can occasionally fail to pass a new Starfield color to the editor. [Editor guide](docs/EDITOR.md)
 
-## Use Wupsy
+| Native effect or layer | What it does |
+| --- | --- |
+| **Flow** | Directional motion across an image, with paintable directions and regions |
+| **Ripple** | Animated wave distortion in an image |
+| **Clouds** | Animated cloud patterns on an image |
+| **Fog** | Ground or Atmospheric Fog between layers, with adjustable appearance and drift |
+| **Rain** | Animated rain in a configurable scene region |
+| **Storm** | Lightning, with optional illumination of the full scene |
+| **Starfield** | Stars with twinkle and drift, optional shooting stars and a procedural Milky Way |
+| **Music Notes** | Animated notes and optional staff lines on straight, elliptical or editable Bézier paths, with depth relative to an image layer and perspective along open paths |
+| **CursorTrail** | A trail that follows the pointer during live preview or playback |
 
-Download [Wupsy-0.7.0.dmg](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg) and its [SHA-256 checksum](https://github.com/Minischatten/Wupsy/releases/download/v0.7.0/Wupsy-0.7.0.dmg.sha256) from the [Wupsy 0.7.0 release](https://github.com/Minischatten/Wupsy/releases/tag/v0.7.0). Open the disk image, copy `Wupsy.app` to Applications, wait for the copy to finish, eject the disk image and open the copied app. If macOS blocks the app, you can approve it in **System Settings → Privacy & Security**.
+[Effect index](WSS-EFFECTS.md) · [Music Notes guide](docs/anleitungen/MUSIC-NOTES.md) · [CursorTrail](WSS-TRAIL.md)
 
-Developers can alternatively [build from source](#build).
+## Desktop widgets
 
-Choose **Add wallpaper** in the library to import supported media, a web folder containing index.html, or a native folder containing scene.wss.json. Imports copy content into Wupsy's managed library and leave originals unchanged. Reimporting creates a separate copy. Removing a managed item deletes its local copy.
-
-Closing the library does not stop playback; quit Wupsy from the menu bar to stop it.
-
-Named playlists contain library entries; activation requires at least two distinct available wallpapers. Each playlist has its own interval and sequential/shuffle mode. Pause freezes rotation. Manual Apply or Stop disables rotation without deleting playlist definitions. Deleting a playlist never deletes its wallpapers.
-
-For widgets, enable the desired widgets, choose **Edit on desktop**, arrange them and choose **Done**. Custom widgets use the [local widget package format](WIDGETS.md).
-
-## Supported Wallpaper Formats
-
-| Type | Formats | Support |
-|---|---|---|
-| Static images | PNG, JPEG / JPG, HEIC, TIFF | Static desktop wallpapers |
-| Animated GIFs | GIF | Animated desktop wallpapers |
-| Videos | MP4 | Looping video wallpapers with Original, Balanced and Eco quality |
-| Local web wallpapers | HTML, CSS, JavaScript | Local HTML projects with animations, scripts and local resources |
-| Native scenes | WSS (`scene.wss.json`) | Native scene editor, live preview and animated desktop rendering |
-
-These formats have been tested in practice. GIF animation, MP4 playback with quality settings, and local web wallpapers were tested on macOS 26 and 27. PNG and JPEG were also tested with automatic wallpaper changes.
-
-Video playback requires a codec that macOS can play; H.264/HEVC are recommended. The importer also accepts MOV and M4V, but these containers have not yet been practically verified.
-
-**Media import is separate from scene editing.** The native WSS editor currently imports PNG and JPEG as image layers; importing other media does not make them editable scene layers.
-
-Web wallpapers are local HTML files or project folders containing `index.html`, with CSS, JavaScript and local resources. They are not general-purpose browser windows. Scripts may access the network.
-
-Start with the [project guide](PROJECT.md) for task-specific documentation. See [scene support](SCENE-SUPPORT.md), [scene format](WSS-SCENE-FORMAT.md), [effect index](WSS-EFFECTS.md) and [CursorTrail](WSS-TRAIL.md). Use only content you are permitted to use. Personal wallpaper photos and masks are not included.
+Add widgets for time, date, CPU usage, estimated memory use and network activity. Choose **Edit on desktop** to arrange enabled widgets, then choose **Done**. You can also create a local HTML/CSS widget and import or export its package. Custom widgets run offline. [Widget package guide](WIDGETS.md)
 
 ## Data and backups
 
-Wupsy uses `~/Library/Application Support/Wupsy`, `~/Library/Caches/Wupsy` and preference domain `com.wirdschonsoftware.wupsy`. It does not search or migrate Ambient data. Native imports are stored under `Wallpapers/WSS/`; media and web content use `Wallpapers/Media/` and `Wallpapers/Web/`.
+Wupsy uses `~/Library/Application Support/Wupsy`, `~/Library/Caches/Wupsy` and the preference domain `com.wirdschonsoftware.wupsy`. It does not search for or migrate Ambient data. Native scenes are stored under `Wallpapers/WSS/`, media under `Wallpapers/Media/` and web wallpapers under `Wallpapers/Web/`.
 
-Library backups are unencrypted and can contain private media, web sources and metadata. Keep them private. Restore replaces the library after confirmation, resolves open editors and requires quitting/reopening after publication. It does not automatically activate a backed-up wallpaper or playlist. See [backup format](BACKUP-FORMAT.md) and [restore safety](RESTORE-TRANSACTION.md).
+Create and restore library backups from Settings. Backups are unencrypted and can contain private media, web sources and metadata. Store them privately. Restore replaces the library after confirmation, handles open editor sessions and requires restarting Wupsy. It leaves backed-up wallpapers and playlists inactive. Backups capture saved projects without unsaved editor drafts or Undo history. [Backup format](BACKUP-FORMAT.md) · [Restore safety](RESTORE-TRANSACTION.md)
 
 ## Build
 
@@ -85,6 +92,8 @@ LAYOUT_PYTHON="$PWD/.venv/bin/python" bash scripts/build-dmg.sh
 ```
 
 See [distribution and signing](DISTRIBUTION.md). Development builds need no signing secrets. [Contributing](CONTRIBUTING.md) covers checks and code layout; [security guidance](SECURITY.md) covers reporting and content trust.
+
+[Project guide](PROJECT.md) · [Architecture](docs/ARCHITECTURE.md)
 
 ## License and origin
 

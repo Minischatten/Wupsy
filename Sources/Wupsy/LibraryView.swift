@@ -30,6 +30,11 @@ struct LibraryView: View {
     @State private var showQualityHelp = false
     @State private var isBackgroundDropTarget = false
     @State private var importDropTarget: ImportDropTarget?
+    @State private var gridWidth: CGFloat = 0
+    private var gridMinimum: CGFloat { 178 + metrics.spacing(32) - 32 }
+    private var gridColumns: Int {
+        LibraryGridLayout.columnCount(width: gridWidth, minimum: gridMinimum)
+    }
     @StateObject private var collectionFocus = LibraryCollectionFocus()
     private var filtered: [Wallpaper] {
         let list = library.items.filter { item in
@@ -163,46 +168,65 @@ struct LibraryView: View {
                         emptyState
                     }
                     collectionToolbar
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            LazyVGrid(
-                                columns: [
-                                    GridItem(
-                                        .adaptive(
-                                            minimum: 178 + metrics.spacing(32) - 32, maximum: 270))
-                                ],
-                                spacing: metrics.spacing(16)
-                            ) {
-                                ForEach(filtered) { item in
-                                    wallpaperCard(item)
+                    ScrollViewReader { scroll in
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                LazyVGrid(
+                                    columns: Array(
+                                        repeating: GridItem(
+                                            .flexible(
+                                                minimum: min(gridMinimum, gridWidth), maximum: 270),
+                                            spacing: LibraryGridLayout.columnSpacing),
+                                        count: gridColumns),
+                                    spacing: metrics.spacing(16)
+                                ) {
+                                    ForEach(filtered) { item in
+                                        wallpaperCard(
+                                            item,
+                                            navigate: { direction in
+                                                moveSelection(
+                                                    direction, scroll: scroll, from: item.id)
+                                            }
+                                        )
+                                        .id(item.id)
+                                    }
+                                }
+                                .background(LibraryDragScroll(controller: reorder))
+                                .wupsyPadding(.bottom, 4)
+                                if let last = filtered.last {
+                                    Color.clear.frame(height: 28).contentShape(Rectangle())
+                                        .overlay(alignment: .top) {
+                                            if reorder.insertion
+                                                == LibraryInsertion(
+                                                    targetID: last.id, placement: .after)
+                                            {
+                                                Rectangle().fill(WupsyTheme.accent).frame(height: 3)
+                                            }
+                                        }
+                                        .onDrop(
+                                            of: LibraryCardDrop.types,
+                                            delegate: gridEndDrop(last.id)
+                                        )
+                                        .onDisappear {
+                                            setImportDropTarget(.gridEnd, active: false)
+                                        }
                                 }
                             }
-                            .background(LibraryDragScroll(controller: reorder))
-                            .wupsyPadding(.bottom, 4)
-                            if let last = filtered.last {
-                                Color.clear.frame(height: 28).contentShape(Rectangle())
-                                    .overlay(alignment: .top) {
-                                        if reorder.insertion
-                                            == LibraryInsertion(
-                                                targetID: last.id, placement: .after)
-                                        {
-                                            Rectangle().fill(WupsyTheme.accent).frame(height: 3)
-                                        }
-                                    }
-                                    .onDrop(
-                                        of: LibraryCardDrop.types,
-                                        delegate: gridEndDrop(last.id)
-                                    )
-                                    .onDisappear { setImportDropTarget(.gridEnd, active: false) }
+                            .frame(maxWidth: .infinity)
+                            .onGeometryChange(for: CGFloat.self) {
+                                $0.size.width
+                            } action: {
+                                gridWidth = $0
                             }
                         }
+                        .background(
+                            LibraryCollectionResponder(
+                                focus: collectionFocus, remove: removeSelectedWallpaper,
+                                rename: renameSelectedWallpaper,
+                                navigate: { moveSelection($0, scroll: scroll) }
+                            )
+                            .allowsHitTesting(false))
                     }
-                    .background(
-                        LibraryCollectionResponder(
-                            focus: collectionFocus, remove: removeSelectedWallpaper,
-                            rename: renameSelectedWallpaper
-                        )
-                        .allowsHitTesting(false))
                     footer
                 }.wupsyPadding(.all, 26).background(WupsyTheme.background)
                     .onDrop(
@@ -231,7 +255,26 @@ struct LibraryView: View {
         }
     }
 
-    private func wallpaperCard(_ item: Wallpaper) -> some View {
+    private func moveSelection(
+        _ direction: LibraryGridDirection, scroll: ScrollViewProxy, from focusedID: UUID? = nil
+    ) {
+        guard maintenance.allowsNewOperations else { return }
+        let items = filtered
+        let currentID = focusedID ?? library.selected
+        let index = items.firstIndex { $0.id == currentID }
+        guard
+            let destination = direction.destination(
+                from: index, count: items.count, columns: gridColumns)
+        else { return }
+        let id = items[destination].id
+        library.selected = id
+        if focusedID != nil { collectionFocus.focus() }
+        scroll.scrollTo(id)
+    }
+
+    private func wallpaperCard(
+        _ item: Wallpaper, navigate: @escaping (LibraryGridDirection) -> Void
+    ) -> some View {
         WallpaperCard(
             item: item, isSelected: selected?.id == item.id,
             isActive: library.active?.id == item.id,
@@ -242,6 +285,7 @@ struct LibraryView: View {
             },
             apply: { library.apply(item) },
             favorite: { library.toggleFavorite(item) },
+            navigate: navigate,
             reorderItem: reorder.isMoving
                 ? nil
                 : LibraryReorderItem(
