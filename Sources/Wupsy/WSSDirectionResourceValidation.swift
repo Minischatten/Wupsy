@@ -71,6 +71,7 @@ enum WSSDirectionResourceValidation {
             guard maskBytes <= 32 * 1024 * 1024 else { throw WSSMaskError.budget }
             maskTextureBytes += try allocation(mask.width, mask.height, .r8Unorm)
         }
+        _ = try WSSFogMasks(scene: scene, assets: assets, device: device, upload: false)
         var images: Set<WSSAssetID> = []
         var decodedBytes = fieldBytes + regionBytes + maskTextureBytes
         for layer in scene.imageLayers where images.insert(layer.asset).inserted {

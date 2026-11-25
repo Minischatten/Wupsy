@@ -817,23 +817,6 @@
         }
       }
     },
-    "editor.fog.atmosphere": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atmospheric Fog"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atmosphärischer Nebel"
-          }
-        }
-      }
-    },
     "editor.fog.color": {
       "extractionState": "manual",
       "localizations": {
@@ -915,23 +898,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vertikale Drift"
-          }
-        }
-      }
-    },
-    "editor.fog.ground": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ground Fog"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bodennebel"
           }
         }
       }

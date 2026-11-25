@@ -11,6 +11,10 @@ struct WSSScalarMaskContext {
     let definition: WSSNativeImageDefinition?
 }
 
+extension WSSSceneDocumentV1 {
+    var fogMaskSize: [Float] { [Float(canvas.width), Float(canvas.height)] }
+}
+
 extension WSSEditorDocument.Snapshot {
     func maskContext(_ target: WSSMaskTarget) throws -> WSSScalarMaskContext {
         guard target.sessionID == state.sessionID,
@@ -29,6 +33,13 @@ extension WSSEditorDocument.Snapshot {
                 layerIndex: index, effectIndex: address.effectIndex,
                 transform: try image.transform.native(), size: image.transform.size,
                 path: effect.maskPath, definition: effect.maskDefinition)
+        case (.layer, .fog(let fog)) where target.slot == .fog:
+            let size = SIMD2(
+                Float(state.workingModel.canvas.width), Float(state.workingModel.canvas.height))
+            return WSSScalarMaskContext(
+                layerIndex: index, effectIndex: nil,
+                transform: WSSImageTransform(center: size / 2, size: size),
+                size: state.workingModel.fogMaskSize, path: fog.mask?.asset, definition: fog.mask)
         case (.layer, .rain(let rain)):
             guard target.slot == .rain, identity.layers[index].effects.isEmpty else {
                 throw WSSMaskError.stale
@@ -54,6 +65,9 @@ extension WSSEditorDocument.Snapshot {
             image.effects[effect] = try image.effects[effect].settingMask(
                 slot: target.slot, definition: definition)
             model.layers[context.layerIndex].content = .image(image)
+        case .fog(var fog):
+            fog.mask = definition
+            model.layers[context.layerIndex].content = .fog(fog)
         case .rain(var rain):
             rain.mask = definition
             model.layers[context.layerIndex].content = .rain(rain)

@@ -6,22 +6,18 @@ import XCTest
 @testable import Wupsy
 
 final class WSSFogTests: XCTestCase {
-    func testPresetDefaults() throws {
-        let ground = WSSFogPreset.ground.configuration
-        let atmosphere = WSSFogPreset.atmosphere.configuration
+    private let legacyShallowFog = WSSFogConfiguration(
+        density: 0.48, softness: 0.75, driftX: 9, driftY: 0, scale: 1500, height: 0.38)
+
+    func testDefaults() throws {
+        let fog = WSSFogConfiguration.defaults
         XCTAssertEqual(
-            ground,
-            .init(
-                density: 0.48, softness: 0.75, driftX: 9, driftY: 0, scale: 1500,
-                height: 0.38))
-        XCTAssertEqual(
-            atmosphere,
+            fog,
             .init(
                 density: 0.23, softness: 0.9, driftX: 4, driftY: -0.5,
                 scale: 2200, height: 1.5))
-        XCTAssertEqual(ground.color, .init(red: 0.94, green: 0.95, blue: 0.96))
-        try ground.validate()
-        try atmosphere.validate()
+        XCTAssertEqual(fog.color, .init(red: 0.94, green: 0.95, blue: 0.96))
+        try fog.validate()
     }
 
     func testManifestRoundTripAndValidation() throws {
@@ -41,6 +37,14 @@ final class WSSFogTests: XCTestCase {
         XCTAssertTrue(document.referencedPaths.isEmpty)
 
         let json = String(decoding: data, as: UTF8.self)
+        for preset in ["ground", "atmosphere"] {
+            let legacy = json.replacingOccurrences(
+                of: "\"visible\":false", with: "\"visible\":false,\"preset\":\"\(preset)\"")
+            let decoded = try WSSSceneDocumentV1.decode(data: Data(legacy.utf8))
+            XCTAssertEqual(decoded, document)
+            XCTAssertFalse(
+                String(decoding: try decoded.encoded(), as: UTF8.self).contains("\"preset\""))
+        }
         for (old, invalid) in [
             ("\"height\":0.62", "\"height\":0"), ("\"blue\":0.97", "\"blue\":1.5"),
             ("\"blue\":0.97", "\"blue\":0.97,\"alpha\":0.5"),
@@ -55,7 +59,7 @@ final class WSSFogTests: XCTestCase {
     }
 
     @MainActor func testMotionAndStaticRendering() throws {
-        var fog = WSSFogPreset.atmosphere.configuration
+        var fog = WSSFogConfiguration.defaults
         fog.scale = 110
         var scene = WSSScene(width: 64, height: 64, layers: [.fog(.init(fog: fog))])
         XCTAssertTrue(scene.isAnimated)
@@ -93,7 +97,7 @@ final class WSSFogTests: XCTestCase {
     }
 
     func testTemporalWrapIsContinuous() throws {
-        var fog = WSSFogPreset.atmosphere.configuration
+        var fog = WSSFogConfiguration.defaults
         fog.scale = 32
         fog.driftX = -5
         fog.driftY = 0
@@ -110,7 +114,7 @@ final class WSSFogTests: XCTestCase {
     }
 
     func testGroundFadePremultipliedColorAndLayerOrder() throws {
-        var settings = WSSFogPreset.ground.configuration
+        var settings = legacyShallowFog
         settings.color = .init(red: 0, green: 0, blue: 1)
         let fog = WSSSceneLayer.fog(.init(fog: settings))
         let id = WSSAssetID(value: "foreground")
@@ -139,6 +143,293 @@ final class WSSFogTests: XCTestCase {
         XCTAssertEqual(Array(covered[bottom..<(bottom + 4)]), [0, 0, 255, 255])
         XCTAssertEqual(Array(front[top..<(top + 4)]), [0, 0, 255, 255])
         XCTAssertEqual(Array(front[bottom..<(bottom + 4)]), [alpha, 0, 255 - alpha, 255])
+    }
+
+    func testScalarMasksInExistingFogDraw() throws {
+        let device = try WSSStaticTests().device()
+        let renderer = WSSCloudsTests()
+        let id = WSSAssetID(value: "assets/fog.png")
+        func prepare(
+            _ fog: WSSFogConfiguration, mask: [UInt8]? = nil, visible: Bool = true,
+            other: [WSSSceneLayer] = []
+        ) throws -> WSSStaticResources {
+            let definition = try mask.map {
+                try WSSMaskBitmap(
+                    width: 1, height: $0.count, uvScale: SIMD2(1, 1), pixels: Data($0)
+                )
+                .definition(path: id.value)
+            }
+            let values =
+                mask.map { pixels in
+                    [
+                        id: WSSImageAsset(
+                            width: 1, height: pixels.count,
+                            payload: .rgba8(Data(pixels.flatMap { [$0, 0, 0, 255] })))
+                    ]
+                } ?? [:]
+            return try WSSStaticResources(
+                scene: .init(
+                    width: 96, height: 64,
+                    layers: [.fog(.init(visible: visible, fog: fog, mask: definition))] + other),
+                assets: WSSStaticTests.Assets(values: values), device: device)
+        }
+        func render(_ resources: WSSStaticResources, width: Int = 96) throws -> Data {
+            try renderer.render(resources, time: 7, width: width, height: 64, clearAlpha: 0).0
+        }
+        for fog in [legacyShallowFog, .defaults] {
+            let legacy = try prepare(fog)
+            let white = try prepare(fog, mask: [255])
+            let black = try prepare(fog, mask: [0])
+            let hidden = try prepare(fog, visible: false)
+            for width in [96, 64] {
+                XCTAssertEqual(try render(legacy, width: width), try render(white, width: width))
+                XCTAssertEqual(try render(black, width: width), try render(hidden, width: width))
+            }
+            XCTAssertFalse(black.isAnimated)
+            XCTAssertTrue(white.isAnimated)
+            XCTAssertEqual(black.fogMasks.textureBytes, 0)
+            XCTAssertEqual(
+                black.performanceContentCounts, .init(visibleLayers: 1, effectiveEffects: 0))
+            XCTAssertEqual(white.performanceContentCounts.effectiveEffects, 1)
+            XCTAssertTrue(try prepare(fog, mask: [0], other: [.fog(.init(fog: fog))]).isAnimated)
+        }
+
+        // A two-row mask is black at the top and white at the bottom, with a linear transition.
+        // At the same canvas row its fraction of the unmasked output is independent of fog height.
+        for height: Float in [0.85, 1.5] {
+            var fog = WSSFogConfiguration.defaults
+            fog.height = height
+            fog.density = 1
+            for width in [64, 96] {
+                let plain = try render(prepare(fog), width: width)
+                let masked = try render(prepare(fog, mask: [0, 255]), width: width)
+                for row in [32, 54] {
+                    let alpha = (row * width + width / 2) * 4 + 3
+                    let fraction = min(1, (Double(row) + 0.5) / 32 - 0.5)
+                    XCTAssertGreaterThan(plain[alpha], 0)
+                    XCTAssertEqual(
+                        Double(masked[alpha]), Double(plain[alpha]) * fraction, accuracy: 1.5)
+                }
+            }
+        }
+    }
+
+    func testFogMaskAdmission() throws {
+        let device = try WSSStaticTests().device()
+        let root = FileManager.default.temporaryDirectory
+        let bitmap = try WSSMaskBitmap(
+            width: 8, height: 4, uvScale: SIMD2(0.75, 1),
+            pixels: Data(repeating: 0, count: 32))
+        let definition = bitmap.definition(path: "assets/fog.png")
+        let id = WSSAssetID(value: definition.asset)
+        let scene = WSSScene(
+            width: 64, height: 64,
+            layers: [
+                .fog(
+                    .init(
+                        visible: false, fog: legacyShallowFog,
+                        mask: definition))
+            ])
+        var assets = WSSNativeAssets(
+            root: root, imageDefinitions: [id: definition],
+            fileBytes: [id.value: try bitmap.encoded()])
+        try WSSDirectionResourceValidation.validate(scene, assets: assets)
+        XCTAssertNoThrow(try WSSStaticResources(scene: scene, assets: assets, device: device))
+        assets.fileBytes = [id.value: Data([0])]
+        XCTAssertThrowsError(try WSSDirectionResourceValidation.validate(scene, assets: assets))
+        XCTAssertThrowsError(try WSSStaticResources(scene: scene, assets: assets, device: device))
+
+    }
+
+    func testFogMaskBudgetCountsUniqueDecodedAssetsIncludingBlack() throws {
+        let device = try WSSStaticTests().device()
+        let root = FileManager.default.temporaryDirectory
+        let bitmap = try WSSMaskBitmap(
+            width: 4096, height: 4096, uvScale: SIMD2(1, 1),
+            pixels: Data(repeating: 0, count: 16 * 1024 * 1024))
+        let png = try bitmap.encoded()
+        var assets = WSSNativeAssets(root: root, fileBytes: [:])
+        func layer(_ number: Int) -> WSSSceneLayer {
+            let path = "assets/mask-\(number).png"
+            let definition = bitmap.definition(path: path)
+            assets.imageDefinitions[WSSAssetID(value: path)] = definition
+            assets.fileBytes?[path] = png
+            return .fog(.init(fog: WSSFogConfiguration.defaults, mask: definition))
+        }
+        let first = layer(1)
+        var scene = WSSScene(width: 64, height: 64, layers: [first, first, layer(2)])
+        try WSSDirectionResourceValidation.validate(scene, assets: assets)
+        let resources = try WSSStaticResources(scene: scene, assets: assets, device: device)
+        XCTAssertEqual(resources.fogMasks.masks.count, 2)
+        XCTAssertEqual(resources.fogMasks.textureBytes, 0)
+        scene.layers.append(layer(3))
+        XCTAssertThrowsError(try WSSDirectionResourceValidation.validate(scene, assets: assets))
+        XCTAssertThrowsError(try WSSStaticResources(scene: scene, assets: assets, device: device))
+    }
+
+    @MainActor func testFogMaskAuthoringAndLegacyFirstStroke() async throws {
+        let helper = WSSMaskEditingTests()
+        try await helper.setUp()
+        addTeardownBlock { @MainActor in try await helper.tearDown() }
+        let doc = try XCTUnwrap(helper.doc)
+        let session = doc.maskCanvas
+        let point = SIMD2<Float>(32, 32)
+        func checkSavedRoundTrip() async throws {
+            let saveResult = await doc.save()
+            XCTAssertTrue(saveResult)
+            let root = doc.project.handle.root
+            let entry = root.appendingPathComponent("scene.wss.json")
+            let bytes = try Data(contentsOf: entry)
+            let reopened = try WSSSceneDocumentV1.load(entry: entry, root: root)
+            XCTAssertEqual(reopened, doc.state.workingModel)
+            var manifest = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+            var layers = try XCTUnwrap(manifest["layers"] as? [[String: Any]])
+            let fogIndex = try XCTUnwrap(layers.firstIndex { $0["type"] as? String == "fog" })
+            XCTAssertNil(layers[fogIndex]["preset"])
+            for legacy in ["ground", "atmosphere"] {
+                layers[fogIndex]["preset"] = legacy
+                manifest["layers"] = layers
+                let legacyBytes = try JSONSerialization.data(withJSONObject: manifest)
+                XCTAssertEqual(try WSSSceneDocumentV1.decode(data: legacyBytes), reopened)
+            }
+            XCTAssertEqual(try Data(contentsOf: entry), bytes)
+        }
+        let before = doc.state.workingModel
+        try doc.addFog()
+        let addedLayer = try XCTUnwrap(doc.selection?.layer)
+        let initialMask = try XCTUnwrap(doc.fogLayer(addedLayer)?.mask)
+        XCTAssertTrue(session.brushEnabled)
+        await session.waitForLoad()
+        let initialBitmap = try XCTUnwrap(session.loaded?.bitmap)
+        XCTAssertEqual([initialBitmap.width, initialBitmap.height], [64, 64])
+        XCTAssertTrue(initialBitmap.pixels.allSatisfy { $0 == 0 })
+        XCTAssertNotNil(session.geometry)
+        let installed = doc.state.workingModel
+        XCTAssertEqual(try WSSSceneDocumentV1.decode(data: installed.encoded()), installed)
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, before)
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.state.workingModel, installed)
+        XCTAssertEqual(doc.fogLayer(addedLayer)?.mask, initialMask)
+        try await checkSavedRoundTrip()
+
+        let layer = try XCTUnwrap(doc.selection?.layer)
+        try await doc.manageMask(.remove)
+        await doc.waitForPreview()
+        let unmasked = doc.state.workingModel
+        let unmaskedResources = doc.previewResources
+        XCTAssertNil(doc.fogLayer(layer)?.mask)
+        XCTAssertEqual(try WSSSceneDocumentV1.decode(data: unmasked.encoded()), unmasked)
+        try await checkSavedRoundTrip()
+        let assets = Set(doc.state.sessionAssets.keys)
+        doc.undoManager.removeAllActions()
+        XCTAssertTrue(session.begin(point, erase: false))
+        await session.waitForBrushActivation()
+        session.finish(point)
+        await session.waitForFinish()
+        XCTAssertEqual(doc.state.workingModel, unmasked)
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        XCTAssertTrue(session.begin(point, erase: true))
+        await session.waitForBrushActivation()
+        XCTAssertTrue(session.escape())
+        XCTAssertEqual(Set(doc.state.sessionAssets.keys), assets)
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        session.setDiameter(16)
+        XCTAssertTrue(session.begin(point, erase: true))
+        await session.waitForBrushActivation()
+        session.finish(point)
+        await session.waitForFinish()
+        await doc.waitForPreview()
+        let painted = try XCTUnwrap(doc.fogLayer(layer)?.mask)
+        XCTAssertFalse(doc.previewResources.sharesPreparedResources(with: unmaskedResources))
+        XCTAssertTrue(doc.previewIsCurrent)
+        await session.waitForLoad()
+        let pixels = try XCTUnwrap(session.loaded?.bitmap.pixels)
+        XCTAssertTrue(pixels.contains(0))
+        XCTAssertTrue(pixels.contains(255))
+        XCTAssertTrue(pixels.contains { $0 > 0 && $0 < 255 })
+        try doc.changeFog(layer, name: "Density") { $0.density = 0.9 }
+        try doc.resetFog(layer)
+        XCTAssertEqual(doc.fogLayer(layer)?.mask, painted)
+        doc.undoManager.undo()
+        doc.undoManager.undo()
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, unmasked)
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.fogLayer(layer)?.mask, painted)
+
+        try await checkSavedRoundTrip()
+
+        try await doc.manageMask(.clear)
+        await doc.waitForPreview()
+        let cleared = doc.previewResources
+        XCTAssertTrue(cleared.fogMasks.isEmpty(try XCTUnwrap(doc.fogLayer(layer))))
+        try await doc.manageMask(.fill)
+        await doc.waitForPreview()
+        XCTAssertFalse(doc.previewResources.sharesPreparedResources(with: cleared))
+        XCTAssertFalse(doc.previewResources.fogMasks.isEmpty(try XCTUnwrap(doc.fogLayer(layer))))
+
+        let imported = try WSSMaskBitmap(
+            width: 3, height: 1, uvScale: SIMD2(1, 1), pixels: Data([0, 100, 255]))
+        let file = helper.storage.deletingLastPathComponent().appendingPathComponent("import.png")
+        try imported.encoded().write(to: file)
+        try await doc.manageMask(.replace, file: file)
+        await session.waitForLoad()
+        await doc.waitForPreview()
+        XCTAssertEqual(session.loaded?.bitmap, imported)
+        XCTAssertEqual(
+            doc.fogLayer(layer)?.mask,
+            try XCTUnwrap(
+                doc.previewResources.scene.layers.compactMap { node in
+                    if case .fog(let fog) = node { return fog.mask }
+                    return nil
+                }.first))
+    }
+
+    @MainActor func testResetUsesUnifiedDefaultsAndKeepsMask() async throws {
+        let helper = WSSMaskEditingTests()
+        try await helper.setUp()
+        addTeardownBlock { @MainActor in try await helper.tearDown() }
+        let doc = try XCTUnwrap(helper.doc)
+        try doc.addFog()
+        let id = try XCTUnwrap(doc.selection?.layer)
+        try await doc.manageMask(.fill)
+        let custom = legacyShallowFog
+        try doc.changeFog(id, name: "Custom fog") { $0 = custom }
+        try doc.renameLayer(id, to: "Custom fog")
+        let before = try XCTUnwrap(doc.fogLayer(id))
+        try doc.resetFog(id)
+        XCTAssertEqual(doc.fogLayer(id)?.fog, .defaults)
+        XCTAssertEqual(doc.fogLayer(id)?.mask, before.mask)
+        XCTAssertEqual(doc.layerDisplayName(at: doc.selectedLayer), "Custom fog")
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.fogLayer(id), before)
+        doc.undoManager.redo()
+        XCTAssertEqual(doc.fogLayer(id)?.fog, .defaults)
+        XCTAssertEqual(doc.fogLayer(id)?.mask, before.mask)
+    }
+
+    @MainActor func testAddFogUsesUnifiedDefaultsAndMaskEditing() async throws {
+        let helper = WSSMaskEditingTests()
+        try await helper.setUp()
+        addTeardownBlock { @MainActor in try await helper.tearDown() }
+        let doc = try XCTUnwrap(helper.doc)
+        try doc.addFog()
+        let id = try XCTUnwrap(doc.selection?.layer)
+        let layer = try XCTUnwrap(doc.fogLayer(id))
+        XCTAssertEqual(layer.fog, WSSFogConfiguration.defaults)
+        XCTAssertNotNil(layer.mask)
+        XCTAssertTrue(doc.maskCanvas.brushEnabled)
+        await doc.maskCanvas.waitForLoad()
+        let bitmap = try XCTUnwrap(doc.maskCanvas.loaded?.bitmap)
+        XCTAssertTrue(bitmap.pixels.allSatisfy { $0 == 0 })
+        let geometry = try XCTUnwrap(doc.maskCanvas.geometry)
+        XCTAssertEqual(geometry.transform.localSize, SIMD2(64, 64))
+        XCTAssertEqual(Localization.string(key: "editor.fog.title", language: "de"), "Nebel")
+        XCTAssertEqual(Localization.string(key: "editor.fog.title", language: "en"), "Fog")
     }
 
     func testLegacyCloudsSceneRetainsParametersAndRenderingWithoutFogResources() throws {
@@ -180,9 +471,9 @@ final class WSSFogTests: XCTestCase {
         do {
             defer { doc.close() }
             let canvas = doc.canvasModel
-            try doc.addFog(.ground)
+            try doc.addFog()
             let layer = try XCTUnwrap(doc.selection?.layer)
-            XCTAssertEqual(doc.fogLayer(layer)?.fog, WSSFogPreset.ground.configuration)
+            XCTAssertEqual(doc.fogLayer(layer)?.fog, .defaults)
             try doc.moveLayer(layer, to: 1)
             await doc.waitForPreview()
             let preview = doc.previewResources
@@ -204,7 +495,7 @@ final class WSSFogTests: XCTestCase {
             XCTAssertEqual(rendered.fog.color, color)
             XCTAssertEqual(doc.canvasModel, canvas)
             doc.undoManager.undo()
-            XCTAssertEqual(doc.fogLayer(layer)?.fog.color, WSSFogPreset.ground.configuration.color)
+            XCTAssertEqual(doc.fogLayer(layer)?.fog.color, WSSFogConfiguration.defaults.color)
             doc.undoManager.redo()
             let saved = await doc.save()
             guard saved else { return XCTFail("Could not save edited fog layer") }
@@ -222,10 +513,15 @@ final class WSSFogTests: XCTestCase {
         let doc = helper.document()
         defer { doc.close() }
         for layer in doc.identity.layers { try doc.setVisibility(false, layer: layer.id) }
-        try doc.addFog(.atmosphere)
+        try doc.addFog()
         let id = try XCTUnwrap(doc.selection?.layer)
-        let settings = try XCTUnwrap(doc.fogLayer(id)?.fog)
         await doc.waitForPreview()
+        XCTAssertFalse(doc.previewResources.isAnimated)
+        try await doc.manageMask(.fill)
+        let settings = try XCTUnwrap(doc.fogLayer(id)?.fog)
+        let mask = try XCTUnwrap(doc.fogLayer(id)?.mask)
+        await doc.waitForPreview()
+        XCTAssertTrue(doc.previewResources.isAnimated)
         let prepared = try XCTUnwrap(doc.previewResources.fog)
         let renderer = WSSCloudsTests()
         let visiblePixels = try renderer.render(doc.previewResources, time: 2).0
@@ -272,7 +568,7 @@ final class WSSFogTests: XCTestCase {
                     try await Task.sleep(for: .milliseconds(10))
                 }
                 let player = try XCTUnwrap(host.surface.player)
-                XCTAssertEqual(doc.fogLayer(id), .init(visible: visible, fog: settings))
+                XCTAssertEqual(doc.fogLayer(id), .init(visible: visible, fog: settings, mask: mask))
                 XCTAssertTrue(player.resources === doc.previewResources)
                 XCTAssertTrue(player.resources.fog === prepared)
                 if visible {
@@ -303,7 +599,7 @@ final class WSSFogTests: XCTestCase {
             .down: SIMD2(0, 1), .downRight: SIMD2(1, 1),
         ]
         for (direction, axes) in expected {
-            var fog = WSSFogPreset.atmosphere.configuration
+            var fog = WSSFogConfiguration.defaults
             fog.driftX = 3
             fog.driftY = 4
             fog.setDriftDirection(direction)
@@ -313,7 +609,7 @@ final class WSSFogTests: XCTestCase {
             XCTAssertEqual(hypot(fog.driftX, fog.driftY), 5, accuracy: 1e-6)
             XCTAssertEqual(fog.driftAngle ?? -1, direction.rawValue, accuracy: 1e-6)
         }
-        var fog = WSSFogPreset.ground.configuration
+        var fog = legacyShallowFog
         fog.driftX = 128
         fog.driftY = -128
         fog.setDriftDirection(.downLeft)
@@ -325,13 +621,13 @@ final class WSSFogTests: XCTestCase {
         fog.driftY = 0
         XCTAssertNil(fog.driftAngle)
         fog.setDriftDirection(.left)
-        XCTAssertEqual(fog.driftX, -WSSFogPreset.ground.configuration.driftX)
+        XCTAssertEqual(fog.driftX, -legacyShallowFog.driftX)
         XCTAssertEqual(fog.driftY, 0)
     }
 
     func testSpeedScalesCurrentDirectionAndStopsAnimation() throws {
         for direction in [SIMD2<Double>(1, 0), SIMD2(0, -1), SIMD2(-0.6, 0.8)] {
-            var fog = WSSFogPreset.atmosphere.configuration
+            var fog = WSSFogConfiguration.defaults
             for speed in [0.002, 2.5, 96] {
                 fog.setDriftSpeed(speed, in: direction)
                 XCTAssertEqual(fog.driftSpeed, speed, accuracy: 1e-5)
@@ -361,13 +657,13 @@ final class WSSFogTests: XCTestCase {
         addTeardownBlock { @MainActor in try await helper.tearDown() }
         let doc = helper.document()
         defer { doc.close() }
-        try doc.addFog(.ground)
+        try doc.addFog()
         let id = try XCTUnwrap(doc.selection?.layer)
         func configuration() throws -> WSSFogConfiguration {
             try XCTUnwrap(doc.fogLayer(id)?.fog)
         }
         try doc.changeFog(id, name: "Horizontal") { $0.driftX = -3 }
-        XCTAssertEqual(try configuration().driftSpeed, 3)
+        XCTAssertEqual(try configuration().driftSpeed, hypot(3.0, 0.5))
         try doc.changeFog(id, name: "Vertical") { $0.driftY = 4 }
         XCTAssertEqual(try configuration().driftSpeed, 5)
         doc.beginFogSpeedSlider(id)
@@ -408,7 +704,7 @@ final class WSSFogTests: XCTestCase {
         addTeardownBlock { @MainActor in try await helper.tearDown() }
         let doc = helper.document()
         defer { doc.close() }
-        try doc.addFog(.ground)
+        try doc.addFog()
         let id = try XCTUnwrap(doc.selection?.layer)
         try doc.changeFog(id, name: "Drift") {
             $0.driftX = -3
@@ -449,7 +745,7 @@ final class WSSFogTests: XCTestCase {
         let doc = helper.document()
         defer { doc.close() }
         var model = doc.state.workingModel
-        var fog = WSSFogPreset.ground.configuration
+        var fog = legacyShallowFog
         fog.driftX = 0
         fog.driftY = 0
         model.layers.append(.init(content: .fog(.init(fog: fog))))
@@ -482,7 +778,13 @@ final class WSSFogTests: XCTestCase {
                                 composition: "sourceOver"))))
                 try doc.mutate(model, name: "Rain", ids: WSSEditorIdentity(model))
             }
-            try doc.addFog(.ground)
+            try doc.addFog()
+            try await doc.manageMask(.fill)
+            let added = try XCTUnwrap(doc.selection?.layer)
+            try doc.changeFog(added, name: "Drift") {
+                $0.driftX = 9
+                $0.driftY = 0
+            }
             await doc.waitForPreview()
             let id = try XCTUnwrap(doc.selection?.layer)
             let original = doc.previewResources

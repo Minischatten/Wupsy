@@ -3,16 +3,22 @@ import Foundation
 struct WSSFogLayer: Equatable {
     var visible: Bool
     var fog: WSSFogConfiguration
-    var preset: WSSFogPreset
+    var mask: WSSNativeImageDefinition?
 
-    init(visible: Bool = true, fog: WSSFogConfiguration, preset: WSSFogPreset? = nil) {
+    init(
+        visible: Bool = true, fog: WSSFogConfiguration,
+        mask: WSSNativeImageDefinition? = nil
+    ) {
         self.visible = visible
         self.fog = fog
-        self.preset = preset ?? WSSFogPreset.inferred(from: fog)
+        self.mask = mask
     }
 }
 
 struct WSSFogConfiguration: Codable, Equatable {
+    static let defaults = Self(
+        density: 0.23, softness: 0.9, driftX: 4, driftY: -0.5, scale: 2200, height: 1.5)
+
     var density: Float
     var softness: Float
     var driftX: Float
@@ -96,25 +102,6 @@ struct WSSFogConfiguration: Codable, Equatable {
         guard WSSFogParameter.allCases.allSatisfy({ $0.range.contains(self[keyPath: $0.keyPath]) }),
             [color.red, color.green, color.blue].allSatisfy({ (0...1).contains($0) })
         else { throw WSSSceneError.invalid("fog parameters") }
-    }
-}
-
-enum WSSFogPreset: String, Codable, CaseIterable {
-    case ground, atmosphere
-
-    static func inferred(from configuration: WSSFogConfiguration) -> Self {
-        configuration == Self.atmosphere.configuration ? .atmosphere : .ground
-    }
-
-    var configuration: WSSFogConfiguration {
-        switch self {
-        case .ground:
-            return .init(
-                density: 0.48, softness: 0.75, driftX: 9, driftY: 0, scale: 1500, height: 0.38)
-        case .atmosphere:
-            return .init(
-                density: 0.23, softness: 0.9, driftX: 4, driftY: -0.5, scale: 2200, height: 1.5)
-        }
     }
 }
 

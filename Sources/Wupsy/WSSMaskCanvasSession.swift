@@ -101,6 +101,7 @@ struct WSSMaskCanvasGeometry {
     private var token = UUID()
     private var recent: [Loaded] = []
     private func remember(_ value: Loaded) {
+        guard !value.resolved.path.isEmpty else { return }
         recent.removeAll { $0.resolved.path == value.resolved.path }
         recent.insert(value, at: 0)
         while recent.count > 2
@@ -119,7 +120,22 @@ struct WSSMaskCanvasGeometry {
     }
     var isDrawing: Bool { stroke != nil || (pendingStroke != nil && !finalizing) }
     var blocksDocumentActions: Bool { isDrawing || finalizing }
+    var overlayBitmap: WSSMaskBitmap? { stroke?.transaction.before ?? loaded?.bitmap }
     var pixels: Data? { stroke?.transaction.pixels ?? loaded?.bitmap.pixels }
+    var virtualFogMaskTarget: WSSMaskTarget? {
+        guard overlayBitmap == nil, let document, document.selectedMaskTarget == nil,
+            let target = document.maskManagementTarget, target.slot == .fog
+        else { return nil }
+        return target
+    }
+    var fogOverlayEnvelope: SIMD2<Float> {
+        guard let document,
+            let target = stroke?.transaction.resolved.target ?? loaded?.resolved.target
+                ?? virtualFogMaskTarget,
+            target.slot == .fog, let layer = document.fogLayer(target.layerID)
+        else { return .zero }
+        return SIMD2(layer.fog.height, layer.fog.softness)
+    }
     var maximumDiameter: Double {
         if let loaded {
             return WSSMaskBrushSettings.maximumDiameter(
@@ -149,6 +165,7 @@ struct WSSMaskCanvasGeometry {
     }
     var geometry: WSSMaskCanvasGeometry? {
         guard let document else { return nil }
+        if let stroke { return stroke.geometry }
         if let loaded {
             guard let context = try? document.snapshot.maskContext(loaded.resolved.target) else {
                 return nil
@@ -282,7 +299,9 @@ struct WSSMaskCanvasGeometry {
     }
     func setBrush(_ enabled: Bool) {
         guard !finalizing, !enabled || overlayAvailable else { return }
-        if let target = document?.maskManagementTarget, target.slot == .rain {
+        if let target = document?.maskManagementTarget,
+            target.slot == .rain || (target.slot == .fog && document?.selectedMaskTarget == nil)
+        {
             automaticBrushTarget = enabled ? target : nil
             cancelStroke()
             brushEnabled = enabled && overlayAvailable && document?.interactionLocked == false
@@ -406,7 +425,7 @@ struct WSSMaskCanvasGeometry {
                 if activationID == id { brushActivationTask = nil }
             }
             do {
-                if document.selectedMaskTarget == nil {
+                if document.selectedMaskTarget == nil, capture.target.slot != .fog {
                     try await document.manageMask(.create, capturedInput: true)
                 } else {
                     await loadTask?.value
@@ -454,12 +473,14 @@ struct WSSMaskCanvasGeometry {
                         try transaction.breakSegment()
                     }
                 }
-                loaded = Loaded(resolved: resolved, bitmap: bitmap)
-                remember(loaded!)
+                if !resolved.path.isEmpty {
+                    loaded = Loaded(resolved: resolved, bitmap: bitmap)
+                    remember(loaded!)
+                }
                 pendingStroke = nil
                 stroke = Stroke(transaction, geometry: geometry)
                 finalizing = false
-                changed(transaction.dirtyRegion)
+                changed(resolved.path.isEmpty ? nil : transaction.dirtyRegion)
                 onChange?()
                 if capture.ended { finish(capture.points.last!) }
             } catch {

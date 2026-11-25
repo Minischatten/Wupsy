@@ -251,6 +251,36 @@ import XCTest
             }
         }
     }
+    private func overlayFrame(_ renderer: WSSMaskCanvasOverlay) throws -> Data {
+        let resources = doc.project.resources
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm, width: 64, height: 64, mipmapped: false)
+        d.storageMode = .shared
+        d.usage = [.renderTarget, .shaderRead]
+        let texture = try XCTUnwrap(resources.device.makeTexture(descriptor: d))
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = texture
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        let command = try XCTUnwrap(resources.queue.makeCommandBuffer())
+        let clear = try XCTUnwrap(command.makeRenderCommandEncoder(descriptor: pass))
+        clear.endEncoding()
+        try renderer.encode(
+            session: session, scene: CGSize(width: 64, height: 64), command: command,
+            descriptor: pass)
+        command.commit()
+        command.waitUntilCompleted()
+        XCTAssertEqual(command.status, .completed)
+        var bytes = Data(count: 64 * 64 * 4)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: 64 * 4, from: MTLRegionMake2D(0, 0, 64, 64),
+                mipmapLevel: 0)
+        }
+        return bytes
+    }
+
     func testMetalOverlayPassShowsCoverageTransientPaintingAndCancel() throws {
         let resources = doc.project.resources
         let renderer = try WSSMaskCanvasOverlay(device: resources.device)
@@ -261,46 +291,161 @@ import XCTest
             renderer.invalidate(region: session.dirtyRegion)
         }
         defer { session.onChange = nil }
-        func frame() throws -> Data {
-            let d = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .bgra8Unorm, width: 64, height: 64, mipmapped: false)
-            d.storageMode = .shared
-            d.usage = [.renderTarget, .shaderRead]
-            let texture = try XCTUnwrap(resources.device.makeTexture(descriptor: d))
-            let pass = MTLRenderPassDescriptor()
-            pass.colorAttachments[0].texture = texture
-            pass.colorAttachments[0].loadAction = .clear
-            pass.colorAttachments[0].storeAction = .store
-            pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
-            let command = try XCTUnwrap(resources.queue.makeCommandBuffer())
-            let clear = try XCTUnwrap(command.makeRenderCommandEncoder(descriptor: pass))
-            clear.endEncoding()
-            try renderer.encode(
-                session: session, scene: CGSize(width: 64, height: 64), command: command,
-                descriptor: pass)
-            command.commit()
-            command.waitUntilCompleted()
-            XCTAssertEqual(command.status, .completed)
-            var bytes = Data(count: 64 * 64 * 4)
-            bytes.withUnsafeMutableBytes {
-                texture.getBytes(
-                    $0.baseAddress!, bytesPerRow: 64 * 4, from: MTLRegionMake2D(0, 0, 64, 64),
-                    mipmapLevel: 0)
-            }
-            return bytes
-        }
-        let before = try frame()
+        let before = try overlayFrame(renderer)
         let left = (32 * 64) * 4
         let right = (32 * 64 + 63) * 4
         XCTAssertEqual(before[left..<left + 3].reduce(0) { $0 + Int($1) }, 0)
         XCTAssertGreaterThan(before[right..<right + 3].reduce(0) { $0 + Int($1) }, 0)
         brush()
         XCTAssertTrue(session.begin(try scene(), erase: false))
-        let painted = try frame()
+        let painted = try overlayFrame(renderer)
         XCTAssertGreaterThan(painted[left..<left + 3].reduce(0) { $0 + Int($1) }, 0)
         session.cancelStroke()
-        XCTAssertEqual(try frame(), before)
+        XCTAssertEqual(try overlayFrame(renderer), before)
     }
+    func testFogOverlayFollowsHeightWithoutMovingMaskPixels() async throws {
+        try doc.addFog()
+        let layer = try XCTUnwrap(doc.selection?.layer)
+        try doc.changeFog(layer, name: "Shallow fog") { $0.height = 0.38 }
+        try await doc.manageMask(.fill)
+        await session.waitForLoad()
+        let renderer = try WSSMaskCanvasOverlay(device: doc.project.resources.device)
+        session.onChange = { [weak session = session] in
+            guard let session else { return }
+            renderer.invalidate(region: session.dirtyRegion)
+        }
+        defer { session.onChange = nil }
+
+        func tint(_ frame: Data, y: Int) -> Int {
+            let start = (y * 64 + 32) * 4
+            return frame[start..<start + 3].reduce(0) { $0 + Int($1) }
+        }
+        let shallow = try overlayFrame(renderer)
+        XCTAssertEqual(tint(shallow, y: 29), 0)
+        XCTAssertEqual(tint(shallow, y: 36), 0)
+        XCTAssertGreaterThan(tint(shallow, y: 44), 0)
+        XCTAssertLessThan(tint(shallow, y: 44), tint(shallow, y: 59))
+
+        session.setDiameter(8)
+        let point = SIMD2<Float>(32.5, 34.5)
+        XCTAssertTrue(session.begin(point, erase: true))
+        session.finish(point)
+        await session.waitForFinish()
+        await session.waitForLoad()
+        let mask = try XCTUnwrap(doc.fogLayer(layer)?.mask)
+        let bitmap = try XCTUnwrap(session.loaded?.bitmap)
+        XCTAssertEqual(try overlayFrame(renderer), shallow)
+
+        try doc.changeFog(layer, name: "Height") { $0.height = 0.85 }
+        let deep = try overlayFrame(renderer)
+        XCTAssertGreaterThan(tint(deep, y: 36), 0)
+        XCTAssertEqual(tint(deep, y: 29), 0)
+        XCTAssertEqual(doc.fogLayer(layer)?.mask, mask)
+        XCTAssertEqual(session.loaded?.bitmap, bitmap)
+        doc.undoManager.undo()
+        XCTAssertEqual(try overlayFrame(renderer), shallow)
+        doc.undoManager.redo()
+        XCTAssertEqual(try overlayFrame(renderer), deep)
+    }
+
+    func testFogOverlayCoversWholeCanvasAtDefaultHeight() async throws {
+        try doc.addFog()
+        let layer = try XCTUnwrap(doc.selection?.layer)
+        try await doc.manageMask(.fill)
+        await session.waitForLoad()
+        let renderer = try WSSMaskCanvasOverlay(device: doc.project.resources.device)
+        let full = try overlayFrame(renderer)
+        XCTAssertGreaterThan(full[0..<3].reduce(0) { $0 + Int($1) }, 0)
+        try doc.changeFog(layer, name: "Height") { $0.height = 0.38 }
+        let shallow = try overlayFrame(renderer)
+        XCTAssertEqual(shallow[0..<3].reduce(0) { $0 + Int($1) }, 0)
+        XCTAssertNotEqual(shallow, full)
+    }
+
+    func testUnmaskedFogOverlayMatchesWhiteThroughEditingAndUndo() async throws {
+        try doc.addFog()
+        let id = try XCTUnwrap(doc.selection?.layer)
+        try doc.changeFog(id, name: "Height") { $0.height = 0.6 }
+        await session.waitForLoad()
+        let renderer = try WSSMaskCanvasOverlay(device: doc.project.resources.device)
+        var version = session.displayVersion
+        session.onChange = { [weak session = session] in
+            guard let session, version != session.displayVersion else { return }
+            version = session.displayVersion
+            renderer.invalidate(region: session.dirtyRegion)
+        }
+        defer { session.onChange = nil }
+
+        let black = try overlayFrame(renderer)
+        XCTAssertNotNil(session.overlayBitmap)
+        XCTAssertNil(session.virtualFogMaskTarget)
+        try await doc.manageMask(.fill)
+        await session.waitForLoad()
+        let white = try overlayFrame(renderer)
+        XCTAssertNotEqual(white, black)
+
+        try await doc.manageMask(.remove)
+        XCTAssertNil(doc.fogLayer(id)?.mask)
+        XCTAssertEqual(try overlayFrame(renderer), white)
+        let revision = doc.state.workingRevision
+        let assets = doc.state.sessionAssets.keys.sorted()
+        doc.undoManager.removeAllActions()
+        doc.select(.layer(doc.identity.layers[0].id))
+        XCTAssertEqual(try overlayFrame(renderer), black)
+        doc.select(.layer(id))
+        XCTAssertTrue(session.brushEnabled)
+        XCTAssertNotNil(session.geometry)
+        XCTAssertNil(session.overlayBitmap)
+        XCTAssertEqual(try overlayFrame(renderer), white)
+        XCTAssertEqual(doc.state.workingRevision, revision)
+        XCTAssertEqual(doc.state.sessionAssets.keys.sorted(), assets)
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        try doc.changeFog(id, name: "Height") { $0.height = 0.85 }
+        let taller = try overlayFrame(renderer)
+        XCTAssertNotEqual(taller, white)
+        try doc.changeFog(id, name: "Softness") { $0.softness = 0.1 }
+        let virtual = try overlayFrame(renderer)
+        XCTAssertNotEqual(virtual, taller)
+        XCTAssertNil(doc.fogLayer(id)?.mask)
+        doc.undoManager.removeAllActions()
+        let model = doc.state.workingModel
+
+        let point = SIMD2<Float>(32.5, 15.5)
+        session.setDiameter(12)
+        XCTAssertTrue(session.begin(point, erase: false))
+        await session.waitForBrushActivation()
+        session.finish(point)
+        await session.waitForFinish()
+        XCTAssertEqual(doc.state.workingModel, model)
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        XCTAssertTrue(session.begin(point, erase: true))
+        await session.waitForBrushActivation()
+        let erased = try overlayFrame(renderer)
+        XCTAssertNotEqual(erased, virtual)
+        session.cancelStroke()
+        XCTAssertEqual(try overlayFrame(renderer), virtual)
+        XCTAssertEqual(doc.state.workingModel, model)
+        XCTAssertEqual(doc.state.sessionAssets.keys.sorted(), assets)
+        XCTAssertFalse(doc.undoManager.canUndo)
+
+        XCTAssertTrue(session.begin(point, erase: true))
+        await session.waitForBrushActivation()
+        session.finish(point)
+        await session.waitForFinish()
+        await session.waitForLoad()
+        XCTAssertNotNil(doc.fogLayer(id)?.mask)
+        XCTAssertEqual(try overlayFrame(renderer), erased)
+        doc.undoManager.undo()
+        XCTAssertEqual(doc.state.workingModel, model)
+        XCTAssertNil(session.overlayBitmap)
+        XCTAssertEqual(try overlayFrame(renderer), virtual)
+        doc.undoManager.redo()
+        await session.waitForLoad()
+        XCTAssertEqual(try overlayFrame(renderer), erased)
+    }
+
     func testNativeCloseAndQuitAbortDuringActiveStroke() async throws {
         let project = helper.helper.project!
         var controller: WSSEditorWindowController!

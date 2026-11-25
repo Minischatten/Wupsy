@@ -8,7 +8,12 @@ extension WSSEditorDocument {
     func resolveMaskTarget(_ target: WSSMaskTarget) throws -> WSSResolvedMaskTarget {
         guard !closed else { throw WSSMaskError.stale }
         let context = try snapshot.maskContext(target)
-        guard let path = context.path else { throw WSSMaskError.unsupported }
+        guard let path = context.path else {
+            guard target.slot == .fog else { throw WSSMaskError.unsupported }
+            return WSSResolvedMaskTarget(
+                target: target, path: "", fingerprint: WSSContentFingerprint(Data()),
+                definition: nil)
+        }
         try WSSNativeAssets.validatePath(path)
         guard let fingerprint = state.resourceCatalog[path] else { throw WSSMaskError.stale }
         return WSSResolvedMaskTarget(

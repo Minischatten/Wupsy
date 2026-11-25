@@ -36,7 +36,7 @@ extension WSSStaticResources {
                     counts.effectiveEffects += 1
                 }
             case .fog(let layer):
-                if layer.fog.density > 0 { counts.effectiveEffects += 1 }
+                if hasEffectiveFog(layer) { counts.effectiveEffects += 1 }
             case .musicNotes(let layer):
                 let symbols =
                     layer.singleSymbol.map { $0.opacity > 0 }

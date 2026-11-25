@@ -100,17 +100,11 @@ struct WSSEditorView: View {
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
-                    Menu(WSSFogText.text("title")) {
-                        ForEach(WSSFogPreset.allCases, id: \.self) { preset in
-                            Button(WSSFogText.text(preset.rawValue)) {
-                                do {
-                                    try document.addFog(preset)
-                                    effectCreationError = nil
-                                } catch {
-                                    effectCreationError = EditorErrorPresentation.message(error)
-                                }
-                            }
-                        }
+                    Button(WSSFogText.text("title")) {
+                        do {
+                            try document.addFog()
+                            effectCreationError = nil
+                        } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
                     Button(WSSStormText.title) {
                         do {

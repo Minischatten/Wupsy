@@ -25,7 +25,14 @@ wie du Noten animierst, eigene Kurven zeichnest und Tiefenwechsel und Perspektiv
 
 ## Nebel
 
-Wähle im Menü zum Hinzufügen von Ebenen Bodennebel oder atmosphärischen Nebel.
+Wähle „Nebel“ im Menü zum Hinzufügen von Ebenen. Nebel startet mit einer
+schwarzen Maske, aktivem Pinsel und einem Rahmen um die ganze Szene. Male,
+um Nebel sichtbar zu machen. Halte die Wahltaste gedrückt, um zu radieren.
+Nebel ohne Maskenreferenz zeigt beim Auswählen oder nach „Maske entfernen“
+die Überlagerung mit voller Deckung. Erst ein wirksamer Strich erzeugt eine Maske. Die blaue Überlagerung folgt der Höhe und Weichheit. Rahmen und
+Maske behalten ihre Szenenposition. Über das Maskenmenü kannst du die Maske
+importieren, füllen, leeren oder entfernen. „Auf Standard zurücksetzen“
+setzt die Nebelparameter zurück und erhält die Maske.
 Die Ebenenreihenfolge bestimmt, welche Vordergrundelemente den Nebel verdecken.
 Im Inspektor stellst du Dichte, Weichheit, Strukturgröße und Höhe ein. Die Farbe
 wählst du über die native macOS-Farbauswahl. Acht Richtungstasten, der

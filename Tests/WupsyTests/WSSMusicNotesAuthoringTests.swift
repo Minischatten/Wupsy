@@ -78,7 +78,7 @@ import XCTest
         try doc.updateCanvasTransform(transform)
         doc.endCanvasTransform()
         try doc.setVisibility(false, layer: notesID)
-        try doc.addFog(.atmosphere)
+        try doc.addFog()
         let fogID = try XCTUnwrap(doc.selection?.layer)
         try doc.changeFog(fogID, name: "Customize Fog") { $0.height = 0.6 }
         try doc.setVisibility(false, layer: fogID)
@@ -89,7 +89,6 @@ import XCTest
         XCTAssertTrue(saved)
         let reopened = try await WSSEditorProjectLoader().load(doc.project.handle.wallpaper)
         XCTAssertEqual(reopened.document, before)
-        XCTAssertEqual(doc.fogLayer(fogID)?.preset, .atmosphere)
 
         doc.undoManager.removeAllActions()
         var defaultNotes = try XCTUnwrap(doc.musicNotesLayer(notesID))
@@ -106,7 +105,7 @@ import XCTest
         XCTAssertEqual(doc.state.workingModel, withDefaultNotes)
 
         try doc.resetFog(fogID)
-        XCTAssertEqual(doc.fogLayer(fogID)?.fog, WSSFogPreset.atmosphere.configuration)
+        XCTAssertEqual(doc.fogLayer(fogID)?.fog, WSSFogConfiguration.defaults)
         XCTAssertEqual(doc.fogLayer(fogID)?.visible, false)
         XCTAssertEqual(doc.musicNotesLayer(notesID), defaultNotes)
         XCTAssertEqual(doc.identity, identity)

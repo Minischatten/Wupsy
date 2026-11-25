@@ -200,7 +200,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             // even with both mode flags set correctly. Begin this transition
             // with a new view, keeping the prepared resources and playhead.
             let renewPlayer =
-                player?.resources.scene.isAnimated == false
+                player?.resources.isAnimated == false
                 && renewsProceduralPlayer(for: resources)
             if !renewPlayer, player?.updateTransforms(resources) == true {
                 resourcesID = ObjectIdentifier(resources)
@@ -216,7 +216,8 @@ struct WSSPreviewRenderPolicy: Equatable {
             && resources.scene.layers.contains {
                 switch $0 {
                 case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
-                case .fog(let layer): return layer.visible && layer.fog.isAnimated
+                case .fog(let layer):
+                    return resources.hasEffectiveFog(layer) && layer.fog.isAnimated
                 case .musicNotes(let layer): return layer.isAnimated
                 case .storm(let layer): return layer.isAnimated
                 default: return false

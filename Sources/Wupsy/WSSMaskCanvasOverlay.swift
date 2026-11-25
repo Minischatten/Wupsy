@@ -7,16 +7,22 @@ import MetalKit
     private let pipeline: MTLRenderPipelineState
     private let sampler: MTLSamplerState
     private var texture: MTLTexture?
+    private var whiteTexture: MTLTexture?
     private var queueID: ObjectIdentifier?
     private var pending: CGRect?
     private var fullUpload = true
     init(device: MTLDevice) throws {
         let library = try device.makeLibrary(
-            source: WSSStaticResources.shader + """
+            source: WSSStaticResources.shader + WSSFogRenderer.verticalEnvelopeShader + """
                 fragment float4 maskOverlay(ImageVertex v [[stage_in]],
                     constant ImageTransform &t [[buffer(0)]], constant float4 &color [[buffer(1)]],
+                    constant float2 &fogEnvelope [[buffer(2)]],
                     texture2d<float> mask [[texture(0)]], sampler filtering [[sampler(0)]]) {
                     float amount = mask.sample(filtering, v.uv * t.sampling.xy).r * color.a;
+                    if (fogEnvelope.x > 0) {
+                        amount *= fogVerticalEnvelope(
+                            1.0 - v.uv.y, fogEnvelope.x, fogEnvelope.y, min(fogEnvelope.x, 1.0));
+                    }
                     return float4(color.rgb * amount, amount);
                 }
                 """, options: nil)
@@ -52,14 +58,65 @@ import MetalKit
         session: WSSMaskCanvasSession, scene: CGSize, command: MTLCommandBuffer,
         descriptor: MTLRenderPassDescriptor
     ) throws {
-        guard let loaded = session.loaded, let geometry = session.geometry,
-            let pixels = session.pixels
-        else {
+        guard let geometry = session.geometry else {
             texture = nil
             fullUpload = true
             return
         }
-        let bitmap = loaded.bitmap
+        let mask: MTLTexture
+        if let bitmap = session.overlayBitmap, let pixels = session.pixels {
+            mask = try upload(bitmap: bitmap, pixels: pixels, command: command)
+        } else {
+            texture = nil
+            fullUpload = true
+            guard session.virtualFogMaskTarget != nil else { return }
+            mask = try whiteMask(device: command.device)
+        }
+        descriptor.colorAttachments[0].loadAction = .load
+        guard let encoder = command.makeRenderCommandEncoder(descriptor: descriptor) else {
+            throw WSSMaskError.invalid
+        }
+        defer { encoder.endEncoding() }
+        let t = geometry.transform
+        var u = WSSStaticResources.Uniforms(
+            horizontal: SIMD4(
+                t.axisX.x, t.axisY.x, t.center.x - Float(scene.width) / 2, Float(scene.width)),
+            vertical: SIMD4(
+                t.axisX.y, t.axisY.y, t.center.y - Float(scene.height) / 2, Float(scene.height)),
+            sampling: SIMD4(geometry.uvScale.x, geometry.uvScale.y, 1, 0))
+        var tint = WSSEditorOverlayAccent.selected.rgba
+        var fogEnvelope = session.fogOverlayEnvelope
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setVertexBytes(&u, length: MemoryLayout.size(ofValue: u), index: 0)
+        encoder.setFragmentBytes(&u, length: MemoryLayout.size(ofValue: u), index: 0)
+        encoder.setFragmentBytes(&tint, length: MemoryLayout.size(ofValue: tint), index: 1)
+        encoder.setFragmentBytes(
+            &fogEnvelope, length: MemoryLayout.size(ofValue: fogEnvelope), index: 2)
+        encoder.setFragmentTexture(mask, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+    }
+
+    private func whiteMask(device: MTLDevice) throws -> MTLTexture {
+        if let whiteTexture { return whiteTexture }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r8Unorm, width: 1, height: 1, mipmapped: false)
+        descriptor.storageMode = .shared
+        descriptor.usage = .shaderRead
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw WSSMaskError.invalid
+        }
+        var white: UInt8 = 255
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0,
+            withBytes: &white, bytesPerRow: 1)
+        whiteTexture = texture
+        return texture
+    }
+
+    private func upload(bitmap: WSSMaskBitmap, pixels: Data, command: MTLCommandBuffer) throws
+        -> MTLTexture
+    {
         let queue = ObjectIdentifier(command.commandQueue)
         if texture?.width != bitmap.width || texture?.height != bitmap.height || queueID != queue {
             let d = MTLTextureDescriptor.texture2DDescriptor(
@@ -100,26 +157,7 @@ import MetalKit
             pending = nil
             fullUpload = false
         }
-        descriptor.colorAttachments[0].loadAction = .load
-        guard let encoder = command.makeRenderCommandEncoder(descriptor: descriptor) else {
-            throw WSSMaskError.invalid
-        }
-        defer { encoder.endEncoding() }
-        let t = geometry.transform
-        var u = WSSStaticResources.Uniforms(
-            horizontal: SIMD4(
-                t.axisX.x, t.axisY.x, t.center.x - Float(scene.width) / 2, Float(scene.width)),
-            vertical: SIMD4(
-                t.axisX.y, t.axisY.y, t.center.y - Float(scene.height) / 2, Float(scene.height)),
-            sampling: SIMD4(bitmap.uvScale.x, bitmap.uvScale.y, 1, 0))
-        var tint = WSSEditorOverlayAccent.selected.rgba
-        encoder.setRenderPipelineState(pipeline)
-        encoder.setVertexBytes(&u, length: MemoryLayout.size(ofValue: u), index: 0)
-        encoder.setFragmentBytes(&u, length: MemoryLayout.size(ofValue: u), index: 0)
-        encoder.setFragmentBytes(&tint, length: MemoryLayout.size(ofValue: tint), index: 1)
-        encoder.setFragmentTexture(texture, index: 0)
-        encoder.setFragmentSamplerState(sampler, index: 0)
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        return texture
     }
 }
 

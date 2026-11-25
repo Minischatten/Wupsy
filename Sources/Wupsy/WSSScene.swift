@@ -74,7 +74,9 @@ struct WSSScene {
             layers: layers.map(WSSSceneLayer.image))
     }
 
-    var isAnimated: Bool {
+    var isAnimated: Bool { requiresAnimation(fogIsEmpty: { _ in false }) }
+
+    func requiresAnimation(fogIsEmpty: (WSSFogLayer) -> Bool) -> Bool {
         layers.contains {
             switch $0 {
             case .image(let l):
@@ -89,7 +91,7 @@ struct WSSScene {
                     }
             case .trail(let l): return l.visible
             case .starfield(let l): return l.visible && l.starfield.isAnimated
-            case .fog(let l): return l.visible && l.fog.isAnimated
+            case .fog(let l): return l.visible && l.fog.isAnimated && !fogIsEmpty(l)
             case .musicNotes(let l): return l.isAnimated
             case .storm(let l): return l.isAnimated
             case .rain(let l):

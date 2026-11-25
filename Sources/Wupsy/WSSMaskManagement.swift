@@ -105,7 +105,8 @@ extension WSSEditorDocument {
                 guard let file else { throw WSSMaskError.invalid }
                 bitmap = try await worker.importMask(file)
             case .create:
-                bitmap = try await worker.blackMask(size: context.size)
+                bitmap = try await worker.uniformMask(
+                    size: context.size, value: target.slot.initialValue)
             case .clear, .fill:
                 let resolved = try resolveMaskTarget(target)
                 let current = try await worker.read(
@@ -165,13 +166,19 @@ extension WSSMaskPreparation {
         return (width, height)
     }
     func blackMask(size: [Float]) throws -> WSSMaskBitmap {
-        try Self.blackMaskBitmap(size: size)
+        try uniformMask(size: size, value: 0)
     }
     static func blackMaskBitmap(size: [Float]) throws -> WSSMaskBitmap {
+        try uniformMaskBitmap(size: size, value: 0)
+    }
+    func uniformMask(size: [Float], value: UInt8) throws -> WSSMaskBitmap {
+        try Self.uniformMaskBitmap(size: size, value: value)
+    }
+    static func uniformMaskBitmap(size: [Float], value: UInt8) throws -> WSSMaskBitmap {
         let dimensions = try Self.blackMaskDimensions(size: size)
         return try WSSMaskBitmap(
             width: dimensions.width, height: dimensions.height, uvScale: SIMD2(1, 1),
-            pixels: Data(repeating: 0, count: dimensions.width * dimensions.height))
+            pixels: Data(repeating: value, count: dimensions.width * dimensions.height))
     }
     func importMask(_ url: URL) throws -> WSSMaskBitmap {
         try Task.checkCancellation()
@@ -202,10 +209,14 @@ extension WSSEditorDocument.Snapshot {
     var maskManagementTarget: WSSMaskTarget? {
         if case .layer(let layer) = selection,
             identity.layers.count == state.workingModel.layers.count,
-            let index = identity.layers.firstIndex(where: { $0.id == layer }),
-            case .rain = state.workingModel.layers[index].content
+            let index = identity.layers.firstIndex(where: { $0.id == layer })
         {
-            return WSSMaskTarget(sessionID: state.sessionID, layerID: layer, slot: .rain)
+            switch state.workingModel.layers[index].content {
+            case .rain:
+                return WSSMaskTarget(sessionID: state.sessionID, layerID: layer, slot: .rain)
+            case .fog: return WSSMaskTarget(sessionID: state.sessionID, layerID: layer, slot: .fog)
+            default: return nil
+            }
         }
         guard case .effect(let layer, let effect) = selection,
             let address = identity.checkedAddress(

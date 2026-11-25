@@ -586,6 +586,7 @@ struct WSSCanvasView: NSViewRepresentable {
     private var maskOverlay: WSSMaskCanvasOverlay?
     private weak var maskSession: WSSMaskCanvasSession?
     private let maskOwner = UUID()
+    private var fogOverlayEnvelope = SIMD2<Float>.zero
     private var maskDisplayVersion: UInt64?
     var ownsMaskSession: Bool { maskSession?.canvasOwner == maskOwner }
     var maskCursor: SIMD2<Float>? {
@@ -706,6 +707,11 @@ struct WSSCanvasView: NSViewRepresentable {
 
     func update(_ document: WSSEditorDocument) {
         updateMusicNotesPath(document)
+        let envelope = document.maskCanvas.fogOverlayEnvelope
+        if fogOverlayEnvelope != envelope {
+            fogOverlayEnvelope = envelope
+            metal.setNeedsDisplay(metal.bounds)
+        }
         let scene = document.workingScene
         let modeLayer = document.musicNotesPathEditLayer ?? document.transformModeLayer
         let selected = document.selectedLayer

@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 
 // Session-only identity: a resource path never identifies an editable effect instance.
 enum WSSMaskSlot: Equatable {
-    case ripple, clouds, rain
+    case ripple, clouds, rain, fog
+    var initialValue: UInt8 { self == .fog ? 255 : 0 }
     var supportsDirectPaint: Bool {
         true
     }
@@ -143,14 +144,22 @@ actor WSSMaskPreparation {
     ) throws -> WSSMaskBitmap {
         try Task.checkCancellation()
         try basis.verify(handle)
+        if resolved.path.isEmpty {
+            guard resolved.target.slot == .fog else {
+                throw WSSMaskError.stale
+            }
+            return try Self.uniformMaskBitmap(size: model.fogMaskSize, value: 255)
+        }
+        let path = resolved.path
+        let fingerprint = resolved.fingerprint
         var assets = try model.assetSource(root: handle.root)
         assets.sessionAssets = generations
-        let bytes = try assets.read(resolved.path, limit: resolved.fingerprint.byteCount)
-        guard WSSContentFingerprint(bytes) == resolved.fingerprint else { throw WSSMaskError.stale }
+        let bytes = try assets.read(path, limit: fingerprint.byteCount)
+        guard WSSContentFingerprint(bytes) == fingerprint else { throw WSSMaskError.stale }
         // Decode the exact captured bytes, not another mutable disk read.
-        assets.fileBytes = [resolved.path: bytes]
+        assets.fileBytes = [path: bytes]
         assets.sessionAssets = [:]
-        let bitmap = try WSSMaskBitmap(assets.mask(for: WSSAssetID(value: resolved.path)))
+        let bitmap = try WSSMaskBitmap(assets.mask(for: WSSAssetID(value: path)))
         try basis.verify(handle)
         return bitmap
     }

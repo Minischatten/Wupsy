@@ -20,6 +20,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let milkyWay: WSSMilkyWayRenderer?
     let starfield: WSSStarfieldRenderer?
     let fog: WSSFogRenderer?
+    let fogMasks: WSSFogMasks
     let musicNotes: WSSMusicNotesRenderer?
     let musicNotesStaffRenderer: WSSMusicNotesStaffRenderer?
     let musicNotesStaffs: [Int: WSSMusicNotesStaffRenderer.Prepared]
@@ -52,11 +53,17 @@ final class WSSStaticResources: @unchecked Sendable {
             $0 + $1.buffer.length
         }
     }
+    var isAnimated: Bool { scene.requiresAnimation(fogIsEmpty: fogMasks.isEmpty) }
+
+    func hasEffectiveFog(_ layer: WSSFogLayer) -> Bool {
+        layer.visible && layer.fog.density > 0 && !fogMasks.isEmpty(layer)
+    }
+
     var textureBytes: Int {
         images.values.reduce(
             (clouds?.textureBytes ?? 0) + (ripple?.textureBytes ?? 0)
                 + (vectorFields?.textureBytes ?? 0) + (flow?.regionTextureBytes ?? 0)
-                + (rain?.textureBytes ?? 0) + (fog?.textureBytes ?? 0)
+                + (rain?.textureBytes ?? 0) + (fog?.textureBytes ?? 0) + fogMasks.textureBytes
                 + (musicNotes?.textureBytes ?? 0) + directionPreviewBytes
         ) {
             $0 + $1.texture.allocatedSize
@@ -165,6 +172,7 @@ final class WSSStaticResources: @unchecked Sendable {
         musicNotesStaffs = try WSSMusicNotesStaffRenderer.prepare(scene: scene, device: device)
         musicNotesStaffRenderer =
             musicNotesStaffs.isEmpty ? nil : try WSSMusicNotesStaffRenderer(device: device)
+        fogMasks = try WSSFogMasks(scene: scene, assets: assets, device: device)
         fog =
             try scene.layers.contains {
                 if case .fog = $0 { return true }
@@ -287,6 +295,7 @@ final class WSSStaticResources: @unchecked Sendable {
         milkyWay = milkyWayOverride ?? original.milkyWay
         starfield = original.starfield
         fog = original.fog
+        fogMasks = original.fogMasks
         musicNotes = original.musicNotes
         self.musicNotesPaths = musicNotesPaths ?? original.musicNotesPaths
         musicNotesStaffRenderer = staffRenderer ?? original.musicNotesStaffRenderer
@@ -360,7 +369,7 @@ final class WSSStaticResources: @unchecked Sendable {
     }
     func updatingFogDrift(_ layer: WSSFogLayer, at index: Int) -> WSSStaticResources? {
         guard fog != nil, scene.layers.indices.contains(index),
-            case .fog = scene.layers[index]
+            case .fog(let original) = scene.layers[index], original.mask == layer.mask
         else { return nil }
         var updated = scene
         updated.layers[index] = .fog(layer)
@@ -385,9 +394,10 @@ final class WSSStaticResources: @unchecked Sendable {
                 normalized.layers[index].content = previous.layers[index].content
                 continue
             }
-            if case .fog = previous.layers[index].content,
+            if case .fog(let old) = previous.layers[index].content,
                 case .fog(let new) = normalized.layers[index].content
             {
+                guard old.mask == new.mask else { return nil }
                 updated.layers[index] = .fog(new)
                 normalized.layers[index].content = previous.layers[index].content
                 continue
@@ -739,11 +749,13 @@ final class WSSStaticResources: @unchecked Sendable {
                 continue
             }
             if case .fog(let layer) = node {
+                guard hasEffectiveFog(layer) else { continue }
                 do {
                     guard let fog else { throw WSSSceneError.invalid("missing fog renderer") }
                     try fog.encode(
                         layer.fog, canvas: SIMD2(Float(scene.width), Float(scene.height)),
-                        crop: crop, time: time, encoder: encoder)
+                        crop: crop, time: time, encoder: encoder,
+                        mask: layer.mask.flatMap { fogMasks.masks[$0.asset] })
                 } catch {
                     encoder.endEncoding()
                     throw error

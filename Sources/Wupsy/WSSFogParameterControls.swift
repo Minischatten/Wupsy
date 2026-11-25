@@ -23,7 +23,7 @@ extension WSSFogConfiguration {
         // The compass only uses 45° steps. Snap the axes before normalization.
         let x = cos(radians).rounded()
         let y = -sin(radians).rounded()
-        let startingSpeed = Double(WSSFogPreset.ground.configuration.driftX)
+        let startingSpeed = 9.0
         setDriftSpeed(driftSpeed > 0 ? driftSpeed : startingSpeed, in: SIMD2(x, y) / hypot(x, y))
     }
 }
@@ -88,8 +88,8 @@ extension WSSEditorDocument {
     }
 
     func resetFog(_ id: WSSLayerID) throws {
-        guard permitsStructureEditing, finishEditing(), let layer = fogLayer(id) else { return }
-        try changeFog(id, name: WSSEffectReset.title) { $0 = layer.preset.configuration }
+        guard permitsStructureEditing, finishEditing(), fogLayer(id) != nil else { return }
+        try changeFog(id, name: WSSEffectReset.title) { $0 = .defaults }
     }
 
     func endFogSpeedSlider() {
@@ -128,18 +128,37 @@ extension WSSEditorDocument {
         return layer
     }
 
-    func addFog(_ preset: WSSFogPreset) throws {
+    func addFog() throws {
         guard permitsStructureEditing, finishEditing(), permitsStructureEditing else { return }
         try maintenance.withMutation {
             var model = state.workingModel
             guard model.layers.count < 128 else { throw WSSImageImportError.layerLimit }
+            let bitmap = try WSSMaskPreparation.uniformMaskBitmap(
+                size: model.fogMaskSize, value: 0)
+            let used = state.sessionAssets.values.reduce(0) { $0 + $1.fingerprint.byteCount }
+            let generation = try WSSMaskPreparation.prepareGeneration(
+                bitmap, remainingBudget: WSSImageImporter.stagingLimit - used)
             model.layers.append(
-                .init(content: .fog(.init(fog: preset.configuration, preset: preset))))
+                .init(
+                    content: .fog(
+                        .init(
+                            fog: .defaults,
+                            mask: bitmap.definition(path: generation.path)))))
+            let scene = try model.scene()
+            _ = try model.encoded()
+            try state.diskBasis.verify(project.handle)
+            var assets = try model.assetSource(root: project.handle.root)
+            assets.sessionAssets = state.sessionAssets
+            assets.sessionAssets[generation.path] = generation
+            _ = try WSSStaticResources(
+                scene: scene, assets: assets, device: previewResources.device)
+            try state.diskBasis.verify(project.handle)
+            try retainImageGeneration(generation)
             var ids = identity
             let id = WSSLayerID()
             ids.layers.append(.init(id: id, effects: []))
-            try mutate(
-                model, name: WSSFogText.text(preset.rawValue), ids: ids, selected: .layer(id))
+            registerModelUndo(state.workingModel, name: WSSFogText.text("title"))
+            installMutation(model, ids: ids, selected: .layer(id))
         }
     }
 
@@ -168,8 +187,9 @@ struct WSSFogParameterControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(WSSFogText.text("title")).wupsyFont(.headline)
-            if let value = document.fogLayer(layer)?.fog {
+            if let fog = document.fogLayer(layer) {
+                Text(WSSFogText.text("title")).wupsyFont(.headline)
+                let value = fog.fog
                 ForEach(WSSFogParameter.allCases, id: \.self) { parameter in
                     if parameter == .driftX {
                         Text(WSSFogText.text("driftDirection")).wupsyFont(.caption)

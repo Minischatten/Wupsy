@@ -43,8 +43,14 @@ notes, draw your own paths, and set up depth changes and perspective.
 
 ## Fog
 
-Choose Ground Fog or Atmospheric Fog from the layer add menu. Reorder the fog layer
-to control foreground occlusion. Set density, softness, structure scale and height
+Choose Fog from the layer add menu. Fog starts with a black mask, an active
+brush and a frame around the full scene. Paint to reveal it or hold Option
+while painting to erase coverage. Selecting unmasked fog shows a full-coverage mask overlay without creating a mask.
+The first stroke starts from full coverage. Removing a mask restores this view. The blue overlay follows the current height
+and soft fade while the mask and frame stay fixed to the scene. The mask
+menu supports importing, filling, clearing and removing the mask. Reset to
+Defaults restores the fog settings and preserves the mask.
+Reorder the fog layer to control foreground occlusion. Set density, softness, structure scale and height
 in the inspector. Use the native macOS color picker to choose the fog color.
 Set drift with the eight direction buttons, the speed slider or the numeric X/Y
 fields. The speed readout follows the slider as you drag. Live Preview may skip

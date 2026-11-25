@@ -58,6 +58,14 @@ Do not infer cleanup ownership from plausible names or paths.
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
 
+## Development builds for manual acceptance
+
+A complete, directly launchable ARM64 Release app is sufficient for manual
+acceptance during development. Report the full path to `Wupsy.app`. Create a
+DMG only for release preparation or on explicit request. Ordinary development
+tasks omit DMG creation, layout verification and checksum verification. Continue
+running the relevant local tests, build checks and app-bundle checks.
+
 ## Settings and quick actions
 
 Open Settings from the menu bar extra or the Library’s three-dot menu.
@@ -147,11 +155,14 @@ both symbols and staff lines. See
 
 ## Native fog
 
-WSS v1 supports a sortable fog layer with Ground Fog and Atmospheric Fog presets.
+WSS v1 supports a sortable Fog layer. Adding Fog activates the scalar mask
+tools with a black full-scene mask. Existing unmasked fog stays fully enabled
+and shows a virtual white mask on selection. Its first stroke starts from white. The editor tint follows fog height
+and softness. Legacy preset IDs are accepted on load and omitted on save.
 The inspector exposes density, softness, structure scale, height, native SDR
 color selection, directional arrows, numeric X/Y drift, a numeric speed field
 and a speed slider. Slider input stays local during dragging and commits the
-final drift as one Undo step. Reset to Defaults restores the insertion preset. See the [Fog contract](docs/effects/FOG.md) and
+final drift as one Undo step. Reset to Defaults restores the shared fog settings and preserves the mask. See the [Fog contract](docs/effects/FOG.md) and
 [preview architecture](docs/ARCHITECTURE.md#workspace-gestures-and-close).
 
 ## Known limitations

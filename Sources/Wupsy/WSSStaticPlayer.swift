@@ -12,7 +12,7 @@ import MetalKit
         if renderFailed { return .failed }
         if stopped { return .stopped }
         if paused { return .paused }
-        return resources.scene.isAnimated ? .running : .onDemand
+        return resources.isAnimated ? .running : .onDemand
     }
 
     @discardableResult
@@ -83,7 +83,7 @@ import MetalKit
                             ? "WSS ripple v1"
                             : resources.fog != nil
                                 ? "WSS fog v1"
-                                : (resources.scene.isAnimated
+                                : (resources.isAnimated
                                     ? "WSS clouds v1" : "WSS static images")))
     }
     init(
@@ -148,7 +148,7 @@ import MetalKit
         resources = candidate
         if !resources.scene.hasEffectiveStormIllumination { lightingContext.discardResources() }
         if !paused {
-            let onDemand = !resources.scene.isAnimated
+            let onDemand = !resources.isAnimated
             if view.enableSetNeedsDisplay != onDemand { view.enableSetNeedsDisplay = onDemand }
             if view.isPaused != onDemand { view.isPaused = onDemand }
         }
@@ -171,7 +171,7 @@ import MetalKit
         paused = false
         trailContext.reset()
         clock.play(now: ProcessInfo.processInfo.systemUptime)
-        let onDemand = !resources.scene.isAnimated
+        let onDemand = !resources.isAnimated
         view.enableSetNeedsDisplay = onDemand
         view.isPaused = onDemand
         view.needsDisplay = true
@@ -283,7 +283,7 @@ import MetalKit
         if let encoding { metrics?.encoded(encoding) }
         let semaphore = inFlight
         let retryTransitionFrame =
-            transitionStillPending && !resources.scene.isAnimated && transitionDrawRetries > 0
+            transitionStillPending && !resources.isAnimated && transitionDrawRetries > 0
         if retryTransitionFrame { transitionDrawRetries -= 1 }
         let complete = frameCompletionHandler(
             retryTransitionFrame: retryTransitionFrame, encoding: encoding

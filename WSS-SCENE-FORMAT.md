@@ -85,6 +85,19 @@ components are limited to 1,000,000. PNG origin/UV is top-left; the existing ima
 vertex mapping relates it to canvas coordinates. Raster density does not change
 logical geometry or animation speed.
 
+## Fog masks
+
+The WSS v1 decoder accepts the historical `preset` strings `ground` and
+`atmosphere`. They do not affect the decoded layer. Opening an older project
+leaves its manifest untouched. The encoder omits `preset` when saving fog.
+
+The WSS v1 `fog` layer accepts an optional layer-level `mask` using the
+explicit scalar asset descriptor below. Missing or null means full coverage.
+A present black mask means zero coverage. The mask is sampled over the full
+logical canvas before fog alpha is premultiplied. This additive schema change
+requires no migration. Older versions of Wupsy reject the new field in fog
+layers under strict field validation.
+
 ## Clouds and mask
 
 Clouds parameters, JSON spellings and examples belong to the [Clouds contract](docs/effects/CLOUDS.md).
@@ -219,7 +232,7 @@ without changing desktop or playlist references. Normal Save retains its separat
 manifest-last commit contract and active-UUID refresh rule.
 
 The internal scalar-mask editing foundation keeps this v1 format unchanged. An
-adopted edit of a supported Ripple/Clouds/Rain mask creates a new
+adopted edit of a supported Ripple/Clouds/Rain/Fog mask creates a new
 lossless scalar PNG with an explicit linear/clamp/non-mipmapped descriptor, preserving
 dimensions and UV scale. Only the selected effect slot references that generation;
 other users of a shared original mask retain their original reference. Original files

@@ -187,9 +187,7 @@ extension WSSSceneDocumentV1.Layer {
             try c.encode("fog", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)
             try c.encode(layer.fog, forKey: .fog)
-            if layer.preset != WSSFogPreset.inferred(from: layer.fog) {
-                try c.encode(layer.preset, forKey: .preset)
-            }
+            try c.encodeIfPresent(layer.mask, forKey: .mask)
         case .starfield(let layer):
             try c.encode("starfield", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)

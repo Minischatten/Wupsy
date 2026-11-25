@@ -458,6 +458,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                 return image.effects.compactMap(\.maskDefinition)
             }
             if case .rain(let rain) = content { return rain.mask.map { [$0] } ?? [] }
+            if case .fog(let fog) = content { return fog.mask.map { [$0] } ?? [] }
             return []
         }
         enum CodingKeys: String, CodingKey {
@@ -498,13 +499,19 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                 try WSSMusicNotesLayer.validateRegion(layer.region)
                 content = .musicNotes(layer)
             } else if type == "fog" {
-                try decoder.fields(["type", "name", "visible", "fog", "preset"])
+                try decoder.fields(["type", "name", "visible", "fog", "preset", "mask"])
                 let fog = try c.decode(WSSFogConfiguration.self, forKey: .fog)
-                let preset = try c.decodeIfPresent(WSSFogPreset.self, forKey: .preset)
+                // Wupsy 0.7.0 could persist either legacy reset preset.
+                if let preset = try c.decodeIfPresent(String.self, forKey: .preset),
+                    preset != "ground", preset != "atmosphere"
+                {
+                    throw WSSDocumentError.invalid("fog preset " + preset)
+                }
                 content = .fog(
                     WSSFogLayer(
                         visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
-                        fog: fog, preset: preset))
+                        fog: fog,
+                        mask: try c.decodeIfPresent(WSSNativeImageDefinition.self, forKey: .mask)))
             } else if type == "starfield" {
                 try decoder.fields(["type", "name", "visible", "starfield"])
                 let layer = WSSStarfieldLayer(
