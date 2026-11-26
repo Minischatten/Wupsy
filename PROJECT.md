@@ -136,7 +136,27 @@ consecutive standalone runs. The subsequent `PerformanceDiagnosisTests`
 group passed all five tests with zero failures and zero skips. Formatting
 and Git diff checks passed. The existing DMG still matches the SHA-256
 above, and the standalone app signature verifies. Version and build remain
-0.8.0 and 4. Publication is pending. The intended release tag is `v0.8.0`.
+0.8.0 and 4.
+
+### Published release
+
+[Wupsy 0.8.0 (Build 4)](https://github.com/Minischatten/Wupsy/releases/tag/v0.8.0)
+was published on 2026-11-26 as the latest stable release. The annotated
+tag `v0.8.0` points to `e8d613a57b02f7c56069c8782b7143a2106319ec`.
+The uploaded `Wupsy-0.8.0.dmg` and `Wupsy-0.8.0.dmg.sha256` came
+from the successful GitHub CI run accepted by the maintainer. The CI
+image verified as ARM64, version 0.8.0, build 4, with a valid ad-hoc app
+signature and the expected Finder layout.
+
+The public release page and both assets were retrieved without
+authentication. Both downloaded assets matched the upload files
+byte-for-byte, and the downloaded DMG passed the published SHA-256
+check. Its SHA-256 is
+`864443c318ba9e0f716e4b83723d038ae84b9b89fad346c46f81e25a9589d3a8`.
+The public `releases/latest` URL resolves to `v0.8.0`. The app's update
+endpoint returned a published, stable `v0.8.0` with the expected release
+URL. Under the existing version comparison, 0.7.0 sees an available
+update and 0.8.0 is current. The in-app update dialog was not verified.
 
 ## Development builds for manual acceptance
 
