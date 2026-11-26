@@ -210,12 +210,17 @@ import XCTest
 
         let compactHeight = initialPanel.frame.height
         controller.diagnosis.showsDetails = true
-        try await Task.sleep(for: .milliseconds(1150))
+        let layoutDeadline = ContinuousClock.now + .milliseconds(1150)
+        while initialPanel.frame.height <= compactHeight, ContinuousClock.now < layoutDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         XCTAssertGreaterThan(initialPanel.frame.height, compactHeight)
         host.layoutSubtreeIfNeeded()
         let overlay = try XCTUnwrap(host.subviews.last)
         XCTAssertTrue(host.bounds.contains(overlay.frame), "\(overlay.frame) in \(host.bounds)")
         XCTAssertGreaterThan(overlay.frame.width, 200)
+        controller.diagnosis.sample()
+        host.performanceDiagnosis.sample()
         XCTAssertEqual(controller.diagnosis.snapshot?.sessionID, desktop.sessionID)
         XCTAssertEqual(controller.diagnosis.details?.counts?.visibleLayers, 1)
         XCTAssertEqual(host.performanceDiagnosis.snapshot?.sessionID, preview.sessionID)

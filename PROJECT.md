@@ -116,9 +116,27 @@ now excludes XCTest case and suite status lines and matches NaN and
 Infinity as standalone terms. The updated report was checked against the
 available physical-Mac logs and synthetic positive and negative examples.
 
-Joint manual acceptance of the packaged DMG, including Finder
-installation, and publication are pending. The intended release tag is
-`v0.8.0`.
+The maintainer accepted the packaged DMG on a physical Mac. GitHub CI for
+`65d9efd9f0c8d4ec924b8c2b88f315a356114690` passed formatting, packaging,
+localization and app registration on macOS 26.7.2 (arm64, Swift 6.3.3).
+Of 1,560 tests, 1,546 passed, one failed and 13 were skipped. The failed
+`PerformanceDiagnosisTests` case had no desktop snapshot, desktop layer
+count or editor snapshot at the assertion point. Both diagnoses had
+already attached their measurement collectors. The test relied on the
+first periodic samples surviving until a fixed delay expired. A late
+sample and an intervening invalidation are both possible. The CI result
+does not identify their order. The asserted values require no confirmed
+Metal presentation.
+
+The test now waits for the panel to grow within the existing time budget
+and samples both diagnoses directly after the layout checks. All original
+assertions and player identities remain in place. On the physical
+Apple silicon Mac running macOS 27.2.1, the affected test passed ten
+consecutive standalone runs. The subsequent `PerformanceDiagnosisTests`
+group passed all five tests with zero failures and zero skips. Formatting
+and Git diff checks passed. The existing DMG still matches the SHA-256
+above, and the standalone app signature verifies. Version and build remain
+0.8.0 and 4. Publication is pending. The intended release tag is `v0.8.0`.
 
 ## Development builds for manual acceptance
 
