@@ -165,7 +165,13 @@ check. Its SHA-256 is
 The public `releases/latest` URL resolves to `v0.8.0`. The app's update
 endpoint returned a published, stable `v0.8.0` with the expected release
 URL. Under the existing version comparison, 0.7.0 sees an available
-update and 0.8.0 is current. The in-app update dialog was not verified.
+update and 0.8.0 is current.
+
+Quality control subsequently accepted the actual in-app update from 0.7.0 to
+0.8.0 (build 4) in a macOS VM. The update notice appeared with the app icon
+and text centered as intended. The download link, installation and macOS
+security approval worked. Wupsy 0.8.0 started with the existing library intact.
+An initial manual functional check found no issues.
 
 The Wupsy 0.8.0 product overview was published in German and English on the
 official [WirdSchonSoftware website](https://wirdschonsoftware.com/).
@@ -389,6 +395,43 @@ color selection, directional arrows, numeric X/Y drift, a numeric speed field
 and a speed slider. Slider input stays local during dragging and commits the
 final drift as one Undo step. Reset to Defaults restores the shared fog settings and preserves the mask. See the [Fog contract](docs/effects/FOG.md) and
 [preview architecture](docs/ARCHITECTURE.md#workspace-gestures-and-close).
+
+## Native Slime development
+
+Slime is planned as a sortable native WSS layer with its own Metal draw path.
+The approved sequence is:
+
+1. Prototype a hanging filament, pinch-off, retraction and bounded fall.
+2. Integrate the hanging mode into WSS and the editor.
+3. Add independent drops and source regions.
+4. Add surface flow guided by an open Bézier path.
+5. Add scalar masks for surface flow.
+6. Evaluate optional local background distortion.
+7. Explore an optional placed slime puddle or catch surface with temporary impact
+   deformation, slowly decaying waves, optional small splashes and bounded
+   transient spreading. Material accumulation must stay bounded. Evaluate
+   whether existing Ripple techniques fit when this phase is designed.
+
+Phase 1 is complete and visually accepted, including the Phase 1.1 material
+refinement and the Phase 1.2 filament retraction. The accepted material uses
+analytic normals derived from the filament and drop shapes for softer, localized
+reflections. Quality control also visually accepted the post-release geometry,
+including transient thickening, a rounded tip and smooth deceleration into the
+anchor. This prototype is the basis for future phases. Phase 2 has not started.
+
+The isolated debug preview uses the existing playback clock and a bounded
+procedural draw. It includes a green-tinted material and a lighter translucent
+material on synthetic dark and light backgrounds. All four focused Slime tests
+for Phase 1.2 passed on a Mac Studio with Apple M4 Max, including fixed-time
+Metal pixel checks of the retracting tip. The debug window had already received
+Metal drawable presentation callbacks during Phase 1.1 on that Mac.
+
+From the repository root, run `swift run --jobs 2 Wupsy --slime-preview`.
+Space pauses or resumes, S toggles quarter speed, B changes the background and M
+changes the material. The 1, 2 and 3 keys pause 0.1 seconds before, at and 0.1
+seconds after pinch-off. The 4 and 5 keys pause 0.35 and 0.8 seconds after
+pinch-off for retraction inspection. Left and Right step by 1/60 second, R restarts and
+Escape closes the preview. The launcher bypasses regular app startup.
 
 ## Known limitations
 

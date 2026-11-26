@@ -103,6 +103,17 @@ enum WupsyStartup {
             LibraryRestoreRestart.runHelper(arguments: CommandLine.arguments)
             return
         }
+        #if DEBUG
+            if CommandLine.arguments.dropFirst().first == "--slime-preview" {
+                do {
+                    try WSSSlimePreview.run()
+                } catch {
+                    fputs("Slime preview failed: \(error.localizedDescription)\n", stderr)
+                    exit(1)
+                }
+                return
+            }
+        #endif
         if CommandLine.arguments.dropFirst().first == "--verify-localization" {
             do {
                 let expected = CommandLine.arguments.dropFirst(2).first
