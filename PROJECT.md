@@ -67,6 +67,15 @@ version-independent where possible and omit separate lists of unreleased
 features. Document unreleased work in this guide or the relevant technical
 documentation.
 
+## Release website requirements
+
+Every release must include an update to the official
+[WirdSchonSoftware website](https://wirdschonsoftware.com/). Update the
+displayed Wupsy version in both German and English for each published
+version. Update both feature descriptions when the release changes the
+features covered by the website. After the FTP upload, have quality
+control verify the public site in both languages before closing the release.
+
 ## Wupsy 0.8.0 release preparation
 
 The local candidate is version 0.8.0 (build 4) for ARM64, based on
@@ -157,6 +166,12 @@ The public `releases/latest` URL resolves to `v0.8.0`. The app's update
 endpoint returned a published, stable `v0.8.0` with the expected release
 URL. Under the existing version comparison, 0.7.0 sees an available
 update and 0.8.0 is current. The in-app update dialog was not verified.
+
+The Wupsy 0.8.0 product overview was published in German and English on the
+official [WirdSchonSoftware website](https://wirdschonsoftware.com/).
+After the FTP upload, quality control verified and accepted the public
+site, including both project overviews, their links, both language
+versions and the shared footer.
 
 ## Development builds for manual acceptance
 
