@@ -12,7 +12,7 @@ See [Clouds arithmetic](docs/effects/CLOUDS.md#coverage-and-tone-arithmetic).
 
 ## Fog
 
-Sortable ground and atmospheric fog: [Fog contract](docs/effects/FOG.md).
+Sortable fog layer with a paintable mask: [Fog contract](docs/effects/FOG.md).
 
 ## Rain
 

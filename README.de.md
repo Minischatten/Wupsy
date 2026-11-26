@@ -18,14 +18,15 @@ Wupsy setzt **Apple silicon (ARM64)** voraus und ist für **macOS 14 oder neuer*
 
 3. Öffne das Disk-Image, kopiere `Wupsy.app` nach **Programme** und warte, bis der Kopiervorgang abgeschlossen ist. Wirf dann das Disk-Image aus und öffne die kopierte App. Falls macOS den Start blockiert, kannst du die App unter **Systemeinstellungen → Datenschutz & Sicherheit** freigeben.
 
-Die folgenden Abschnitte beschreiben die aktuell veröffentlichte Version. Du kannst Wupsy auch [aus dem Quellcode bauen](#build).
+Du kannst Wupsy auch [aus dem Quellcode bauen](#build).
 
 ## Mediathek und Desktop-Wiedergabe
 
-- **Importieren und organisieren.** Wähle **Hintergrundbild hinzufügen** oder ziehe Dateien in die Mediathek. Durchsuche und filtere deine Sammlung, markiere Favoriten, benenne ein ausgewähltes Wallpaper mit der Eingabetaste um und ändere die gespeicherte Reihenfolge durch Ziehen der Karten. Der Import kopiert Inhalte in die verwaltete Mediathek. Ein erneuter Import legt eine separate Kopie an. Beim Entfernen eines verwalteten Eintrags wird seine lokale Kopie gelöscht.
-- **Wiedergabelisten.** Erstelle benannte Listen mit eigenem Intervall und sequenzieller oder zufälliger Wiedergabe. Zur Aktivierung müssen mindestens zwei verschiedene Wallpaper verfügbar sein. Pausieren hält die verbleibende Zeit an. Manuelles Anwenden oder Stoppen beendet die Rotation und erhält die Liste. Beim Löschen einer Liste bleiben ihre Wallpaper in der Mediathek.
-- **Wiedergabe.** Wende ein Wallpaper in der Mediathek an und nutze Pause oder Fortsetzen über die Menüleiste. Stopp ist in der Mediathek verfügbar. Beim Schließen der Mediathek läuft die Wiedergabe weiter. Beende Wupsy über die Menüleiste, um sie zu stoppen. Bei geeigneten Bild- und WSS-Wechseln behält Wupsy bei einem Vorbereitungsfehler das bisherige Wallpaper bei. Bei Problemen kann die Videowiedergabe begrenzte Wiederherstellungsversuche ausführen.
-- **Displays und Einstellungen.** Nutze das Hauptdisplay oder aktiviere **Alle Displays**. Die Wiedergabe reagiert auf Ruhezustand und Aufwachen. In den Einstellungen findest du die Pause bei Batteriebetrieb, den Energiesparmodus, den Start bei der Anmeldung, die Updateprüfung und Oberflächengrößen von 100 %, 125 % und 150 %. In der Mediathek kannst du Videoqualität, WSS-Auflösung und Bildrate einstellen.
+- **Importieren und organisieren.** Wähle **Hintergrundbild hinzufügen** oder ziehe Dateien in die Mediathek. Durchsuche und filtere deine Sammlung, markiere Favoriten, benenne ein ausgewähltes Wallpaper mit der Eingabetaste um und ändere die gespeicherte Reihenfolge durch Ziehen der Karten. Wenn das Raster den Fokus hat, ändern die Pfeiltasten die Auswahl und aktualisieren die Vorschau. Das Raster scrollt mit, damit die Auswahl sichtbar bleibt. Der Import kopiert Inhalte in die verwaltete Mediathek. Ein erneuter Import legt eine separate Kopie an. Beim Entfernen eines verwalteten Eintrags wird seine lokale Kopie gelöscht.
+- **Wiedergabelisten.** Erstelle benannte Listen mit eigenem Intervall und sequenzieller oder zufälliger Wiedergabe. Zur Aktivierung müssen mindestens zwei verschiedene Wallpaper verfügbar sein. Pausieren hält die verbleibende Zeit an. Das ausdrückliche Aktivieren einer Wiedergabeliste hebt die manuelle Pause auf. Systembedingte Pausen gelten weiterhin. Manuelles Anwenden oder Stoppen beendet die Rotation und erhält die Liste. Beim Löschen einer Liste bleiben ihre Wallpaper in der Mediathek.
+- **Wiedergabe.** Wende ein Wallpaper in der Mediathek an und nutze Pause oder Fortsetzen über die Menüleiste. Die Pause hält bei nativen WSS-Szenen, statischen Bildern, Videos und animierten GIFs das sichtbare Desktop-Bild fest. Animationen und Videos laufen ab der eingefrorenen Position weiter. Lokale Web-Wallpaper werden beim Pausieren entladen und beim Fortsetzen neu geladen. Mediathek- und Editor-Vorschau laufen unabhängig davon. Stopp ist in der Mediathek verfügbar. Beim Schließen der Mediathek läuft die Wiedergabe weiter. Beende Wupsy über die Menüleiste, um sie zu stoppen. Bei geeigneten Bild- und WSS-Wechseln behält Wupsy bei einem Vorbereitungsfehler das bisherige Wallpaper bei. Bei Problemen kann die Videowiedergabe begrenzte Wiederherstellungsversuche ausführen.
+- **Displays und Einstellungen.** Nutze das Hauptdisplay oder aktiviere **Alle Displays**. Die Wiedergabe reagiert auf Ruhezustand, Aufwachen und Display-Wechsel, auch wenn Displays beim Aufwachen vorübergehend verschwinden. In den Einstellungen findest du die Pause bei Batteriebetrieb, den Energiesparmodus, den Start bei der Anmeldung, die Updateprüfung und Oberflächengrößen von 100 %, 125 % und 150 %. In der Mediathek kannst du Videoqualität, WSS-Auflösung und Bildrate einstellen.
+- **Performance-Diagnose.** Öffne die **Performance-Diagnose** im Drei-Punkte-Menü der Mediathek, um die native WSS-Wiedergabe auf einem ausgewählten Display zu prüfen. Sie zeigt Bildraten und Frame-Zeiten, in den erweiterten Details auch CPU-Auslastung und Speicherbedarf des Wupsy-Prozesses sowie Metal-Speicher. Die Messung läuft bei geöffnetem Fenster.
 
 ## Unterstützte Wallpaper-Formate
 
@@ -39,7 +40,7 @@ Die folgenden Abschnitte beschreiben die aktuell veröffentlichte Version. Du ka
 
 GIF-Animationen, MP4-Wiedergabe mit Qualitätsstufen und lokale Web-Wallpaper wurden unter macOS 26 und 27 geprüft. PNG und JPEG wurden auch beim automatischen Wallpaperwechsel getestet. Videos benötigen einen von macOS unterstützten Codec wie H.264 oder HEVC. Der Import akzeptiert MOV und M4V, deren Wiedergabe bisher praktisch ungeprüft ist. Die Stufen Ausgewogen und Effizient können optimierte Kopien in einem größenbegrenzten Cache ablegen.
 
-Web-Wallpaper spielen lokale Projekte auf dem Desktop ab. Ihre Skripte können auf das Netzwerk zugreifen. WSS-Projekte benötigen ihre referenzierten Ressourcen. Wallpaper-Engine-Projekte, PKG/TEX-Dateien und beliebige externe Shader werden nicht unterstützt. Ältere Wupsy-Versionen können Szenen mit neueren Funktionen ablehnen. Verwende nur Inhalte, zu deren Nutzung du berechtigt bist. Persönliche Wallpaper-Fotos und Masken sind nicht enthalten. [Szenenunterstützung](SCENE-SUPPORT.md) · [WSS-Format](WSS-SCENE-FORMAT.md)
+Web-Wallpaper spielen lokale Projekte auf dem Desktop ab. Ihre Skripte können auf das Netzwerk zugreifen. WSS-Projekte benötigen ihre referenzierten Ressourcen. WSS-Fehlermeldungen beim Import, beim Vorbereiten der Wiedergabe oder beim Öffnen im Editor geben Hinweise und bieten kopierbare technische Details. Wallpaper-Engine-Projekte, PKG/TEX-Dateien und beliebige externe Shader werden nicht unterstützt. Ältere Wupsy-Versionen können Szenen mit neueren Funktionen ablehnen. Verwende nur Inhalte, zu deren Nutzung du berechtigt bist. Persönliche Wallpaper-Fotos und Masken sind nicht enthalten. [Szenenunterstützung](SCENE-SUPPORT.md) · [WSS-Format](WSS-SCENE-FORMAT.md)
 
 ## Eingebauter Wallpaper-Editor
 
@@ -47,17 +48,19 @@ Erstelle eine WSS-Szene, öffne ein vorhandenes Projekt oder bearbeite ein verwa
 
 Ordne Ebenen an, benenne sie um und blende sie ein oder aus. Verschiebe, skaliere und drehe Bildebenen, passe ihre Deckkraft an und kombiniere Bildeffekte in einer festgelegten Reihenfolge. Male Masken, um die Wirkungsbereiche unterstützter Effekte festzulegen. Für Flow kannst du zusätzlich Bewegungsrichtungen und Regionen malen. Nutze die statische Arbeitsfläche für das Layout und die Live-Vorschau zum Prüfen der Animation. Rückgängig und Wiederholen helfen beim Überarbeiten. Mit „Anker glätten“ richtest du die Griffe eines ausgewählten Bézierankers auf einem Musiknotenpfad aus. Sichern aktualisiert das Projekt, Sichern unter erstellt eine unabhängige Kopie und Zurücksetzen stellt den zuletzt gesicherten Stand wieder her. Gelegentlich übergibt das macOS-Farbpanel eine neu gewählte Starfield-Farbe nicht an den Editor. [Editor-Anleitung](docs/EDITOR.de.md)
 
+Über das Tachometersymbol in der Live-Vorschau kannst du die optionale Diagnose für Frame-Zeiten, CPU und Speicher öffnen. Sie misst unabhängig von der Desktop-Diagnose und endet beim Schließen.
+
 | Nativer Effekt oder Ebene | Funktion |
 | --- | --- |
 | **Flow** | Gerichtete Bewegung auf einem Bild mit bearbeitbaren Richtungen und Regionen |
 | **Ripple** | Animierte Wellenverzerrung in einem Bild |
 | **Clouds** | Animierte Wolkenmuster auf einem Bild |
-| **Fog** | Bodennebel oder atmosphärischer Nebel zwischen Ebenen mit einstellbarem Aussehen und Drift |
+| **Fog** | Eigenständige Nebelebene zwischen anderen Ebenen mit einstellbarer Dichte, Weichheit, Struktur, Höhe, Farbe und Drift. Mit einer gemalten oder importierten Maske lässt sich der Nebel bereichsweise einblenden, ausblenden oder abschwächen |
 | **Rain** | Animierter Regen in einem einstellbaren Szenenbereich |
 | **Storm** | Blitze mit optionaler Aufhellung der gesamten Szene |
 | **Starfield** | Funkelnde, driftende Sterne, optionale Sternschnuppen und eine prozedurale Milchstraße |
 | **Music Notes** | Animierte Noten und optionale Notenlinien auf geraden, elliptischen oder bearbeitbaren Bézierpfaden mit Tiefe relativ zu einer Bildebene und Perspektive entlang offener Pfade |
-| **CursorTrail** | Eine Spur, die dem Mauszeiger in der Live-Vorschau oder bei der Wiedergabe folgt |
+| **CursorTrail** | Eine Spur, die dem Mauszeiger in der Live-Vorschau oder bei der Wiedergabe folgt und auf ihrem Display ausblendet, sobald der Zeiger es verlässt |
 
 [Effektindex](WSS-EFFECTS.md) · [Musiknoten-Anleitung](docs/anleitungen/MUSIKNOTEN.md) · [CursorTrail](WSS-TRAIL.md)
 

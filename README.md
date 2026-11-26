@@ -18,14 +18,15 @@ Wupsy requires **Apple silicon (ARM64)** and targets **macOS 14 or later**. Wups
 
 3. Open the disk image, copy `Wupsy.app` to **Applications**, wait for the copy to finish, then eject the disk image and open the copied app. If macOS blocks the app, you can approve it under **System Settings → Privacy & Security**.
 
-The sections below describe the current release. You can also [build from source](#build).
+You can also [build from source](#build).
 
 ## Library and desktop playback
 
-- **Import and organize.** Use **Add wallpaper** or drop files into the library. Search and filter your collection, mark favorites, rename a selected wallpaper with Return, and drag cards to change their saved order. Imports copy content into the managed library. Reimporting creates a separate copy. Removing a managed entry deletes its local copy.
-- **Playlists.** Create named playlists with their own interval and sequential or shuffle playback. Activation requires at least two distinct available wallpapers. Pause holds the remaining interval. Applying a wallpaper manually or choosing Stop ends rotation and keeps the playlist definition. Deleting a playlist keeps its wallpapers in the library.
-- **Playback.** Apply a wallpaper from the library and use Pause or Resume from the menu bar. Stop is available in the library. Closing the library window leaves playback running. Quit Wupsy from the menu bar to end it. For eligible image and WSS changes, Wupsy keeps the previous wallpaper if preparation fails. Video playback can make limited recovery attempts after a playback problem.
-- **Displays and settings.** Play on the main display or enable **All Displays**. Playback responds to sleep and wake. Settings include pause on battery, power saving, launch at login, update checks, and interface sizes of 100%, 125% and 150%. The library offers video quality and WSS resolution and frame-rate controls.
+- **Import and organize.** Use **Add wallpaper** or drop files into the library. Search and filter your collection, mark favorites, rename a selected wallpaper with Return, and drag cards to change their saved order. With the grid focused, the arrow keys move the selection and update the preview. The grid scrolls to keep the selection visible. Imports copy content into the managed library. Reimporting creates a separate copy. Removing a managed entry deletes its local copy.
+- **Playlists.** Create named playlists with their own interval and sequential or shuffle playback. Activation requires at least two distinct available wallpapers. Pause holds the remaining interval. Explicitly activating a playlist clears manual pause. System pause conditions still apply. Applying a wallpaper manually or choosing Stop ends rotation and keeps the playlist definition. Deleting a playlist keeps its wallpapers in the library.
+- **Playback.** Apply a wallpaper from the library and use Pause or Resume from the menu bar. Pause keeps the visible desktop frame for native WSS scenes, static images, videos and animated GIFs. Animations and videos resume from the frozen position. Local web wallpapers unload during pause and reload on resume. Library and editor previews run independently. Stop is available in the library. Closing the library window leaves playback running. Quit Wupsy from the menu bar to end it. For eligible image and WSS changes, Wupsy keeps the previous wallpaper if preparation fails. Video playback can make limited recovery attempts after a playback problem.
+- **Displays and settings.** Play on the main display or enable **All Displays**. Playback responds to sleep, wake and display changes, including displays that temporarily disappear during wake. Settings include pause on battery, power saving, launch at login, update checks, and interface sizes of 100%, 125% and 150%. The library offers video quality and WSS resolution and frame-rate controls.
+- **Performance diagnostics.** Use **Performance Diagnostics** in the library’s three-dot menu to inspect native WSS playback on a selected display. It shows frame rates and timings, with Wupsy process CPU, process memory and Metal memory in the expanded details. Measurement runs while the panel is open.
 
 ## Supported wallpaper formats
 
@@ -39,7 +40,7 @@ The sections below describe the current release. You can also [build from source
 
 GIF animation, MP4 playback with quality settings, and local web wallpapers were tested on macOS 26 and 27. PNG and JPEG were also tested with automatic wallpaper changes. Video requires a macOS-compatible codec such as H.264 or HEVC. MOV and M4V are accepted by the importer and have not yet been tested. Balanced and Eco can create optimized copies in a size-limited cache.
 
-Web wallpapers play local projects on the desktop. Their scripts may access the network. WSS projects require their referenced assets. Wallpaper Engine projects, PKG/TEX files and arbitrary external shaders are unsupported. Older Wupsy versions may reject scenes that use newer features. Use only content you have permission to use. Personal wallpaper photos and masks are not included. [Scene support](SCENE-SUPPORT.md) · [WSS format](WSS-SCENE-FORMAT.md)
+Web wallpapers play local projects on the desktop. Their scripts may access the network. WSS projects require their referenced assets. WSS errors during import, wallpaper preparation or editor opening provide guidance and copyable technical details. Wallpaper Engine projects, PKG/TEX files and arbitrary external shaders are unsupported. Older Wupsy versions may reject scenes that use newer features. Use only content you have permission to use. Personal wallpaper photos and masks are not included. [Scene support](SCENE-SUPPORT.md) · [WSS format](WSS-SCENE-FORMAT.md)
 
 ## Built-in wallpaper editor
 
@@ -47,17 +48,19 @@ Create a WSS scene, open an existing project, or open a managed static wallpaper
 
 Arrange, rename, show or hide layers. Move, resize and rotate image layers, adjust opacity, and combine image effects in an ordered stack. Paint masks for supported effects to choose where they appear. With Flow you can also paint movement directions and regions. Use the static canvas to arrange the scene and Live Preview to check animation. Undo and Redo let you revise edits. Use Smooth Anchor to align the handles of a selected Bézier anchor on a Music Notes path. Save updates the project, Save As creates an independent copy, and Revert restores the last saved scene. The macOS color panel can occasionally fail to pass a new Starfield color to the editor. [Editor guide](docs/EDITOR.md)
 
+Use the gauge in Live Preview to open optional frame, CPU and memory diagnostics for the editor preview. Its measurements run independently of desktop diagnostics and stop when closed.
+
 | Native effect or layer | What it does |
 | --- | --- |
 | **Flow** | Directional motion across an image, with paintable directions and regions |
 | **Ripple** | Animated wave distortion in an image |
 | **Clouds** | Animated cloud patterns on an image |
-| **Fog** | Ground or Atmospheric Fog between layers, with adjustable appearance and drift |
+| **Fog** | A standalone fog layer between other layers, with adjustable density, softness, structure, height, color and drift. Paint or import a mask to reveal, hide or attenuate fog in parts of the scene |
 | **Rain** | Animated rain in a configurable scene region |
 | **Storm** | Lightning, with optional illumination of the full scene |
 | **Starfield** | Stars with twinkle and drift, optional shooting stars and a procedural Milky Way |
 | **Music Notes** | Animated notes and optional staff lines on straight, elliptical or editable Bézier paths, with depth relative to an image layer and perspective along open paths |
-| **CursorTrail** | A trail that follows the pointer during live preview or playback |
+| **CursorTrail** | A trail that follows the pointer during live preview or playback and fades on its original display after the pointer leaves |
 
 [Effect index](WSS-EFFECTS.md) · [Music Notes guide](docs/anleitungen/MUSIC-NOTES.md) · [CursorTrail](WSS-TRAIL.md)
 

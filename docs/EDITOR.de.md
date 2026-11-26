@@ -28,6 +28,13 @@ Grund an. Unter „Details“ lässt sich die technische Diagnose ansehen und
 kopieren. Bei einer höheren WSS-Version oder unbekannten Funktionen kann
 eine neuere Wupsy-Version möglicherweise helfen.
 
+## Live-Vorschau und Performance-Diagnose
+
+Öffne die optionale Performance-Diagnose über das Tachometersymbol in der
+Live-Vorschau. Sie erfasst Frame-Zeiten unabhängig von der Desktop-Diagnose.
+Die erweiterten Details zeigen auch CPU- und Speicherwerte von Wupsy.
+Beim Schließen endet die Messung.
+
 ## Nebel
 
 Wähle „Nebel“ im Menü zum Hinzufügen von Ebenen. Nebel startet mit einer

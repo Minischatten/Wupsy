@@ -67,6 +67,59 @@ version-independent where possible and omit separate lists of unreleased
 features. Document unreleased work in this guide or the relevant technical
 documentation.
 
+## Wupsy 0.8.0 release preparation
+
+The local candidate is version 0.8.0 (build 4) for ARM64, based on
+`cce284863797acf05d9f31092734239d688341fa`, the starting tip of local `main`
+and `origin/main`. The current published release is
+[v0.7.0](https://github.com/Minischatten/Wupsy/releases/tag/v0.7.0).
+The release README review is complete for both languages. The public
+release text is in the [bilingual draft](docs/releases/0.8.0-DRAFT.md).
+
+Local verification on a physical Apple silicon Mac with macOS 27.2.1 and
+Xcode 27.2 passed formatting, strict on-screen Metal presentation, and the
+ARM64 Release build using the official packaging scripts and a separate
+SwiftPM build directory. Bundle identity, version 0.8.0, build 4, minimum
+macOS 14.0, English and German localization, and the ad-hoc app signature
+were verified. The bundle inventory contains the expected localization,
+Music Notes atlas, branding and notices, without personal wallpaper,
+diagnostics or test fixtures. The license, branding and attribution copies
+match the repository files.
+
+The read-only DMG verification passed the disk image checksum, Finder
+layout, Applications link, app metadata and signature checks. The embedded
+app has the same file contents as the standalone app. Artifacts are in
+`dist/release-0.8.0/`. The SHA-256 for `Wupsy-0.8.0.dmg` is
+`ad51c89b8cbfb383aecf49f9d1c4afda1c8e0cc9bb6ea54a228d4295bb4b4dea`.
+
+The complete local test run used
+`WUPSY_REQUIRE_METAL_PRESENTATION=1 swift test --build-system swiftbuild --jobs 2`.
+Of 1,560 test cases, 1,548 passed, one failed with six assertion failures,
+and 11 were skipped. The failed
+`WSSRemovedEffectTests` case still expected the old generic error path.
+The decoder correctly rejected each unsupported effect and reported its
+specific path. The assertion was updated to require that path, with no
+product code change. The focused rerun covered removed effects, WSS failure
+presentation, import and editor error localization, and strict Metal
+presentation. It reported 24 passed, zero failed and one skipped. This
+rerun covered the changed test and its related suites. The 11 skips in the
+complete run were opt-in fixture, performance, or export tests. Test,
+build and verification logs are alongside the artifacts.
+
+The maintainer's Apple silicon macOS VM run for build 4 completed 1,560
+tests with 1,547 passed, zero failed and 13 explained skips. The Release
+build had zero warnings, and the built app started successfully. The run
+used the standard VM Metal settings. Its report returned exit code 1
+because the geometry warning scan matched `nan` inside `PanAnd` in an
+XCTest status line. The [VM verification command](scripts/verify-release-vm.sh)
+now excludes XCTest case and suite status lines and matches NaN and
+Infinity as standalone terms. The updated report was checked against the
+available physical-Mac logs and synthetic positive and negative examples.
+
+Joint manual acceptance of the packaged DMG, including Finder
+installation, and publication are pending. The intended release tag is
+`v0.8.0`.
+
 ## Development builds for manual acceptance
 
 A complete, directly launchable ARM64 Release app is sufficient for manual

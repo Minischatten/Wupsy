@@ -18,7 +18,8 @@ final class WSSRemovedEffectTests: XCTestCase {
                     try JSONDecoder().decode(
                         WSSSceneDocumentV1.self, from: JSONSerialization.data(withJSONObject: json))
                 ) {
-                    XCTAssertEqual($0 as? WSSDocumentError, .effect(type))
+                    XCTAssertEqual(
+                        $0 as? WSSDocumentError, .effect(type, path: "$.layers[0].effects[1]"))
                     XCTAssertTrue($0.localizedDescription.contains(type))
                 }
             }

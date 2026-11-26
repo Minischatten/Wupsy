@@ -45,6 +45,12 @@ If a native wallpaper cannot be opened, the library shows the WSS failure
 reason. Use Details to inspect or copy the diagnosis. Higher WSS versions
 and unknown features can indicate that a newer Wupsy version may help.
 
+## Live Preview and performance diagnostics
+
+Use the gauge in Live Preview to open optional performance diagnostics. The
+preview measures frame timings independently of desktop diagnostics. Expanded
+details show Wupsy CPU and memory figures. Closing diagnostics stops sampling.
+
 ## Fog
 
 Choose Fog from the layer add menu. Fog starts with a black mask, an active
