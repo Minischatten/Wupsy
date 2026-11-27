@@ -91,3 +91,29 @@ Der Maintainer hat die abschließende Abnahme der Bearbeitung und Ersetzung von 
 | macOS 27 | 1.250 | 0 | 11 | Erfolgreich | Erfolgreich |
 
 Die Ergebnisse gelten für die abgeschlossene Funktion aus Etappe 1–3 einschließlich zusätzlichem Speichern, Ersetzen mit erhaltener Identität und Sortierung sowie der Wiedergabeübergabe während einer laufenden Playlist.
+
+## Ebene duplizieren
+
+Im Kontextmenü einer Ebenenzeile **Ebene duplizieren** wählen oder bei
+ausgewählter Ebene außerhalb eines Textfelds **⌘D** drücken. Die Kopie erscheint
+direkt unter der Originalzeile und wird ausgewählt. Die Liste zeigt weiterhin
+die Manifestreihenfolge. Spätere Zeilen werden über früheren gezeichnet.
+Position und Einstellungen werden übernommen. Bilder, Masken und Felder
+bleiben gemeinsam referenziert, bis eine Bearbeitung eine eigene
+Ressourcenversion erzeugt. Undo und Redo stellen Ebene und Auswahl gemeinsam
+wieder her.
+
+## Schleim
+
+Über das Hinzufügen-Menü der Ebenen **Schleim** wählen. Die Ebene auswählen
+und den ruhenden Ansatz im Canvas verschieben. Die Transformationsgriffe
+ändern die Größe und Drehung des Ansatzes passend zur Oberfläche. Die
+Fallrichtung bleibt am Szenenbild ausgerichtet. Für genaue Platzierung Ansatz X
+und Y im Inspector eingeben. X wächst nach rechts, Y nach oben. In der
+Live-Vorschau lässt sich der ganze Zyklus beim Einstellen von Farbe,
+Deckkraft, Glanz, Größe, Fadenbreite und -länge, Zyklusgeschwindigkeit,
+Tropfengröße, Fallrichtung und Fallstrecke beobachten. Die Fallstrecke reicht vom Ansatzmittelpunkt bis zur Projektion des
+Tropfenendpunkts auf die Fallachse. Fadenlänge, Fadenbreite am Ansatz und
+Tropfendurchmesser beim Abriss sind ebenfalls in Szenenpixeln angegeben. Umbenennen,
+Sichtbarkeit, Ebenenreihenfolge, Undo/Redo und Speichern verwenden die
+gewohnten Ebenenwerkzeuge. Wertebereiche stehen im [Slime-Vertrag](effects/SLIME.md).

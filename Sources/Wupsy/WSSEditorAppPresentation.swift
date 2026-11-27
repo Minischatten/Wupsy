@@ -103,6 +103,7 @@ import AppKit
 @MainActor struct WSSEditorCommands {
     enum Action {
         case save, saveAs, revert, delete
+        case duplicateLayer(WSSEditorSelection?)
         case zoom(WSSCanvasZoomCommand)
     }
     let document: WSSEditorDocument
@@ -133,6 +134,10 @@ import AppKit
             return !(window?.firstResponder is NSTextView)
                 && !(window?.firstResponder is NSTextField)
                 && document.currentDeletableSelection != nil
+        case .duplicateLayer(let target):
+            return !(window?.firstResponder is NSTextView)
+                && !(window?.firstResponder is NSTextField)
+                && document.duplicableLayer(target) != nil
         case .zoom:
             if let text = window?.firstResponder as? NSTextView,
                 text.isRichText && !text.isFieldEditor
@@ -159,6 +164,15 @@ import AppKit
             }
         case .revert: document.revert()
         case .delete: try? document.deleteSelection()
+        case .duplicateLayer(let target):
+            guard let id = document.duplicableLayer(target) else { return }
+            Task {
+                do { try await document.duplicateLayer(id) } catch {
+                    guard !document.closed else { return }
+                    await document.presentMessage?(
+                        EditorText.duplicateLayer.text, EditorErrorPresentation.message(error))
+                }
+            }
         case .zoom(let command): _ = document.canvasZoomCommand?(command)
         }
     }

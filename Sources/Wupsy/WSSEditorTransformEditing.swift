@@ -21,6 +21,7 @@ extension WSSEditorDocument {
             return WSSMusicNotesText.text(
                 notes.placementMode == .freeSingle ? "freeDragHelp" : "regionHelp")
         }
+        if slimeLayer(id) != nil { return WSSSlimeText.text("transformHelp") }
         if starfieldLayer(id) != nil { return WSSStarfieldText.text("help") }
         return stormLayer(id) == nil ? EditorText.transformHint.text : WSSStormText.transformHelp
     }
@@ -94,6 +95,9 @@ extension WSSEditorDocument {
         _ = try transform.native()
         var model = state.workingModel
         switch model.layers[index].content {
+        case .slime(var layer):
+            layer.transform = transform
+            model.layers[index].content = .slime(layer)
         case .image(var image):
             image.transform = transform
             model.layers[index].content = .image(image)

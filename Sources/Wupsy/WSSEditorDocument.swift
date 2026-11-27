@@ -180,7 +180,7 @@ import SwiftUI
         [String: WSSImageGeneration]
     ) async throws -> WSSStaticResources
     private let previewPreparationOverride: PreviewPrepare?
-    private let documentPreviewPreparation = WSSEditorPreviewPreparation()
+    let documentPreviewPreparation = WSSEditorPreviewPreparation()
     private(set) var directionValidationMilliseconds: Double = 0
     func recordDirectionValidation(_ milliseconds: Double) {
         directionValidationMilliseconds = milliseconds
@@ -209,6 +209,7 @@ import SwiftUI
             && !saveAsBusy && !hasActivePaintInteraction && requestSaveAs != nil
     }
     @Published var importingImage = false
+    @Published var duplicatingLayer = false
     let imageImporter = WSSImageImporter()
     let imagePreparation = WSSEditorPreviewPreparation()
     @Published private(set) var saving = false
@@ -846,6 +847,7 @@ import SwiftUI
             return EditorText.imageFilename.format(
                 URL(fileURLWithPath: image.asset).lastPathComponent)
         case .starfield: return WSSStarfieldText.title
+        case .slime: return WSSSlimeText.text("title")
         case .fog: return WSSFogText.text("title")
         case .musicNotes: return WSSMusicNotesText.title
         case .storm: return WSSStormText.title
@@ -905,7 +907,7 @@ import SwiftUI
                 sections += effectSections
             }
             if image.effects.isEmpty { section(.effects, "Effects", [.init(.count, "0")]) }
-        case .starfield, .fog, .musicNotes: break
+        case .starfield, .fog, .musicNotes, .slime: break
         case .storm: break  // Dedicated editable storm inspector.
         case .rain(let layer):
             let r = layer.rain

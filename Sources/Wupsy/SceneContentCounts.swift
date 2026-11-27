@@ -35,6 +35,8 @@ extension WSSStaticResources {
                 if stars.isEffective || stars.milkyWay.isEffective || meteors {
                     counts.effectiveEffects += 1
                 }
+            case .slime(let layer):
+                if layer.configuration.opacity > 0 { counts.effectiveEffects += 1 }
             case .fog(let layer):
                 if hasEffectiveFog(layer) { counts.effectiveEffects += 1 }
             case .musicNotes(let layer):

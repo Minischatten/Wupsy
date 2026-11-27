@@ -37,6 +37,7 @@ enum WSSSceneLayer {
     case trail(WSSTrailLayer)
     case storm(WSSStormLayer)
     case starfield(WSSStarfieldLayer)
+    case slime(WSSSlimeLayer)
     case fog(WSSFogLayer)
     case musicNotes(WSSMusicNotesLayer)
     var visible: Bool {
@@ -46,6 +47,7 @@ enum WSSSceneLayer {
         case .trail(let l): return l.visible
         case .storm(let l): return l.visible
         case .starfield(let l): return l.visible
+        case .slime(let l): return l.visible
         case .fog(let l): return l.visible
         case .musicNotes(let l): return l.visible
         }
@@ -91,6 +93,7 @@ struct WSSScene {
                     }
             case .trail(let l): return l.visible
             case .starfield(let l): return l.visible && l.starfield.isAnimated
+            case .slime(let l): return l.isAnimated
             case .fog(let l): return l.visible && l.fog.isAnimated && !fogIsEmpty(l)
             case .musicNotes(let l): return l.isAnimated
             case .storm(let l): return l.isAnimated
@@ -153,6 +156,15 @@ struct WSSScene {
             guard noteCount <= WSSMusicNotesLayer.maximumPerScene else {
                 throw WSSSceneError.invalid("musicNotes scene budget")
             }
+        }
+        var slimeCount = 0
+        for case .slime(let layer) in layers {
+            slimeCount += 1
+            guard slimeCount <= WSSSlimeLayer.maximumLayers else {
+                throw WSSSceneError.invalid("slime scene budget")
+            }
+            try layer.configuration.validate()
+            _ = try layer.nativeTransform()
         }
         var trailBudget = 0.0
         var rainCount = 0

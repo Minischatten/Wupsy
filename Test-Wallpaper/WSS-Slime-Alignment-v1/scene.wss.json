@@ -1,0 +1,176 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Slime Alignment Acceptance",
+  "canvas": {
+    "width": 880,
+    "height": 460
+  },
+  "layers": [
+    {
+      "type": "image",
+      "name": "Synthetic guide surfaces",
+      "image": "assets/guides.png",
+      "transform": {
+        "center": [
+          440.0,
+          230.0
+        ],
+        "size": [
+          880,
+          460
+        ]
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Horizontal",
+      "transform": {
+        "center": [
+          90,
+          355
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0
+      },
+      "slime": {
+        "color": {
+          "red": 0.25,
+          "green": 0.55,
+          "blue": 0.35
+        },
+        "width": 19.8,
+        "length": 95,
+        "speed": 1,
+        "opacity": 1,
+        "gloss": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 245
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Right slope",
+      "transform": {
+        "center": [
+          245,
+          355
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0.58
+      },
+      "slime": {
+        "color": {
+          "red": 0.25,
+          "green": 0.55,
+          "blue": 0.35
+        },
+        "width": 19.8,
+        "length": 95,
+        "speed": 1,
+        "opacity": 1,
+        "gloss": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 245
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Left slope",
+      "transform": {
+        "center": [
+          425,
+          355
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": -0.58
+      },
+      "slime": {
+        "color": {
+          "red": 0.25,
+          "green": 0.55,
+          "blue": 0.35
+        },
+        "width": 19.8,
+        "length": 95,
+        "speed": 1,
+        "opacity": 1,
+        "gloss": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 245
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Vertical",
+      "transform": {
+        "center": [
+          592,
+          355
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 1.5707963267948966
+      },
+      "slime": {
+        "color": {
+          "red": 0.25,
+          "green": 0.55,
+          "blue": 0.35
+        },
+        "width": 19.8,
+        "length": 95,
+        "speed": 1,
+        "opacity": 1,
+        "gloss": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 245
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Slanted gravity, unequal scale",
+      "transform": {
+        "center": [
+          722,
+          355
+        ],
+        "size": [
+          44,
+          24
+        ],
+        "rotation": 0.5
+      },
+      "slime": {
+        "color": {
+          "red": 0.25,
+          "green": 0.55,
+          "blue": 0.35
+        },
+        "width": 19.8,
+        "length": 95,
+        "speed": 1,
+        "opacity": 1,
+        "gloss": 1,
+        "dropSize": 19,
+        "direction": 145,
+        "distance": 245
+      }
+    }
+  ]
+}

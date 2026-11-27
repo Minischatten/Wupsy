@@ -1,0 +1,106 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Equal Slime Fall Distances in Scene Pixels",
+  "canvas": {
+    "width": 480,
+    "height": 1440
+  },
+  "background": [
+    0.06,
+    0.08,
+    0.1
+  ],
+  "layers": [
+    {
+      "type": "slime",
+      "name": "Small anchor",
+      "transform": {
+        "center": [
+          90,
+          1320
+        ],
+        "size": [
+          20,
+          16
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 500,
+        "cycleOffset": 0
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Reference anchor",
+      "transform": {
+        "center": [
+          240,
+          1320
+        ],
+        "size": [
+          32,
+          32
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 500,
+        "cycleOffset": 0
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Wide tall anchor",
+      "transform": {
+        "center": [
+          390,
+          1320
+        ],
+        "size": [
+          48,
+          64
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 500,
+        "cycleOffset": 0
+      }
+    }
+  ]
+}

@@ -29,7 +29,7 @@ extension WSSEditorDocument {
         selection = target
         if case .layer(let id) = target,
             stormLayer(id)?.visible == true || starfieldLayer(id)?.visible == true
-                || musicNotesLayer(id)?.visible == true
+                || musicNotesLayer(id)?.visible == true || slimeLayer(id)?.visible == true
         {
             _ = activateTransformMode(id)
         }
@@ -75,6 +75,9 @@ extension WSSEditorDocument {
         case .musicNotes(var layer):
             layer.visible = visible
             model.layers[index].content = .musicNotes(layer)
+        case .slime(var layer):
+            layer.visible = visible
+            model.layers[index].content = .slime(layer)
         case .fog(var layer):
             layer.visible = visible
             model.layers[index].content = .fog(layer)
@@ -155,6 +158,85 @@ extension WSSEditorDocument {
         ids.layers.insert(ids.layers.remove(at: current), at: destination)
         try mutate(model, name: EditorText.moveLayer.text, ids: ids)
     }
+    func duplicableLayer(_ target: WSSEditorSelection?) -> WSSLayerID? {
+        guard permitsStructureEditing, !duplicatingLayer, identity.layers.count < 128,
+            case .layer(let id) = target ?? selection,
+            identity.layers.contains(where: { $0.id == id })
+        else { return nil }
+        return id
+    }
+
+    private func duplicateName(at index: Int) -> String {
+        let names = Set(
+            state.workingModel.layers.indices.map {
+                layerDisplayName(at: $0).folding(options: .caseInsensitive, locale: nil)
+            })
+        let base = layerDisplayName(at: index)
+            .components(separatedBy: CharacterSet.controlCharacters.union(.newlines))
+            .joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        let copy = EditorText.layerCopySuffix.text
+        for number in 1...128 {
+            let suffix = number == 1 ? " (\(copy))" : " (\(copy) \(number))"
+            let candidate = String(base.prefix(256 - suffix.count)) + suffix
+            if !names.contains(candidate.folding(options: .caseInsensitive, locale: nil)) {
+                return candidate
+            }
+        }
+        // The global layer limit guarantees a free suffix before this fallback.
+        return "\(copy) \(UUID().uuidString)"
+    }
+
+    func duplicateLayer(_ id: WSSLayerID) async throws {
+        guard duplicableLayer(.layer(id)) != nil, finishEditing() else { return }
+        try await maintenance.withMutationAsync {
+            guard duplicableLayer(.layer(id)) != nil,
+                let index = identity.layers.firstIndex(where: { $0.id == id })
+            else { return }
+            duplicatingLayer = true
+            beginResourceOperation()
+            defer {
+                endResourceOperation()
+                duplicatingLayer = false
+            }
+
+            let session = state.sessionID
+            let revision = state.workingRevision
+            let startingSelection = selection
+            var model = state.workingModel
+            var ids = identity
+            var copy = model.layers[index]
+            copy.name = duplicateName(at: index)
+            // Editor IDs are session-local. A named depth target also has a
+            // separate persistent ID that existing Music Notes keep referring to.
+            if case .image(var image) = copy.content, image.depthID != nil {
+                image.depthID = UUID()
+                copy.content = .image(image)
+            }
+            let copyID = WSSLayerID()
+            let effectIDs = ids.layers[index].effects.map { _ in WSSEffectID() }
+            // The structure list displays manifest order from top to bottom.
+            model.layers.insert(copy, at: index + 1)
+            ids.layers.insert(.init(id: copyID, effects: effectIDs), at: index + 1)
+
+            _ = try model.encoded()
+            let basis = WSSProjectDiskBasis(
+                identity: state.diskBasis.identity, manifest: state.diskBasis.manifest,
+                assets: state.resourceCatalog)
+            let paths = model.referencedPaths
+            let assets = state.sessionAssets.filter { paths.contains($0.key) }
+            let lease = state.pinPreviewResources(paths)
+            defer { withExtendedLifetime(lease) {} }
+            // Validate native resource budgets with the existing asset references.
+            _ = try await documentPreviewPreparation.prepare(
+                model, basis: basis, handle: project.handle, sessionAssets: assets)
+            guard permitsStructureEditing, state.sessionID == session,
+                state.workingRevision == revision, selection == startingSelection
+            else { return }
+            try mutate(
+                model, name: EditorText.duplicateLayer.text, ids: ids, selected: .layer(copyID))
+        }
+    }
+
     var currentDeletableSelection: WSSDeletableTarget? {
         guard permitsStructureEditing, let selection,
             let index = identity.layers.firstIndex(where: { $0.id == selection.layer }),

@@ -19,6 +19,7 @@ final class WSSStaticResources: @unchecked Sendable {
     let trail: WSSTrailRenderer?
     let milkyWay: WSSMilkyWayRenderer?
     let starfield: WSSStarfieldRenderer?
+    let slime: WSSSlimePrototypeRenderer?
     let fog: WSSFogRenderer?
     let fogMasks: WSSFogMasks
     let musicNotes: WSSMusicNotesRenderer?
@@ -195,6 +196,11 @@ final class WSSStaticResources: @unchecked Sendable {
         musicNotesStaffs = try WSSMusicNotesStaffRenderer.prepare(scene: scene, device: device)
         musicNotesStaffRenderer =
             musicNotesStaffs.isEmpty ? nil : try WSSMusicNotesStaffRenderer(device: device)
+        slime =
+            scene.layers.contains {
+                if case .slime = $0 { return true }
+                return false
+            } ? try WSSSlimePrototypeRenderer(device: device) : nil
         fogMasks = try WSSFogMasks(scene: scene, assets: assets, device: device)
         fog =
             try scene.layers.contains {
@@ -317,6 +323,7 @@ final class WSSStaticResources: @unchecked Sendable {
         trail = original.trail
         milkyWay = milkyWayOverride ?? original.milkyWay
         starfield = original.starfield
+        slime = original.slime
         fog = original.fog
         fogMasks = original.fogMasks
         musicNotes = original.musicNotes
@@ -409,6 +416,13 @@ final class WSSStaticResources: @unchecked Sendable {
         var normalized = candidate
         var updated = scene
         for index in previous.layers.indices {
+            if case .slime = previous.layers[index].content,
+                case .slime(let new) = normalized.layers[index].content
+            {
+                updated.layers[index] = .slime(new)
+                normalized.layers[index].content = previous.layers[index].content
+                continue
+            }
             if case .musicNotes(let old) = previous.layers[index].content,
                 case .musicNotes(let new) = normalized.layers[index].content
             {
@@ -769,6 +783,22 @@ final class WSSStaticResources: @unchecked Sendable {
                     layer, path: musicNotesPaths[index],
                     canvas: SIMD2(Float(scene.width), Float(scene.height)), crop: crop,
                     time: time, encoder: encoder)
+                continue
+            }
+            if case .slime(let layer) = node {
+                let configuration = layer.configuration
+                guard configuration.opacity > 0 else { continue }
+                guard let slime, let transform = try? layer.nativeTransform() else {
+                    encoder.endEncoding()
+                    throw WSSSceneError.invalid("missing or invalid slime render resources")
+                }
+                let color = configuration.color
+                slime.encode(
+                    at: time,
+                    material: .init(
+                        tintAndOpacity: SIMD4(color.red, color.green, color.blue, 0.87)),
+                    configuration: configuration, transform: transform, canvas: canvas,
+                    crop: crop, encoder: encoder)
                 continue
             }
             if case .fog(let layer) = node {

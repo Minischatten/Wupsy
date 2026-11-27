@@ -50,6 +50,11 @@ See [Flow regions and edges](docs/effects/FLOW.md#regions-coverage-and-edges).
 
 Procedural pointer-driven ribbon layer: [Trail contract](WSS-TRAIL.md), [curve mathematics](docs/CURSOR-TRAIL-CURVES.md).
 
+## Slime
+
+See the [Slime contract](docs/effects/SLIME.md) for the hanging filament layer,
+material and cycle controls, and scene limits.
+
 ## Shared coordinates and validation
 
 See [shared image rules](docs/effects/COMMON.md#shared-coordinates-and-validation).

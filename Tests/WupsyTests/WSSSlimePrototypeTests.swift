@@ -1,5 +1,6 @@
 import Metal
 import XCTest
+import simd
 
 @testable import Wupsy
 
@@ -43,7 +44,8 @@ final class WSSSlimePrototypeTests: XCTestCase {
         XCTAssertGreaterThan(late.drop.y - early.drop.y, early.drop.y - release.drop.y)
         XCTAssertLessThan(late.stem.last!.y, release.stem.last!.y)
         let end = Slime.frame(at: Slime.release + 2)
-        XCTAssertEqual(end.drop.y - release.drop.y, Slime.fallLimit, accuracy: 0.001)
+        XCTAssertEqual(
+            end.drop.y - Slime.anchor.y, WSSSlimeConfiguration().distance, accuracy: 0.001)
         XCTAssertEqual(end.visibility, 0)
     }
 
@@ -73,6 +75,101 @@ final class WSSSlimePrototypeTests: XCTestCase {
         XCTAssertLessThan(extent(0.70) - extent(0.80), extent(0.30) - extent(0.40))
         let settled = Slime.frame(at: Slime.release + 0.92)
         XCTAssertEqual(settled.stem, Slime.frame(at: 0).stem)
+    }
+
+    func testTiltedAnchorsBendSmoothlyAndFallAlongTheSceneAxis() {
+        let pinch = Slime.release
+        let config = WSSSlimeConfiguration()
+        func center(_ sample: SIMD4<Float>) -> SIMD2<Float> { SIMD2(sample.x, sample.y) }
+
+        let orientations: [(Float, Float, SIMD2<Float>, SIMD2<Float>)] = [
+            (Float(0), Float(180), SIMD2<Float>(32, 32), SIMD2<Float>(0, -1)),
+            (.pi / 4, 180, SIMD2(32, 32), SIMD2(0, -1)),
+            (-.pi / 4, 180, SIMD2(32, 32), SIMD2(0, -1)),
+            (.pi / 2, 180, SIMD2(32, 32), SIMD2(0, -1)),
+            (.pi / 4, 90, SIMD2(56, 20), SIMD2(1, 0)),
+            (-.pi / 4, 225, SIMD2(20, 54), SIMD2(-0.707107, -0.707107)),
+        ]
+        for (rotation, direction, size, expectedDown) in orientations {
+            let transform = WSSImageTransform(center: .zero, size: size, rotation: rotation)
+            let placement = Slime.Placement(transform, direction: direction)
+            func frame(_ time: Double) -> Slime.Frame {
+                Slime.frame(at: time, configuration: config, anchorTilt: placement.anchorTilt)
+            }
+            func scene(_ vector: SIMD2<Float>) -> SIMD2<Float> {
+                placement.axisX * vector.x + placement.axisY * vector.y
+            }
+            let growing = frame(3.2)
+            let early = simd_normalize(scene(center(growing.stem[1]) - center(growing.stem[0])))
+            let late = simd_normalize(scene(center(growing.stem[12]) - center(growing.stem[11])))
+            XCTAssertGreaterThan(simd_dot(early, -simd_normalize(transform.axisY)), 0.8)
+            XCTAssertGreaterThan(simd_dot(late, expectedDown), 0.97)
+            let segments = zip(growing.stem, growing.stem.dropFirst()).map {
+                simd_normalize(center($1) - center($0))
+            }
+            for (a, b) in zip(segments, segments.dropFirst()) {
+                XCTAssertGreaterThan(simd_dot(a, b), 0.5)
+            }
+
+            let before = frame(pinch - 0.001)
+            let at = frame(pinch)
+            let after = frame(pinch + 0.001)
+            XCTAssertLessThan(simd_distance(center(before.drop), center(at.drop)), 0.005)
+            XCTAssertLessThan(simd_distance(center(after.drop), center(at.drop)), 0.005)
+            let neck = simd_normalize(center(at.neck) - center(at.stem[Slime.segments]))
+            let hanging = simd_normalize(center(at.drop) - center(at.stem[Slime.segments]))
+            XCTAssertGreaterThan(simd_dot(neck, hanging), 0.999)
+            let falling = simd_normalize(scene(center(frame(pinch + 0.6).drop) - center(at.drop)))
+            XCTAssertGreaterThan(simd_dot(falling, expectedDown), 0.99999)
+            let retraction = frame(pinch + 0.35)
+            XCTAssertEqual(center(retraction.stem[0]), Slime.anchor)
+            XCTAssertLessThan(
+                simd_distance(center(retraction.stem.last!), Slime.anchor),
+                simd_distance(center(at.stem.last!), Slime.anchor))
+            XCTAssertEqual(frame(pinch + 0.92).stem, frame(0).stem)
+        }
+    }
+
+    func testLongFallKeepsAccelerationAndFadesBeforeCycleWrap() {
+        var short = WSSSlimeConfiguration()
+        short.distance = 258
+        var long = short
+        long.distance = 6000
+        let pinch = Slime.release
+        let base = Slime.frame(at: pinch, configuration: long)
+        for seconds in [0.2, 0.4, 0.7] {
+            let time = pinch + seconds
+            let a = Slime.frame(at: time, configuration: short)
+            let b = Slime.frame(at: time, configuration: long)
+            XCTAssertEqual(a.drop, b.drop)
+            XCTAssertEqual(b.drop.y - base.drop.y, Float(96 * seconds * seconds), accuracy: 0.001)
+        }
+        let duration = Slime.cycleDuration(distance: long.distance - (base.drop.y - Slime.anchor.y))
+        XCTAssertEqual(Slime.cycleDuration(distance: short.distance), 7)
+        XCTAssertGreaterThan(Slime.frame(at: 7.1, configuration: long).visibility, 0.9)
+        for (speed, offset): (Float, Float) in [(0.5, 0.25), (1, 0), (3, 0.5)] {
+            long.speed = speed
+            long.cycleOffset = offset
+            let wrap = duration * (1 - Double(offset)) / Double(speed)
+            XCTAssertEqual(
+                Slime.frame(at: wrap - 0.025 / Double(speed), configuration: long).visibility, 0)
+            XCTAssertEqual(
+                Slime.frame(at: wrap + 0.025 / Double(speed), configuration: long).visibility, 0)
+        }
+
+        long.speed = 1
+        long.cycleOffset = 0
+        let drawing = Slime.Placement(.init(center: .zero, size: SIMD2(32, 32)), direction: 180)
+        let bounds = WSSSlimePrototypeRenderer.drawBounds(
+            frame: Slime.frame(at: 7.1, configuration: long), drawing: drawing)
+        XCTAssertEqual(bounds.count, 2)
+        guard bounds.count == 2 else { return }
+        XCTAssertGreaterThan(bounds[1].y - bounds[0].w, 900)
+        let coveredArea = bounds.reduce(Float(0)) { $0 + ($1.z - $1.x) * ($1.w - $1.y) }
+        let unionArea =
+            (max(bounds[0].z, bounds[1].z) - min(bounds[0].x, bounds[1].x))
+            * (bounds[1].w - bounds[0].y)
+        XCTAssertLessThan(coveredArea, unionArea * 0.05)
     }
 
     func testMetalCoverageTransparencyAndRelease() throws {

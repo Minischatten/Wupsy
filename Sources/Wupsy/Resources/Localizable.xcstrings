@@ -1,6 +1,311 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "editor.slime.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slime"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schleim"
+          }
+        }
+      }
+    },
+    "editor.slime.color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Material color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Materialfarbe"
+          }
+        }
+      }
+    },
+    "editor.slime.reflectionColor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reflection color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reflexionsfarbe"
+          }
+        }
+      }
+    },
+    "editor.slime.anchorX": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anchor X"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ansatz X"
+          }
+        }
+      }
+    },
+    "editor.slime.anchorY": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anchor Y"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ansatz Y"
+          }
+        }
+      }
+    },
+    "editor.slime.sizeX": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal size"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontale Größe"
+          }
+        }
+      }
+    },
+    "editor.slime.sizeY": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical size"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertikale Größe"
+          }
+        }
+      }
+    },
+    "editor.slime.opacity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opacity"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deckkraft"
+          }
+        }
+      }
+    },
+    "editor.slime.gloss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gloss"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glanz"
+          }
+        }
+      }
+    },
+    "editor.slime.width": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filament Width (px)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fadenbreite (px)"
+          }
+        }
+      }
+    },
+    "editor.slime.length": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum Filament Length (px)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximale Fadenlänge (px)"
+          }
+        }
+      }
+    },
+    "editor.slime.speed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cycle speed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zyklusgeschwindigkeit"
+          }
+        }
+      }
+    },
+    "editor.slime.cycleOffset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cycle Offset"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zyklusversatz"
+          }
+        }
+      }
+    },
+    "editor.slime.dropSize": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop Size (px)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tropfengröße (px)"
+          }
+        }
+      }
+    },
+    "editor.slime.transformHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the anchor to move it. Use the rotation handle to align it with the surface. Set the fall direction in the inspector."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den Ansatz durch Ziehen verschieben und mit dem Drehgriff an der Oberfläche ausrichten. Die Fallrichtung im Inspector einstellen."
+          }
+        }
+      }
+    },
+    "editor.slime.direction": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scene fall direction (°)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fallrichtung im Bild (°)"
+          }
+        }
+      }
+    },
+    "editor.slime.spatialHelp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Width is measured at the filament root, drop diameter at release. A short fall distance can limit the filament length."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Fadenbreite gilt am Ansatz, der Tropfendurchmesser beim Abriss. Eine kurze Fallstrecke kann die Fadenlänge begrenzen."
+          }
+        }
+      }
+    },
+    "editor.slime.distance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fall Distance from Anchor (px)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fallstrecke ab Ansatz (px)"
+          }
+        }
+      }
+    },
     "performance.title": {
       "extractionState": "manual",
       "localizations": {
@@ -8298,6 +8603,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ebene verschieben"
+          }
+        }
+      }
+    },
+    "editor.duplicateLayer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate Layer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ebene duplizieren"
+          }
+        }
+      }
+    },
+    "editor.layerCopySuffix": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopie"
           }
         }
       }

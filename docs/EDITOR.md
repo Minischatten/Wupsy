@@ -51,6 +51,30 @@ Use the gauge in Live Preview to open optional performance diagnostics. The
 preview measures frame timings independently of desktop diagnostics. Expanded
 details show Wupsy CPU and memory figures. Closing diagnostics stops sampling.
 
+## Duplicate a layer
+
+Use **Duplicate Layer** in a layer row's context menu, or press **Command-D**
+with a layer selected and focus outside a text field. The copy appears
+immediately below the source row in the list and becomes selected. The list
+continues to show manifest order, with later rows composited above earlier
+rows. The copy retains the source placement and settings. Changes to a shared
+image, mask or field use the usual independent asset generations. Undo and
+Redo restore the layer and selection together.
+
+## Slime
+
+Choose **Slime** in the layer add menu. Select the layer and drag its resting
+anchor in the Canvas. The transform handles resize and rotate the
+attachment to match the surface. The fall direction stays relative to the scene.
+Anchor X and Y in the inspector allow precise placement. X increases rightward,
+Y upward. Use Live Preview to watch the full cycle while adjusting material
+color, opacity, gloss, size, filament width and length, cycle speed, drop size,
+fall direction and fall distance. Fall distance is measured from the anchor
+center to the drop endpoint along the fall axis. Filament length, base width
+and release diameter also use scene-image pixels and remain independent of
+the attachment size. Slime layers can be named, hidden, reordered, undone,
+and saved through the usual layer tools. See the [Slime contract](effects/SLIME.md).
+
 ## Fog
 
 Choose Fog from the layer add menu. Fog starts with a black mask, an active

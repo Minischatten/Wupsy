@@ -3,6 +3,8 @@ import Metal
 import QuartzCore
 import os
 
+@testable import Wupsy
+
 @MainActor enum MetalPresentationProbe {
     enum Result {
         case confirmed
@@ -26,7 +28,7 @@ import os
 
     private static func submit(
         _ number: Int, layer: CAMetalLayer, queue: MTLCommandQueue,
-        deadline: ContinuousClock.Instant
+        deadline: ContinuousClock.Instant, resources: WSSStaticResources?, sceneTime: Double
     ) -> Attempt? {
         // Release local drawable and render-pass references before waiting for callbacks.
         autoreleasepool {
@@ -45,14 +47,28 @@ import os
             pass.colorAttachments[0].texture = drawable.texture
             pass.colorAttachments[0].loadAction = .clear
             pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].storeAction = .store
             pass.colorAttachments[0].clearColor = MTLClearColorMake(0.1, 0.4, 0.8, 1)
-            guard let command = queue.makeCommandBuffer(),
-                let encoder = command.makeRenderCommandEncoder(descriptor: pass)
-            else {
-                print("WUPSY_METAL_PROBE attempt=\(number) commandBufferOrEncoder=unavailable")
+            guard let command = queue.makeCommandBuffer() else {
+                print("WUPSY_METAL_PROBE attempt=\(number) commandBuffer=unavailable")
                 return nil
             }
-            encoder.endEncoding()
+            if let resources {
+                do {
+                    try resources.encode(
+                        command: command, descriptor: pass, size: layer.drawableSize,
+                        time: sceneTime + Double(number) / 8, projection: .fullCanvas)
+                } catch {
+                    print("WUPSY_METAL_PROBE scene encode failed: \(error)")
+                    return nil
+                }
+            } else {
+                guard let encoder = command.makeRenderCommandEncoder(descriptor: pass) else {
+                    print("WUPSY_METAL_PROBE attempt=\(number) encoder=unavailable")
+                    return nil
+                }
+                encoder.endEncoding()
+            }
             let observation = Attempt(initialState: Observation())
             command.addCompletedHandler { buffer in
                 observation.withLock {
@@ -72,13 +88,22 @@ import os
         }
     }
 
-    static func run(on screen: NSScreen) async -> Result {
+    static func run(on screen: NSScreen, scene: WSSScene? = nil, sceneTime: Double = 3) async
+        -> Result
+    {
         guard let device = MTLCreateSystemDefaultDevice() else {
             return .failed("No Metal device")
         }
         guard let queue = device.makeCommandQueue() else {
             return .failed("Could not create Metal command queue")
         }
+        let resources: WSSStaticResources?
+        do {
+            resources = try scene.map {
+                try WSSStaticResources(
+                    scene: $0, assets: WSSStaticTests.Assets(values: [:]), device: device)
+            }
+        } catch { return .failed("Could not prepare presentation scene: \(error)") }
         let visible = screen.visibleFrame
         guard visible.width >= 160, visible.height >= 120 else {
             return .failed("Display has no usable window area: \(visible)")
@@ -208,7 +233,8 @@ import os
             )
             guard
                 let attempt = submit(
-                    number, layer: layer, queue: queue, deadline: deadline)
+                    number, layer: layer, queue: queue, deadline: deadline, resources: resources,
+                    sceneTime: sceneTime)
             else {
                 print("WUPSY_METAL_PROBE submission.endAt=\(started.duration(to: .now))")
                 return .failed("Attempt \(number): drawable or command setup failed")

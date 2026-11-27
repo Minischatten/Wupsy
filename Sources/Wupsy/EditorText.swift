@@ -55,6 +55,8 @@ enum EditorText: String, CaseIterable {
     case invalidLayerName = "editor.invalidLayerName"
     case layerVisibility = "editor.layerVisibility"
     case moveLayer = "editor.moveLayer"
+    case duplicateLayer = "editor.duplicateLayer"
+    case layerCopySuffix = "editor.layerCopySuffix"
     case deleteLayer = "editor.deleteLayer"
     case opacity = "editor.opacity"
     case centerX = "editor.centerX"

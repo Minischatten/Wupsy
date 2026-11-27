@@ -218,6 +218,79 @@ final class WSSTrailTests: XCTestCase {
         }
         return bytes
     }
+    func testTwoTrailLayersSharePointerWithIndependentHistoriesAndAdditiveOutput() throws {
+        var wide = configuration()
+        wide.colors = [.init(r: 0, g: 0, b: 1)]
+        wide.width = 18
+        wide.opacity = 0.3
+        wide.emissionRate = 20
+        wide.fadeIn = 0
+        wide.fadeOut = 0
+        wide.edgeSoftness = 0
+        var narrow = wide
+        narrow.colors = [.init(r: 1, g: 0, b: 0)]
+        narrow.width = 4
+        narrow.opacity = 0.8
+        narrow.emissionRate = 50
+        let device = try WSSStaticTests().device()
+        let assets = WSSStaticTests.Assets(values: [:])
+        let layers = [wide, narrow].map { WSSSceneLayer.trail(.init(configuration: $0)) }
+        let resources = try WSSStaticResources(
+            scene: .init(width: 64, height: 64, layers: layers), assets: assets, device: device)
+        let context = WSSTrailRenderContext()
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm, width: 64, height: 64, mipmapped: false)
+        descriptor.storageMode = .shared
+        descriptor.usage = .renderTarget
+        let texture = try XCTUnwrap(device.makeTexture(descriptor: descriptor))
+        func frame(at time: Double, pointer: SIMD2<Float>?, advance: Bool = true) throws {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+            let command = try XCTUnwrap(resources.queue.makeCommandBuffer())
+            try resources.encode(
+                command: command, descriptor: pass, size: CGSize(width: 64, height: 64),
+                time: time, trailContext: context, pointer: pointer, advanceTrail: advance)
+            command.commit()
+            command.waitUntilCompleted()
+            XCTAssertEqual(command.status, .completed)
+        }
+
+        try frame(at: 0, pointer: SIMD2(8, 32))
+        try frame(at: 0.5, pointer: SIMD2(56, 32))
+        let captured = context.snapshot()
+        let wideState = try XCTUnwrap(captured[0])
+        let narrowState = try XCTUnwrap(captured[1])
+        XCTAssertEqual(wideState.configuration, wide)
+        XCTAssertEqual(narrowState.configuration, narrow)
+        XCTAssertLessThan(wideState.samples.count, narrowState.samples.count)
+        XCTAssertEqual(wideState.samples.last?.position, narrowState.samples.last?.position)
+
+        var pixels = [UInt8](repeating: 0, count: 64 * 64 * 4)
+        pixels.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: 256, from: MTLRegionMake2D(0, 0, 64, 64),
+                mipmapLevel: 0)
+        }
+        let core = (31 * 64 + 32) * 4
+        let halo = (25 * 64 + 32) * 4
+        XCTAssertGreaterThan(pixels[core], 40)
+        XCTAssertGreaterThan(pixels[core + 2], 100)
+        XCTAssertGreaterThan(pixels[halo], 40)
+        XCTAssertEqual(pixels[halo + 2], 0)
+
+        try frame(at: 0.5, pointer: SIMD2(1, 1), advance: false)
+        XCTAssertEqual(context.snapshot()[0]?.samples, wideState.samples)
+        XCTAssertEqual(context.snapshot()[1]?.samples, narrowState.samples)
+        context.reset()
+        context.restore(captured)
+        context.rebase(time: 0.5, pointer: nil)
+        XCTAssertEqual(context.snapshot()[0]?.samples, wideState.samples)
+        XCTAssertEqual(context.snapshot()[1]?.samples, narrowState.samples)
+    }
+
     func testMetalPaletteAndSoftnessWithoutTextures() throws {
         var red = configuration()
         red.colors = [.init(r: 1, g: 0, b: 0)]

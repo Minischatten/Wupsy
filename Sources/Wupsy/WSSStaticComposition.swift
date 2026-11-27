@@ -12,6 +12,12 @@ enum WSSStaticComposition {
                 notes.anchoredSymbol?.rotationMode = WSSMusicNotesLayer.SingleRotationMode.none
                 return .init(content: .musicNotes(notes))
             }
+            if case .slime(var slime) = layer.content {
+                slime.configuration.speed = 0
+                var node = layer
+                node.content = .slime(slime)
+                return node
+            }
             guard case .image(var image) = layer.content else { return nil }
             image.effects = []
             var node = layer

@@ -417,7 +417,7 @@ refinement and the Phase 1.2 filament retraction. The accepted material uses
 analytic normals derived from the filament and drop shapes for softer, localized
 reflections. Quality control also visually accepted the post-release geometry,
 including transient thickening, a rounded tip and smooth deceleration into the
-anchor. This prototype is the basis for future phases. Phase 2 has not started.
+anchor. This prototype is the basis for future phases.
 
 The isolated debug preview uses the existing playback clock and a bounded
 procedural draw. It includes a green-tinted material and a lighter translucent
@@ -432,6 +432,189 @@ changes the material. The 1, 2 and 3 keys pause 0.1 seconds before, at and 0.1
 seconds after pinch-off. The 4 and 5 keys pause 0.35 and 0.8 seconds after
 pinch-off for retraction inspection. Left and Right step by 1/60 second, R restarts and
 Escape closes the preview. The launcher bypasses regular app startup.
+
+### Phase 2
+
+Slime is a sortable WSS v1 layer with the shared Metal renderer, Canvas anchor
+placement, native SDR color selection and a German and English inspector. The
+existing save, undo and playback paths manage it. The editing Canvas shows the
+resting anchor and Live Preview shows the animated cycle. See the
+[Slime contract](docs/effects/SLIME.md).
+
+The targeted run on a Mac Studio with Apple M4 Max passed 51 tests with zero
+failures. One optional generated-project test was skipped because its fixture
+environment was absent. The two-layer Slime fixture completed Metal rendering
+and confirmed on-screen presentation. A final run of all ten Slime tests passed,
+including the updated Metal pixel and presentation checks. Formatting and Git
+diff checks passed.
+
+The signed ARM64 development Release app is at
+`dist/slime-phase-2/Wupsy.app`. Bundle metadata, ad-hoc signature, English and
+German localization, and the 14 Slime labels in each built language were
+verified. Quality control accepted the integrated editor and desktop workflow.
+
+### Phase 2.1
+
+Slime now has an independent native SDR reflection color below the material
+color. Omission in WSS retains the Phase 2 highlight RGB (0.87, 0.97, 0.93), and
+saving omits that default. Nondefault values round-trip and are rejected by
+older strict Slime readers. See the [Slime contract](docs/effects/SLIME.md).
+
+Five Metal frames of the synthetic two-layer scene matched Phase 2 byte for
+byte on the Mac Studio with Apple M4 Max. All 20 focused Slime and WSS codec
+tests passed, including on-screen Metal presentation, material color and alpha
+checks, the AppKit inspector color well, independent layer settings, undo/redo,
+and save/reopen. Formatting and Git diff checks passed. The verified ARM64
+development Release app is at `dist/slime-phase-2.1/Wupsy.app`, with valid
+ad-hoc signature and all 15 Slime labels in both languages. Quality control
+accepted both Phase 2 and Phase 2.1.
+
+### Phase 2.2
+
+The follow-up work is tracked in these sections:
+
+- **2.2 A** Diagnose and correct the editor Live Preview stall.
+- **2.2 B** Decouple Slime anchor rotation from gravity and refine filament geometry.
+- **2.2 C** Add an individual Slime cycle offset.
+- **2.2 D** Add general WSS layer duplication in the editor.
+- **2.2 E (accepted)** Extend the fall distance beyond 450.
+- **2.2 E.1 (accepted)** Use scene pixels for Slime fall distance and inventory inspector units.
+- **2.2 E.2 (accepted)** Unify Slime spatial parameters and measure the endpoint from the anchor.
+- **2.2 F (open)** Add general forward and backward frame stepping for paused Editor Live Preview.
+
+Phase 2.2 A is complete and manually accepted. The reproduction trace showed
+that an animated Slime preview lost MetalKit draw callbacks after returning
+from the expanded preview window. The existing editor transfer renewal now
+includes animated Slime. It replaces the player and MTKView on a real window
+transfer during continuous playback and preserves prepared resources and
+the playhead. A manually paused transfer retains the paused player.
+
+The acceptance trace covered about eight minutes, with 53 window-transfer
+renewals, two resume renewals and four editor performance overlay on/off cycles.
+Quality control could not reproduce a sustained stall during intensive editing,
+window transfers, performance overlay toggles or pause and resume. The trace
+recorded zero GPU failures and zero missing drawables. An independent causal
+relationship with the performance overlay was not established.
+
+The temporary trace and its launch argument were removed after acceptance.
+The regular performance overlay and collector remain in place. Permanent
+regression tests cover Slime, Starfield and Music Notes transfers, paused
+Slime transfers, and Metal presentation through the regular collector.
+All 32 targeted tests passed on Apple M4 Max, including confirmed Metal
+presentation after both Slime window transfers. Formatting, Git diff, ARM64
+bundle metadata and the ad-hoc signature were verified. The final development
+Release app is at `dist/slime-phase-2.2A-final/Wupsy.app`.
+
+Phase 2.2 B separates the rotated attachment from scene-relative gravity.
+The analytic centerline blends the pad normal into the fall direction.
+The neck and hanging drop use the tip tangent, and the released drop
+continues from the release position. The synthetic alignment fixture covers
+horizontal, sloped and vertical surfaces, nonuniform scaling and a separate
+fall direction. The Slime-only direction semantics apply directly to internal
+test scenes. All 25 targeted tests passed, including Metal pixel checks,
+confirmed presentation on Apple M4 Max and the transfer regression tests.
+Formatting, Git diff, ARM64 bundle metadata, German and English labels,
+and the ad-hoc signature were verified. The development Release app is at
+`dist/slime-phase-2.2B/Wupsy.app`. Quality control visually accepted the new
+filament geometry and independent fall direction. Phase 2.2 B is complete.
+
+At quality control's request, Phase 2.2 D precedes Phase 2.2 C. Duplicate
+Layer is available in the editor layer-row context menu and through Command-D
+outside text editing. A copy is inserted immediately below its source in the
+visible list and selected. The list retains manifest order. The transaction
+assigns new editor layer and image-effect IDs, and a fresh persistent ID to
+a copied image depth target. A copied Music Notes layer retains its existing
+target and path. The candidate must pass manifest and native resource
+validation. Copies share immutable assets until edited. Undo and Redo
+restore the model, editor identities, selection and referenced generations.
+The final focused run passed 46 tests on Apple M4 Max, including confirmed
+Metal presentation of duplicated Slime layers and the Slime window transfer
+regression. Formatting, Git diff, ARM64 bundle metadata, the ad-hoc signature
+and both duplicate menu labels were verified. The development Release app
+is at `dist/slime-phase-2.2D/Wupsy.app`.
+
+Phase 2.2 D.1 moves the duplicate directly below its source in the layer list.
+It is drawn immediately after the source. Selection, Undo and Redo follow the
+duplicate, and other layers retain their order. The focused run passed 20 tests
+with two opt-in export tests skipped. The targeted Slime transfer test passed on
+its first run. A separate two-layer CursorTrail Metal test passed, checking shared
+pointer input, separate sample histories, additive output and frozen history.
+CursorTrail duplication remains available under the existing scene budget.
+Formatting, Git diff, ARM64 bundle metadata and the ad-hoc signature passed.
+The development Release app is at `dist/slime-phase-2.2D.1/Wupsy.app`.
+Quality control accepted Phases 2.2 D and D.1. Duplicates are independent and
+appear below the source. CursorTrail remains duplicable for its confirmed
+creative use. Extended practical wallpaper editing produced no further render
+stall.
+
+Phase 2.2 C adds a persisted Slime cycle offset and a percentage field in the
+inspector. New Slime layers use the midpoint of the largest circular phase gap,
+with deterministic tie-breaking. Duplication retains the source offset exactly.
+Zero speed still shows the resting anchor. The four-layer synthetic scene
+uses identical speeds and distinct offsets. All 38 targeted tests passed,
+including the real inspector field, prepared-resource reuse, duplicate and
+save semantics, Metal pixel checks and confirmed presentation on Apple M4 Max.
+Formatting, Git diff, ARM64 bundle metadata, the ad-hoc signature and both
+inspector labels were verified. The development Release app is at
+`dist/slime-phase-2.2C/Wupsy.app`. See the [Slime contract](docs/effects/SLIME.md).
+Quality control manually accepted Phase 2.2 C. The independent cycles meet
+the visual requirements.
+
+Phase 2.2 E expands Slime fall distance using the scene span along the fall
+axis and the longitudinal transform scale. Long falls extend the minimum
+cycle as needed and preserve the existing acceleration. Disjoint quads keep
+the gap between the attachment and the drop out of fragment work. See the
+[Slime contract](docs/effects/SLIME.md). All 32 focused tests passed, including
+long-fall Metal pixel checks and confirmed presentation of the synthetic tall
+scene on Apple M4 Max. Formatting, Git diff, ARM64 bundle metadata and the
+ad-hoc signature were verified. The development Release app is at
+`dist/slime-phase-2.2E/Wupsy.app`. Quality control accepted the extended fall
+distance, including long falls.
+The review found that local Slime units made it difficult to predict where
+drops would reach in the image.
+
+Phase 2.2 E.1 stores the fall distance in scene pixels and converts it to the
+local cap at render time. The existing acceleration, fade and cycle
+calculation still use local units. The Inspector's upper bound uses the
+canvas projection along the fall direction. See the [Slime contract](docs/effects/SLIME.md)
+and the [equal-distance fixture](Test-Wallpaper/WSS-Slime-Fall-Pixels-v1/scene.wss.json).
+All 32 targeted tests passed, including Metal pixel comparisons at two
+output resolutions and confirmed screen presentation on Apple M4 Max.
+Formatting, Git diff, ARM64 bundle metadata, the ad-hoc signature and both
+localized labels were verified. The development Release app is at
+`dist/slime-phase-2.2E.1/Wupsy.app`.
+Quality control manually accepted the scene-pixel distance in E.1.
+
+Phase 2.2 E.2 measures the projected drop endpoint from the anchor center
+and stores filament length, reference width and reference drop diameter in
+scene pixels. The pad transform sets the attachment dimensions separately.
+See the [Slime contract](docs/effects/SLIME.md) and the
+[800-pixel fixture](Test-Wallpaper/WSS-Slime-Spatial-v1/scene.wss.json).
+The 32 targeted tests passed, including Metal pixel checks and confirmed
+presentation on Apple M4 Max. The localized inspector labels, ARM64 bundle
+and ad-hoc signature were verified. The development Release app is at
+`dist/slime-phase-2.2E.2/Wupsy.app`. Quality control manually accepted Phase
+2.2 E.2, completing acceptance of Phase 2 through Phase 2.2 E.2.
+
+Earlier internal Slime test wallpapers are intentionally incompatible with
+the accepted spatial schema. The old filament-width and drop-size multipliers
+are now scene-pixel dimensions. Filament length is measured on the segmented
+centerline, and fall distance is measured from the anchor. No migration or
+legacy mode is provided for unpublished Slime scenes. Published WSS effects
+retain their existing format and semantics. Phase 2.2 F remains the next open
+development task.
+
+### Inspector units
+
+Use scene-image pixels for distances and sizes, seconds for time, degrees for
+angles, pixels per second for linear speed, and particles per second for
+emission rates. Use percentages for normalized intensity and opacity where
+meaningful, and percentages or clearly labeled factors for scaling. Keep
+dimensionless factors, seeds and mathematical parameters in units that
+describe their actual meaning. Local, scene and viewport coordinates must be
+labeled according to the actual calculation. The
+[Inspector units inventory](docs/INSPECTOR-UNITS.md) records where labels,
+display conversions or changes to the effect model would be needed.
 
 ## Known limitations
 

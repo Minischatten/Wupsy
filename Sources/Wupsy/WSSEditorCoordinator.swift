@@ -1016,6 +1016,17 @@ final class WSSEditorNativeWindow: NSWindow {
     }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if handleCanvasZoom(event) { return true }
+        if event.type == .keyDown, !event.isARepeat,
+            event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command,
+            event.charactersIgnoringModifiers?.lowercased() == "d",
+            let document = editorDocument
+        {
+            let commands = WSSEditorCommands(document: document, window: self)
+            if commands.canPerform(.duplicateLayer(nil)) {
+                commands.perform(.duplicateLayer(nil))
+                return true
+            }
+        }
         return super.performKeyEquivalent(with: event)
     }
     override func sendEvent(_ event: NSEvent) {

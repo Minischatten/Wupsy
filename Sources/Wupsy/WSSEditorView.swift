@@ -100,6 +100,12 @@ struct WSSEditorView: View {
                             effectCreationError = nil
                         } catch { effectCreationError = EditorErrorPresentation.message(error) }
                     }.disabled(!document.permitsStructureEditing)
+                    Button(WSSSlimeText.text("title")) {
+                        do {
+                            try document.addSlime()
+                            effectCreationError = nil
+                        } catch { effectCreationError = EditorErrorPresentation.message(error) }
+                    }.disabled(!document.permitsStructureEditing)
                     Button(WSSFogText.text("title")) {
                         do {
                             try document.addFog()
@@ -196,6 +202,12 @@ struct WSSEditorView: View {
                     .contentShape(Rectangle())
                     .moveDisabled(!document.permitsStructureEditing || editing)
                     .tag(row.id)
+                    .contextMenu {
+                        Button(EditorText.duplicateLayer.text) {
+                            document.structureCommands.perform(.duplicateLayer(row.id))
+                        }
+                        .disabled(!document.structureCommands.canPerform(.duplicateLayer(row.id)))
+                    }
                 }
                 .onMove { sources, destination in
                     _ = try? document.moveStructureRows(
@@ -392,6 +404,11 @@ struct WSSEditorView: View {
                     document.musicNotesLayer(id) != nil
                 {
                     WSSMusicNotesParameterControls(document: document, layer: id).id(id)
+                }
+                if document.effectAddress == nil, let id = document.selection?.layer,
+                    document.slimeLayer(id) != nil
+                {
+                    WSSSlimeParameterControls(document: document, layer: id).id(id)
                 }
                 if document.effectAddress == nil, let id = document.selection?.layer,
                     document.fogLayer(id) != nil

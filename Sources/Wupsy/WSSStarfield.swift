@@ -223,7 +223,7 @@ enum WSSStarfieldParameter: String, CaseIterable {
 extension WSSSceneLayer {
     var isPositionableRegion: Bool {
         switch self {
-        case .storm, .starfield, .musicNotes: return true
+        case .storm, .starfield, .musicNotes, .slime: return true
         default: return false
         }
     }

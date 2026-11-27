@@ -53,7 +53,7 @@ Canvas dimensions are positive integers, at most 8192 per axis and 32 Mi pixels
 in total. `title` is required, nonblank and at most 1024 UTF-8 bytes. Optional
 `background` is an RGB array in 0…1, default `[0,0,0]`.
 
-There are 1…128 ordered image, Rain, CursorTrail, Storm, Starfield, Fog or Music Notes layers, drawn from first to last.
+There are 1…128 ordered image, Rain, CursorTrail, Storm, Starfield, Fog, Music Notes or Slime layers, drawn from first to last.
 
 All layer types accept optional `name` display metadata. The string must be
 single-line, contain no control characters, and have 1…256 characters after
@@ -315,3 +315,8 @@ the Inspector's starting values. It applies only to animated notes and
 staff on active open paths. Inactive settings remain stored.
 See the [Music Notes contract](docs/effects/MUSIC-NOTES.md) for fields, bounds,
 playback status and older-reader compatibility.
+
+## Slime
+
+See the [Slime contract](docs/effects/SLIME.md) for layer parameters,
+strict validation, coordinates, budgets, and older-reader behavior.

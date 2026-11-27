@@ -430,6 +430,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             case rain(RainLayer)
             case storm(WSSStormLayer)
             case starfield(WSSStarfieldLayer)
+            case slime(WSSSlimeLayer)
             case fog(WSSFogLayer)
             case musicNotes(WSSMusicNotesLayer)
             case trail(WSSTrailConfiguration, visible: Bool)
@@ -480,7 +481,8 @@ struct WSSSceneDocumentV1: Codable, Equatable {
         }
         enum CodingKeys: String, CodingKey {
             case type, name, image, transform, opacity, visible, composition, effects, region, rain,
-                trail, mask, storm, starfield, fog, musicNotes, preset, path, staff, placement,
+                trail, mask, storm, starfield, fog, slime, musicNotes, preset, path, staff,
+                placement,
                 freeSymbol, anchoredSymbol, freePosition,
                 anchorPosition, alignToPath, depth, depthID, perspective
         }
@@ -489,7 +491,15 @@ struct WSSSceneDocumentV1: Codable, Equatable {
             let type = try c.decodeIfPresent(String.self, forKey: .type) ?? "image"
             let name = try c.decodeIfPresent(String.self, forKey: .name)
             if let name { _ = try WallpaperTitle.normalized(name) }
-            if type == "musicNotes" {
+            if type == "slime" {
+                try decoder.fields(["type", "name", "visible", "transform", "slime"])
+                let layer = WSSSlimeLayer(
+                    transform: try c.decode(Transform.self, forKey: .transform),
+                    configuration: try c.decode(WSSSlimeConfiguration.self, forKey: .slime),
+                    visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? true)
+                _ = try layer.nativeTransform()
+                content = .slime(layer)
+            } else if type == "musicNotes" {
                 try decoder.fields([
                     "type", "name", "visible", "region", "musicNotes", "path", "staff", "placement",
                     "freeSymbol", "anchoredSymbol", "freePosition", "anchorPosition", "alignToPath",
@@ -620,6 +630,7 @@ struct WSSSceneDocumentV1: Codable, Equatable {
                         mask: layer.mask.map { WSSImageMask(asset: WSSAssetID(value: $0.asset)) }))
             case .starfield(let layer): return .starfield(layer)
             case .fog(let layer): return .fog(layer)
+            case .slime(let layer): return .slime(layer)
             case .musicNotes(let layer): return .musicNotes(layer)
             case .storm(let layer): return .storm(layer)
             case .trail(let configuration, let visible):

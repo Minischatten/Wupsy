@@ -183,6 +183,12 @@ extension WSSSceneDocumentV1.Layer {
             try c.encodeIfPresent(layer.alignToPath, forKey: .alignToPath)
             try c.encodeIfPresent(layer.depth, forKey: .depth)
             try c.encodeIfPresent(layer.perspective, forKey: .perspective)
+        case .slime(let layer):
+            _ = try layer.nativeTransform()
+            try c.encode("slime", forKey: .type)
+            try c.encode(layer.visible, forKey: .visible)
+            try c.encode(layer.transform, forKey: .transform)
+            try c.encode(layer.configuration, forKey: .slime)
         case .fog(let layer):
             try c.encode("fog", forKey: .type)
             try c.encode(layer.visible, forKey: .visible)

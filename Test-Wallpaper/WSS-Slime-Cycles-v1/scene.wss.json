@@ -1,0 +1,136 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Slime Cycle Offsets",
+  "canvas": {
+    "width": 640,
+    "height": 360
+  },
+  "background": [
+    0.08,
+    0.1,
+    0.12
+  ],
+  "layers": [
+    {
+      "type": "slime",
+      "name": "Offset 0%",
+      "transform": {
+        "center": [
+          96,
+          275
+        ],
+        "size": [
+          32,
+          32
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.36,
+          "blue": 0.24
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 258,
+        "cycleOffset": 0
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Offset 50%",
+      "transform": {
+        "center": [
+          256,
+          275
+        ],
+        "size": [
+          32,
+          32
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.36,
+          "blue": 0.24
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 258,
+        "cycleOffset": 0.5
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Offset 25%",
+      "transform": {
+        "center": [
+          416,
+          275
+        ],
+        "size": [
+          32,
+          32
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.36,
+          "blue": 0.24
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 258,
+        "cycleOffset": 0.25
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Offset 75%",
+      "transform": {
+        "center": [
+          576,
+          275
+        ],
+        "size": [
+          32,
+          32
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.36,
+          "blue": 0.24
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 18,
+        "length": 97,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 258,
+        "cycleOffset": 0.75
+      }
+    }
+  ]
+}

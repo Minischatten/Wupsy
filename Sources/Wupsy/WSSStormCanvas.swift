@@ -63,6 +63,7 @@ enum WSSStormCanvas {
 extension WSSSceneDocumentV1.Layer {
     var canvasTransform: WSSSceneDocumentV1.Transform? {
         switch content {
+        case .slime(let layer): return layer.transform
         case .image(let image): return image.transform
         case .musicNotes(let layer): return layer.canvasTransform
         case .starfield(let layer): return layer.starfield.canvasTransform
@@ -82,6 +83,7 @@ extension WSSSceneLayer {
     var canvasTransform: WSSImageTransform? {
         guard visible else { return nil }
         switch self {
+        case .slime(let layer): return try? layer.nativeTransform()
         case .image(let image): return image.transform
         case .musicNotes(let layer): return try? layer.canvasTransform.native()
         case .starfield(let layer): return try? layer.starfield.canvasTransform.native()

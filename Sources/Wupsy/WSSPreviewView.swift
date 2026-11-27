@@ -216,6 +216,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             && resources.scene.layers.contains {
                 switch $0 {
                 case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
+                case .slime(let layer): return layer.isAnimated
                 case .fog(let layer):
                     return resources.hasEffectiveFog(layer) && layer.fog.isAnimated
                 case .musicNotes(let layer): return layer.isAnimated
@@ -225,11 +226,12 @@ struct WSSPreviewRenderPolicy: Equatable {
             }
     }
 
-    private func renewsSpritePlayerAfterTransfer(for resources: WSSStaticResources) -> Bool {
+    private func renewsPlayerAfterTransfer(for resources: WSSStaticResources) -> Bool {
         renewEditorPlayerOnAnimationStart
             && resources.scene.layers.contains {
                 switch $0 {
                 case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
+                case .slime(let layer): return layer.isAnimated
                 case .musicNotes(let layer): return layer.isAnimated
                 default: return false
                 }
@@ -269,7 +271,7 @@ struct WSSPreviewRenderPolicy: Equatable {
             movingPresentation = false
             if wasDrawingContinuously, let sourceWindow, let destinationWindow = window,
                 sourceWindow !== destinationWindow, let resources = player?.resources,
-                renewsSpritePlayerAfterTransfer(for: resources)
+                renewsPlayerAfterTransfer(for: resources)
             {
                 // A running MTKView can stop receiving draw callbacks after reparenting.
                 replacePlayer(with: resources)
