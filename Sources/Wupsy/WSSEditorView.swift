@@ -302,19 +302,36 @@ struct WSSEditorView: View {
             .help(title)
     }
 
+    private func previewFrameButton(_ direction: WSSPreviewFrameDirection) -> some View {
+        let controls = document.previewFrameControls
+        let enabled = direction == .backward ? controls.backward : controls.forward
+        return Button {
+            document.stepPreviewFrame?(direction)
+        } label: {
+            Image(systemName: direction.symbol)
+        }
+        .help(direction.title.text)
+        .accessibilityLabel(direction.title.text)
+        .disabled(!enabled || document.playing || document.previewError != nil)
+    }
+
     private var livePreview: some View {
         VStack(spacing: 6) {
             HStack {
                 Text(EditorText.livePreview.text).wupsyFont(.headline)
                 Spacer()
+                previewFrameButton(.backward)
                 Button {
                     document.playing.toggle()
                 } label: {
                     Image(systemName: document.playing ? "pause.fill" : "play.fill")
-                }.accessibilityLabel(
+                }
+                .help(document.playing ? EditorText.pausePreview.text : EditorText.playPreview.text)
+                .accessibilityLabel(
                     document.playing ? EditorText.pausePreview.text : EditorText.playPreview.text
                 )
                 .disabled(document.previewError != nil)
+                previewFrameButton(.forward)
                 Button {
                     document.togglePreviewExpansion?()
                 } label: {

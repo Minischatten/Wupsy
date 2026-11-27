@@ -37,6 +37,8 @@ enum EditorText: String, CaseIterable {
     case layerOrderHint = "editor.layerOrderHint"
     case addImageAction = "editor.addImageAction"
     case livePreview = "editor.livePreview"
+    case previousFrame = "editor.previousFrame"
+    case nextFrame = "editor.nextFrame"
     case pausePreview = "editor.pausePreview"
     case playPreview = "editor.playPreview"
     case returnPreview = "editor.returnPreview"

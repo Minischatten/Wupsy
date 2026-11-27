@@ -3,7 +3,7 @@ import os
 
 @MainActor final class WSSStaticPlayer: NSObject, ScenePlaybackSession, MTKViewDelegate {
     private(set) var resources: WSSStaticResources
-    let view: MTKView
+    private(set) var view: MTKView
     private(set) lazy var sessionID = UUID()
     private(set) var metrics: SceneMetrics?
     var performanceInvalidated: (() -> Void)?
@@ -64,6 +64,21 @@ import os
     private(set) var desktopFrozen = false
     private var pauseSettling = false
     private var resumeAtFrozenFrame = false
+    private(set) var resumeAtEditorStep = false
+    private let editorSlotWakeup = OSAllocatedUnfairLock(initialState: false)
+    private struct EditorFrameRequest {
+        var attemptsRemaining = 3
+        var waitingForSlot = false
+        var submission: UUID?
+    }
+    private var editorFrameRequest: EditorFrameRequest?
+    var hasPendingEditorFrame: Bool { editorFrameRequest != nil }
+    private var hasEditorStep = false
+    // Captures the encoded time and optionally reads back the drawable in integration tests.
+    var onFrameEncoded: ((Double, MTLCommandBuffer, MTLTexture) -> Void)?
+    private var editorDrawTask: Task<Void, Never>?
+    private let editorFrameStepping: Bool
+    private var editorSurfaceAvailable = true
     private var resumeNeedsTrailAnchor = false
     private var presentationHistory = WSSDesktopFrameHistory()
     private let desktopGPU = OSAllocatedUnfairLock(initialState: (count: 0, draining: false))
@@ -103,8 +118,10 @@ import os
         resources: WSSStaticResources, size: CGSize, scale: CGFloat, maxDimension: Int, fps: Int,
         resolution: SceneRenderResolution, offset: Double,
         projection: WSSRenderProjection = .cover,
+        metalView: MTKView? = nil,
         pointerProvider: (() -> SIMD2<Float>?)? = nil,
         desktopPlayback: Bool = false,
+        editorFrameStepping: Bool = false,
         onDiagnostic: ((RuntimeDiagnostic) -> Void)? = nil,
         onFirstFramePresented: (@MainActor () -> Void)? = nil, onError: @escaping (String) -> Void
     ) {
@@ -112,6 +129,7 @@ import os
         self.projection = projection
         self.pointerProvider = pointerProvider
         self.desktopPlayback = desktopPlayback
+        self.editorFrameStepping = editorFrameStepping && !desktopPlayback
         rippleContext = WSSRippleRenderContext(device: resources.device)
         lightingContext = WSSStormLightingRenderContext(device: resources.device)
         self.scale = scale
@@ -121,8 +139,14 @@ import os
         self.onError = onError
         self.onDiagnostic = onDiagnostic
         self.onFirstFramePresented = onFirstFramePresented
-        view = SceneMetalView(frame: NSRect(origin: .zero, size: size), device: resources.device)
+        view =
+            metalView
+            ?? SceneMetalView(frame: NSRect(origin: .zero, size: size), device: resources.device)
         super.init()
+        configureMetalView(fps: fps)
+    }
+
+    private func configureMetalView(fps: Int) {
         view.colorPixelFormat = .bgra8Unorm
         view.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         view.framebufferOnly = true
@@ -134,6 +158,114 @@ import os
         (view as? SceneMetalView)?.geometryChanged = { [weak self] in self?.resize() }
         resize()
     }
+
+    func renewPausedEditorMetalView() {
+        // A reparented paused drawable can complete on the GPU but never present.
+        // Recreate only the view; the playhead, contexts and resources stay with this player.
+        guard editorFrameStepping, paused, !stopped, let surface = view.superview else { return }
+        let previous = view
+        let fps = previous.preferredFramesPerSecond
+        previous.delegate = nil
+        (previous as? SceneMetalView)?.geometryChanged = nil
+        view = SceneMetalView(frame: previous.frame, device: resources.device)
+        configureMetalView(fps: fps)
+        surface.addSubview(view, positioned: .above, relativeTo: previous)
+        previous.removeFromSuperview()
+        previous.releaseDrawables()
+        editorFrameRequest = EditorFrameRequest()
+        scheduleEditorDraw()
+    }
+
+    private var canDrawEditorFrame: Bool {
+        guard editorSurfaceAvailable, let window = view.window else { return false }
+        return window.isVisible && !window.isMiniaturized && !view.bounds.isEmpty
+    }
+
+    var canStepEditorFrame: Bool {
+        editorFrameStepping && paused && !stopped && !renderFailed && canDrawEditorFrame
+    }
+
+    func stepEditorFrame(to time: Double, resetTrail: Bool) {
+        guard editorFrameStepping, paused, !stopped, !renderFailed,
+            time.isFinite, time >= 0
+        else { return }
+        if resetTrail { trailContext.reset() }
+        clock.freeze(at: time)
+        hasEditorStep = true
+        editorFrameRequest = EditorFrameRequest()
+        scheduleEditorDraw()
+    }
+
+    func setEditorSurfaceAvailable(_ available: Bool) {
+        guard editorFrameStepping, available != editorSurfaceAvailable else { return }
+        editorSurfaceAvailable = available
+        refreshEditorFrame()
+    }
+
+    func editorSurfaceRevealed() {
+        guard let request = editorFrameRequest,
+            request.attemptsRemaining == 0, request.submission == nil
+        else { return }
+        refreshEditorFrame()
+    }
+
+    private func refreshEditorFrame() {
+        guard hasEditorStep || editorFrameRequest != nil else { return }
+        editorFrameRequest = EditorFrameRequest()
+        scheduleEditorDraw()
+    }
+
+    private func cancelEditorDraw() {
+        editorDrawTask?.cancel()
+        editorDrawTask = nil
+        editorFrameRequest = nil
+        editorSlotWakeup.withLock { $0 = false }
+    }
+
+    private func scheduleEditorDraw(delay: Duration = .zero) {
+        editorDrawTask?.cancel()
+        editorDrawTask = nil
+        guard canDrawEditorFrame, let request = editorFrameRequest,
+            request.attemptsRemaining > 0, request.submission == nil, !request.waitingForSlot
+        else { return }
+        editorDrawTask = Task { @MainActor [weak self] in
+            if delay != .zero {
+                do { try await Task.sleep(for: delay) } catch { return }
+            }
+            guard let self, !Task.isCancelled else { return }
+            editorDrawTask = nil
+            guard canDrawEditorFrame else { return }
+            view.draw()
+        }
+    }
+
+    private func editorFramePresented(_ id: UUID, at time: Double) {
+        guard editorFrameRequest?.submission == id else { return }
+        if time.isFinite, time > 0 {
+            cancelEditorDraw()
+        } else {
+            editorFrameRequest?.submission = nil
+            scheduleEditorDraw(delay: .milliseconds(30))
+        }
+    }
+
+    private func watchEditorPresentation(_ id: UUID) {
+        editorDrawTask?.cancel()
+        editorDrawTask = Task { @MainActor [weak self] in
+            // Some invalidated drawables never call their presentation handler.
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard let self, editorFrameRequest?.submission == id else { return }
+            editorDrawTask = nil
+            editorFramePresented(id, at: 0)
+        }
+    }
+
+    private func editorDrawableUnavailable() {
+        guard editorFrameRequest != nil else { return }
+        editorFrameRequest?.attemptsRemaining -= 1
+        scheduleEditorDraw(delay: .milliseconds(30))
+    }
+
     private(set) var fogDragPreview: WSSStaticResources?
     private var fogDragRedrawPending = false
 
@@ -151,7 +283,11 @@ import os
             fogDragRedrawPending = false
             guard !stopped, view.isPaused, view.window?.isVisible == true, !view.bounds.isEmpty
             else { return }
-            view.draw()
+            if editorFrameRequest != nil {
+                refreshEditorFrame()
+            } else {
+                view.draw()
+            }
         }
     }
 
@@ -168,7 +304,9 @@ import os
             if view.isPaused != onDemand { view.isPaused = onDemand }
         }
         view.needsDisplay = true
-        if view.isPaused {
+        if editorFrameRequest != nil {
+            refreshEditorFrame()
+        } else if view.isPaused {
             // AppKit invalidation alone can stop delivering MTKView draw callbacks.
             // Leave the current SwiftUI update before asking for a frame explicitly.
             Task { @MainActor [weak self, weak candidate] in
@@ -180,8 +318,13 @@ import os
         }
         return true
     }
-    func play() {
+    func play() { play(fromEditorStep: false) }
+
+    func play(fromEditorStep: Bool) {
         guard !stopped else { return }
+        cancelEditorDraw()
+        hasEditorStep = false
+        resumeAtEditorStep = fromEditorStep && editorFrameStepping
         let wasPaused = paused
         paused = false
         if desktopFrozen {
@@ -193,13 +336,17 @@ import os
             resumeNeedsTrailAnchor = true
         } else {
             trailContext.reset()
-            clock.play(now: ProcessInfo.processInfo.systemUptime)
+            if !resumeAtEditorStep { clock.play(now: ProcessInfo.processInfo.systemUptime) }
         }
         if wasPaused { resetPerformanceWindow() }
         let onDemand = !resources.isAnimated
         view.enableSetNeedsDisplay = onDemand
         view.isPaused = onDemand
         view.needsDisplay = true
+        if resumeAtEditorStep, onDemand {
+            editorFrameRequest = EditorFrameRequest()
+            scheduleEditorDraw()
+        }
         if resumeAtFrozenFrame {
             Task { @MainActor [weak self] in
                 guard let self, !stopped, !desktopFrozen, resumeAtFrozenFrame,
@@ -220,6 +367,8 @@ import os
         guard !stopped, !paused else { return }
         resetPerformanceWindow()
         paused = true
+        resumeAtEditorStep = false
+        cancelEditorDraw()
         clock.stop(now: ProcessInfo.processInfo.systemUptime)
         view.isPaused = true
         view.enableSetNeedsDisplay = true
@@ -290,6 +439,9 @@ import os
         }
     }
     func stop() {
+        hasEditorStep = false
+        cancelEditorDraw()
+        onFrameEncoded = nil
         cancelRecovery()
         settleTask?.cancel()
         settleTask = nil
@@ -383,18 +535,32 @@ import os
         }
         resetPerformanceWindow()
         view.drawableSize = size
-        if !recovery { view.needsDisplay = true }
+        if !recovery {
+            view.needsDisplay = true
+            refreshEditorFrame()
+        }
     }
     nonisolated func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     nonisolated func draw(in view: MTKView) { MainActor.assumeIsolated { _ = drawFrame() } }
     private func drawFrame(recovery: Bool = false) -> Bool {
         guard !stopped, desktopFrozen == recovery else { return false }
         resize(recovery: recovery)
-        guard inFlight.wait(timeout: .now()) == .success else { return false }
+        if let request = editorFrameRequest {
+            guard canDrawEditorFrame, request.attemptsRemaining > 0,
+                request.submission == nil, !request.waitingForSlot
+            else { return false }
+        }
+        if editorFrameRequest != nil { editorSlotWakeup.withLock { $0 = true } }
+        guard inFlight.wait(timeout: .now()) == .success else {
+            editorFrameRequest?.waitingForSlot = true
+            return false
+        }
+        if editorFrameRequest != nil { editorSlotWakeup.withLock { $0 = false } }
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
             let command = resources.queue.makeCommandBuffer()
         else {
             inFlight.signal()
+            editorDrawableUnavailable()
             return false
         }
         let frameResources = fogDragPreview ?? resources
@@ -428,8 +594,11 @@ import os
             onError(error.localizedDescription)
             return false
         }
-        if firstResumeFrame {
+        onFrameEncoded?(time, command, drawable.texture)
+        if firstResumeFrame || resumeAtEditorStep {
             resumeAtFrozenFrame = false
+            resumeAtEditorStep = false
+            cancelEditorDraw()
             clock.play(now: ProcessInfo.processInfo.systemUptime)
         }
         if let encoding { metrics?.encoded(encoding) }
@@ -454,9 +623,21 @@ import os
         }
         let desktopGPU = desktopGPU
         let tracksGPU = desktopPlayback
+        let slotWakeup = editorFrameStepping ? editorSlotWakeup : nil
         command.addCompletedHandler { [weak self, frameResources] buffer in
             _ = frameResources  // Retain the immutable scene/resources through GPU completion.
             complete(buffer)
+            if slotWakeup?.withLock({ waiting in
+                let notify = waiting
+                waiting = false
+                return notify
+            }) == true {
+                Task { @MainActor [weak self] in
+                    guard let self, editorFrameRequest?.waitingForSlot == true else { return }
+                    editorFrameRequest?.waitingForSlot = false
+                    scheduleEditorDraw()
+                }
+            }
             if tracksGPU {
                 let drained = desktopGPU.withLock { state in
                     state.count -= 1
@@ -500,6 +681,16 @@ import os
                     metrics?.presented(encoding, at: drawable.presentedTime)
                 }
             }
+        }
+        if paused, editorFrameRequest != nil {
+            let id = UUID()
+            editorFrameRequest?.attemptsRemaining -= 1
+            editorFrameRequest?.submission = id
+            drawable.addPresentedHandler { [weak self] drawable in
+                let time = drawable.presentedTime
+                Task { @MainActor [weak self] in self?.editorFramePresented(id, at: time) }
+            }
+            watchEditorPresentation(id)
         }
         command.present(drawable)
         command.commit()

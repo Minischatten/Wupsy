@@ -166,6 +166,8 @@ import SwiftUI
     var canvasImageDrag: (WSSLayerID, WSSImageProperty, Float)?
 
     @Published var previewExpanded = false
+    @Published var previewFrameControls = WSSPreviewFrameControls()
+    var stepPreviewFrame: ((WSSPreviewFrameDirection) -> Void)?
     var togglePreviewExpansion: (() -> Void)?
     @Published var playing = true
     @Published private(set) var previewError: String?
@@ -430,6 +432,7 @@ import SwiftUI
         stopPreview?()
         stopPreview = nil
         togglePreviewExpansion = nil
+        stepPreviewFrame = nil
         stopCanvas?()
         stopCanvas = nil
         finishCanvasInteraction = nil

@@ -23,6 +23,53 @@ import XCTest
         return (host, window)
     }
     func settle() async throws { try await Task.sleep(nanoseconds: 40_000_000) }
+    func testExpandedPlaybackButtonStaysIconOnlyAcrossTogglesAndTransfers() async throws {
+        let doc = WSSEditorDocument(project: try await fixtures.project("WSS-Flow-v1"))
+        let (host, window) = hosted(doc)
+        defer {
+            doc.close()
+            window.close()
+        }
+        XCTAssertEqual(
+            EditorText.playPreview.localized(language: "de"), "Live-Vorschau wiedergeben")
+        XCTAssertEqual(
+            EditorText.pausePreview.localized(language: "de"), "Live-Vorschau pausieren")
+        XCTAssertEqual(EditorText.playPreview.localized(language: "en"), "Play live preview")
+        XCTAssertEqual(EditorText.pausePreview.localized(language: "en"), "Pause live preview")
+
+        host.interfaceMetrics = WupsyMetrics(scale: .largest)
+        for width: CGFloat in [850, 480] {
+            host.expand()
+            let enlarged = try XCTUnwrap(host.expandedWindow)
+            let content = try XCTUnwrap(enlarged.contentView)
+            enlarged.setContentSize(NSSize(width: width, height: 360))
+            content.layoutSubtreeIfNeeded()
+            let initialLabel =
+                doc.playing ? EditorText.pausePreview.text : EditorText.playPreview.text
+            let play = try XCTUnwrap(
+                content.subviews.compactMap { $0 as? NSButton }.first { $0.toolTip == initialLabel }
+            )
+            let size = play.frame.size
+            for _ in 0..<4 {
+                let label = doc.playing ? EditorText.pausePreview.text : EditorText.playPreview.text
+                XCTAssertEqual(play.title, "")
+                XCTAssertEqual(play.imagePosition, .imageOnly)
+                XCTAssertEqual(play.toolTip, label)
+                XCTAssertEqual(play.accessibilityLabel(), label)
+                XCTAssertEqual(play.image?.accessibilityDescription, label)
+                XCTAssertEqual(play.frame.size, size)
+                let playing = doc.playing
+                play.performClick(nil)
+                XCTAssertEqual(doc.playing, !playing)
+                content.layoutSubtreeIfNeeded()
+            }
+            host.restore()
+            XCTAssertNil(host.expandedWindow)
+            doc.playing.toggle()
+            host.update(doc)
+        }
+    }
+
     func testPlayingExpansionReusesExactSurfacePlayerResourcesAndTimeline() async throws {
         let loaded = try await fixtures.project("WSS-Flow-v1")
         let doc = WSSEditorDocument(project: loaded)

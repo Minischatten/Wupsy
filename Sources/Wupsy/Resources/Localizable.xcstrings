@@ -8285,6 +8285,40 @@
         }
       }
     },
+    "editor.previousFrame": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous frame"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelbild zurück"
+          }
+        }
+      }
+    },
+    "editor.nextFrame": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next frame"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelbild vor"
+          }
+        }
+      }
+    },
     "editor.pausePreview": {
       "comment": "Editor basic interface: pausePreview. Presentation only; never a persisted identity.",
       "extractionState": "manual",

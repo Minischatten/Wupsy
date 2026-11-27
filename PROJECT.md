@@ -480,7 +480,8 @@ The follow-up work is tracked in these sections:
 - **2.2 E (accepted)** Extend the fall distance beyond 450.
 - **2.2 E.1 (accepted)** Use scene pixels for Slime fall distance and inventory inspector units.
 - **2.2 E.2 (accepted)** Unify Slime spatial parameters and measure the endpoint from the anchor.
-- **2.2 F (open)** Add general forward and backward frame stepping for paused Editor Live Preview.
+- **2.2 F (complete, manually accepted)** Add general forward and backward frame stepping for paused Editor Live Preview.
+- **2.2 F.1 (complete, manually accepted)** Keep the expanded preview playback button icon-only.
 
 Phase 2.2 A is complete and manually accepted. The reproduction trace showed
 that an animated Slime preview lost MetalKit draw callbacks after returning
@@ -601,8 +602,31 @@ the accepted spatial schema. The old filament-width and drop-size multipliers
 are now scene-pixel dimensions. Filament length is measured on the segmented
 centerline, and fall distance is measured from the anchor. No migration or
 legacy mode is provided for unpublished Slime scenes. Published WSS effects
-retain their existing format and semantics. Phase 2.2 F remains the next open
-development task.
+retain their existing format and semantics.
+
+Phase 2.2 F implements paused frame stepping in both editor preview sizes.
+Each click moves the scene clock by one interval of the editor target frame
+rate (currently 1/30 second). Rapid clicks
+all count while rendering can skip intermediate targets. The first effective
+step clears the editor’s transient CursorTrail history. Playback resumes at
+the selected time and subsequent pointer input builds new trails. Paused window
+transfers keep the player and prepared resources and renew only the MetalKit
+view to recover drawable presentation in the destination window. See the
+[editor documentation](docs/EDITOR.md).
+
+All 84 focused regression tests passed on Apple M4 Max, including confirmed
+Metal presentation in the normal and expanded preview, a pending backward
+step across a window transfer, pixel comparisons for all nine analytic
+effects, and desktop pause and Library preview coverage. Quality control
+manually accepted forward and backward stepping, Slime and Music Notes
+timing, transfers between preview windows, and resuming playback.
+
+Phase 2.2 F.1 keeps the playback button icon-only in both preview sizes.
+Both focused regression tests passed on Apple M4 Max, covering playback
+toggles, window transfers, localization and frame stepping. Quality control
+confirmed the corrected playback control in the final manual review.
+Phases 2.2 F and F.1 are complete. The development Release app used for
+acceptance is at `dist/slime-phase-2.2F.1/Wupsy.app`.
 
 ### Inspector units
 

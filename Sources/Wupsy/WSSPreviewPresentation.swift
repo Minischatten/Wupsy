@@ -5,15 +5,14 @@ extension WSSPreviewSurface {
     convenience init(document: WSSEditorDocument) {
         self.init(
             resources: document.editorPreviewResources, playing: document.playing,
-            offset: document.initialPreviewTime,
+            offset: document.initialPreviewTime, editorPlayback: true,
             onError: { [weak document] in document?.previewFailed($0) })
-        renewEditorPlayerOnAnimationStart = true
         document.stopPreview = { [weak self] in self?.shutdown() }
     }
 }
 
 // SwiftUI owns this stable host. Expansion reparents its one native surface;
-// neither presentation creates another player or another resource preparation.
+// the surface preserves the paused player and applies the running transfer policy.
 @MainActor final class WSSPreviewHost: NSView, NSWindowDelegate {
     let surface: WSSPreviewSurface
     let performanceDiagnosis: PerformanceDiagnosis
@@ -51,6 +50,13 @@ extension WSSPreviewSurface {
         document.displayFogDrift = { [weak self] resources in
             self?.surface.player?.updateFogDragPreview(resources)
         }
+        surface.frameControlsChanged = { [weak self, weak document] controls in
+            if let document, document.previewFrameControls != controls {
+                document.previewFrameControls = controls
+            }
+            self?.expandedContent?.updateFrameControls(controls)
+        }
+        document.stepPreviewFrame = { [weak self] in self?.stepFrame($0) }
         document.togglePreviewExpansion = { [weak self] in self?.toggleExpansion() }
         document.stopPreview = { [weak self] in self?.shutdown() }
     }
@@ -121,6 +127,7 @@ extension WSSPreviewSurface {
         guard !stopped else { return }
         surface.update(resources: document.editorPreviewResources, playing: document.playing)
         expandedContent?.update(playing: document.playing, current: document.previewIsCurrent)
+        expandedContent?.updateFrameControls(surface.frameControls)
     }
     func toggleExpansion() {
         if expandedWindow != nil { restore() } else { expand() }
@@ -165,6 +172,7 @@ extension WSSPreviewSurface {
             enlarged.makeKeyAndOrderFront(nil)
             content.layoutSubtreeIfNeeded()
         }
+        expandedContent?.updateFrameControls(surface.frameControls)
     }
     func restore(closeWindow: Bool = true) {
         guard let enlarged = expandedWindow else { return }
@@ -193,6 +201,15 @@ extension WSSPreviewSurface {
         document.playing.toggle()
         update(document)
     }
+    private func stepFrame(_ direction: WSSPreviewFrameDirection) {
+        guard let document, !stopped, !document.playing, document.previewError == nil else {
+            return
+        }
+        surface.stepFrame(direction)
+    }
+    @objc fileprivate func previousFrame(_ sender: Any?) { stepFrame(.backward) }
+    @objc fileprivate func nextFrame(_ sender: Any?) { stepFrame(.forward) }
+
     func shutdown() {
         guard !stopped else { return }
         stopped = true
@@ -205,6 +222,7 @@ extension WSSPreviewSurface {
         surface.shutdown()
         surface.removeFromSuperview()
         document?.togglePreviewExpansion = nil
+        document?.stepPreviewFrame = nil
         document = nil
     }
 }
@@ -215,12 +233,14 @@ extension WSSPreviewSurface {
     private weak var target: WSSPreviewHost?
     private let play: NSButton
     private let close: NSButton
+    private let previous: NSButton
+    private let next: NSButton
     private let status = NSTextField(labelWithString: EditorText.livePreview.text)
     var interfaceMetrics = WupsyMetrics() {
         didSet {
             guard interfaceMetrics != oldValue else { return }
             let font = NSFont.systemFont(ofSize: interfaceMetrics.points(NSFont.systemFontSize))
-            for button in [play, close] {
+            for button in [previous, play, next, close] {
                 button.controlSize = interfaceMetrics.nativeControlSize
                 button.font = font
             }
@@ -228,48 +248,91 @@ extension WSSPreviewSurface {
             needsLayout = true
         }
     }
+    private static func frameButton(
+        _ direction: WSSPreviewFrameDirection, target: WSSPreviewHost, action: Selector
+    ) -> NSButton {
+        let label = direction.title.text
+        let button = NSButton(title: label, target: target, action: action)
+        if let image = NSImage(systemSymbolName: direction.symbol, accessibilityDescription: label)
+        {
+            button.image = image
+            button.imagePosition = .imageOnly
+        }
+        button.toolTip = label
+        button.setAccessibilityLabel(label)
+        button.isEnabled = false
+        return button
+    }
     init(surface: WSSPreviewSurface, canvas: CGSize, target: WSSPreviewHost) {
         self.surface = surface
         self.canvas = canvas
         self.target = target
         play = NSButton(
-            title: ProductText.pause.text, target: target,
-            action: #selector(WSSPreviewHost.togglePlayback(_:)))
+            title: "", target: target, action: #selector(WSSPreviewHost.togglePlayback(_:)))
+        play.imagePosition = .imageOnly
+        previous = Self.frameButton(
+            .backward, target: target, action: #selector(WSSPreviewHost.previousFrame(_:)))
+        next = Self.frameButton(
+            .forward, target: target, action: #selector(WSSPreviewHost.nextFrame(_:)))
         close = NSButton(
             title: EditorText.returnEditor.text, target: target,
             action: #selector(WSSPreviewHost.closeExpanded(_:)))
         close.keyEquivalent = "\u{1b}"
+        close.toolTip = EditorText.returnEditor.text
+        close.setAccessibilityLabel(EditorText.returnEditor.text)
+        close.image = NSImage(
+            systemSymbolName: "arrow.down.right.and.arrow.up.left",
+            accessibilityDescription: EditorText.returnEditor.text)
+        close.imagePosition = .noImage
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
         status.textColor = .secondaryLabelColor
+        status.lineBreakMode = .byTruncatingTail
         addSubview(surface)
         addSubview(status)
+        addSubview(previous)
         addSubview(play)
+        addSubview(next)
         addSubview(close)
     }
     required init?(coder: NSCoder) { fatalError() }
     func update(playing: Bool, current: Bool) {
-        play.title = playing ? ProductText.pause.text : EditorText.play.text
-        play.setAccessibilityLabel(
-            playing ? EditorText.pausePreview.text : EditorText.playPreview.text)
+        let playbackLabel = playing ? EditorText.pausePreview.text : EditorText.playPreview.text
+        play.setAccessibilityLabel(playbackLabel)
+        play.toolTip = playbackLabel
+        play.image = NSImage(
+            systemSymbolName: playing ? "pause.fill" : "play.fill",
+            accessibilityDescription: playbackLabel)
         status.stringValue =
             current ? EditorText.livePreview.text : EditorText.previewNotCurrent.text
+        status.toolTip = status.stringValue
+    }
+    func updateFrameControls(_ controls: WSSPreviewFrameControls) {
+        previous.isEnabled = controls.backward
+        next.isEnabled = controls.forward
     }
     override func layout() {
         super.layout()
         target?.updatePerformanceLayout(bounds.size, top: 54)
         let pad = interfaceMetrics.spacing(12)
         let buttonHeight = interfaceMetrics.target(26)
-        let closeWidth =
-            interfaceMetrics.scale == .standard
-            ? 154 : min(interfaceMetrics.target(154), bounds.width * 0.46)
-        let playWidth =
-            interfaceMetrics.scale == .standard
-            ? 72 : min(interfaceMetrics.target(72), bounds.width * 0.24)
+        let gap = interfaceMetrics.spacing(6)
+        let stepWidth = interfaceMetrics.target(30)
+        let regularPlayWidth = interfaceMetrics.target(72)
+        let labeledCloseWidth = interfaceMetrics.target(154)
+        let labeledToolbarWidth =
+            2 * pad + 4 * gap + 2 * stepWidth
+            + regularPlayWidth + labeledCloseWidth + interfaceMetrics.points(110)
+        let compact = bounds.width < labeledToolbarWidth
+        let playWidth = compact ? stepWidth : regularPlayWidth
+        let closeWidth = compact ? stepWidth : labeledCloseWidth
+        close.imagePosition = compact ? .imageOnly : .noImage
         let buttonY = bounds.height - pad - buttonHeight
         let closeX = bounds.width - pad - closeWidth
-        let playX = closeX - interfaceMetrics.spacing(8) - playWidth
+        let nextX = closeX - gap - stepWidth
+        let playX = nextX - gap - playWidth
+        let previousX = playX - gap - stepWidth
         let area = CGRect(
             x: pad, y: pad, width: max(0, bounds.width - 2 * pad),
             height: max(0, bounds.height - interfaceMetrics.spacing(56)))
@@ -279,8 +342,10 @@ extension WSSPreviewSurface {
             height: fit.height)
         close.frame = CGRect(x: closeX, y: buttonY, width: closeWidth, height: buttonHeight)
         play.frame = CGRect(x: playX, y: buttonY, width: playWidth, height: buttonHeight)
+        previous.frame = CGRect(x: previousX, y: buttonY, width: stepWidth, height: buttonHeight)
+        next.frame = CGRect(x: nextX, y: buttonY, width: stepWidth, height: buttonHeight)
         status.frame = CGRect(
-            x: pad, y: buttonY + interfaceMetrics.spacing(4), width: max(0, playX - 2 * pad),
+            x: pad, y: buttonY + interfaceMetrics.spacing(4), width: max(0, previousX - 2 * pad),
             height: interfaceMetrics.points(22))
     }
 }

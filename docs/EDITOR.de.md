@@ -67,6 +67,8 @@ Eine gerundete Anzeige rundet nicht die gespeicherten Parameter. Ein Fokuswechse
 
 ## Arbeitsfläche und Vorschau
 
+Im pausierten Zustand verschieben **Einzelbild zurück** und **Einzelbild vor** die Szenenzeit um je einen Schritt der Zielbildrate. Bei 30 Ziel-FPS sind das 1/30 Sekunde. Die Buttons stehen in der normalen und der vergrößerten Live-Vorschau jeweils neben Wiedergabe. Am Szenenbeginn ist nur der Vorwärtsschritt verfügbar. Bei schnellen Klickfolgen zählt jeder Schritt, auch wenn die Vorschau einzelne Zwischenbilder überspringt. Beim ersten wirksamen Schritt wird jede CursorTrail-Spur geleert. Nach dem Fortsetzen entsteht sie aus neuen Zeigereingaben. Die Wiedergabe setzt an der gewählten Zeitposition ein.
+
 Die statische Arbeitsfläche zeigt das Bildlayout ohne Effekte, Rain oder Trail. Die Live-Vorschau rendert die bearbeitete native Szene mit derselben Laufzeitumgebung wie die Desktop-Wiedergabe. Mauszeigerbewegungen und Vorschauzeit sind keine Dokumentänderungen. Parameter- oder Strukturänderungen können Vorschauressourcen ersetzen und den flüchtigen Trail-Verlauf zurücksetzen; Pausen-, Ruhezustands- und Sitzungssteuerung schreiben das Projekt nicht um.
 
 ## Sichern, Sichern unter und schließen

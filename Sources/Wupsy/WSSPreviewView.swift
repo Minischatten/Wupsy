@@ -41,6 +41,36 @@ struct WSSPreviewRenderPolicy: Equatable {
     }
 }
 
+enum WSSPreviewFrameDirection: Int {
+    case backward = -1
+    case forward = 1
+
+    var title: EditorText { self == .backward ? .previousFrame : .nextFrame }
+    var symbol: String { self == .backward ? "backward.frame.fill" : "forward.frame.fill" }
+}
+
+struct WSSPreviewFramePosition {
+    private var anchor: Double
+    private var index = 0
+
+    init(anchor: Double) { self.anchor = anchor }
+
+    mutating func step(_ direction: WSSPreviewFrameDirection, fps: Int) -> Double {
+        index += direction.rawValue
+        let time = anchor + Double(index) / Double(fps)
+        if time <= 0 {
+            self = Self(anchor: 0)
+            return 0
+        }
+        return time
+    }
+}
+
+struct WSSPreviewFrameControls: Equatable {
+    var backward = false
+    var forward = false
+}
+
 @MainActor final class WSSPreviewSurface: NSView {
     // Local safety limit, intentionally not a product/format contract or preference.
     static let drawableLimit = 2560
@@ -63,6 +93,7 @@ struct WSSPreviewRenderPolicy: Equatable {
     private let canvas: CGSize
     private var wantsPlayback = true
     private var onError: ((String) -> Void)?
+    private let editorPlayback: Bool
     private var policy: WSSPreviewRenderPolicy
     private var projection: WSSRenderProjection
     private var observers: [NSObjectProtocol] = []
@@ -76,15 +107,69 @@ struct WSSPreviewRenderPolicy: Equatable {
         updatePlayback()
     }
     private var presentationTask: Task<Void, Never>?
+    private var framePosition: WSSPreviewFramePosition?
+    private var frameControlsTask: Task<Void, Never>?
+    private var publishedFrameControls: WSSPreviewFrameControls?
+    var frameControlsChanged: ((WSSPreviewFrameControls) -> Void)? {
+        didSet {
+            publishedFrameControls = nil
+            publishFrameControls()
+        }
+    }
+
+    var frameControls: WSSPreviewFrameControls {
+        guard !wantsPlayback, !movingPresentation, playbackBlocks.isEmpty, policy.fps > 0,
+            let player, player.canStepEditorFrame
+        else { return .init() }
+        return .init(backward: player.elapsed > 0, forward: true)
+    }
+
+    func stepFrame(_ direction: WSSPreviewFrameDirection) {
+        updateEditorSurfaceAvailability()
+        let controls = frameControls
+        guard direction == .backward ? controls.backward : controls.forward, let player else {
+            return
+        }
+        let first = framePosition == nil
+        var position = framePosition ?? WSSPreviewFramePosition(anchor: player.elapsed)
+        let time = position.step(direction, fps: policy.fps)
+        framePosition = position
+        player.stepEditorFrame(to: time, resetTrail: first)
+        publishFrameControls()
+    }
+
+    private func publishFrameControls() {
+        guard frameControlsChanged != nil, frameControlsTask == nil,
+            publishedFrameControls != frameControls
+        else { return }
+        // A host update can be inside SwiftUI's representable update.
+        frameControlsTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            frameControlsTask = nil
+            let controls = frameControls
+            guard publishedFrameControls != controls else { return }
+            publishedFrameControls = controls
+            frameControlsChanged?(controls)
+        }
+    }
+
+    private func updateEditorSurfaceAvailability() {
+        let available =
+            !movingPresentation && playbackBlocks.isEmpty
+            && window?.isVisible == true && window?.isMiniaturized == false
+        player?.setEditorSurfaceAvailable(available)
+    }
 
     init(
         resources: WSSStaticResources, playing: Bool = true, offset: Double = 0,
         policy: WSSPreviewRenderPolicy = .editor,
-        projection: WSSRenderProjection = .fullCanvas, onError: @escaping (String) -> Void
+        projection: WSSRenderProjection = .fullCanvas, editorPlayback: Bool = false,
+        onError: @escaping (String) -> Void
     ) {
         canvas = CGSize(width: resources.scene.width, height: resources.scene.height)
         self.policy = policy
         self.projection = projection
+        self.editorPlayback = editorPlayback
         self.onError = onError
         super.init(frame: .zero)
         wantsPlayback = playing
@@ -115,7 +200,6 @@ struct WSSPreviewRenderPolicy: Equatable {
             }
         }
     }
-    var renewEditorPlayerOnAnimationStart = false
     private var pausedAfterAnimatedPlayback = false
     private var resourcesID: ObjectIdentifier?
     private func install(_ resources: WSSStaticResources, offset: Double) {
@@ -126,11 +210,16 @@ struct WSSPreviewRenderPolicy: Equatable {
             maxDimension: policy.maxDimension, fps: policy.fps, resolution: policy.resolution,
             offset: offset,
             projection: projection, pointerProvider: { [weak self] in self?.pointer },
+            editorFrameStepping: editorPlayback,
             onError: { [weak self] text in self?.onError?(text) })
         if measuresPerformance { player.startMeasuring() }
         self.player = player
         addSubview(player.view)
         player.view.frame = bounds
+        if !wantsPlayback, framePosition != nil {
+            updateEditorSurfaceAvailability()
+            player.stepEditorFrame(to: offset, resetTrail: false)
+        }
         running = false
         updatePlayback()
         player.view.needsDisplay = true
@@ -140,6 +229,8 @@ struct WSSPreviewRenderPolicy: Equatable {
         super.layout()
         resetPointer()
         player?.view.frame = bounds
+        updateEditorSurfaceAvailability()
+        publishFrameControls()
     }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -181,6 +272,11 @@ struct WSSPreviewRenderPolicy: Equatable {
                     MainActor.assumeIsolated {
                         if name != NSWindow.didUpdateNotification { self?.resetPointer() }
                         self?.updatePlayback()
+                        if name == NSWindow.didChangeOcclusionStateNotification,
+                            self?.window?.occlusionState.contains(.visible) == true
+                        {
+                            self?.player?.editorSurfaceRevealed()
+                        }
                     }
                 })
         }
@@ -212,7 +308,7 @@ struct WSSPreviewRenderPolicy: Equatable {
         updatePlayback()
     }
     private func renewsProceduralPlayer(for resources: WSSStaticResources) -> Bool {
-        renewEditorPlayerOnAnimationStart
+        editorPlayback
             && resources.scene.layers.contains {
                 switch $0 {
                 case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
@@ -227,7 +323,7 @@ struct WSSPreviewRenderPolicy: Equatable {
     }
 
     private func renewsPlayerAfterTransfer(for resources: WSSStaticResources) -> Bool {
-        renewEditorPlayerOnAnimationStart
+        editorPlayback
             && resources.scene.layers.contains {
                 switch $0 {
                 case .starfield(let layer): return layer.visible && layer.starfield.isAnimated
@@ -239,6 +335,9 @@ struct WSSPreviewRenderPolicy: Equatable {
     }
     private func replacePlayer(with resources: WSSStaticResources) {
         let offset = player?.elapsed ?? 0
+        if player?.resumeAtEditorStep == true, framePosition == nil {
+            framePosition = WSSPreviewFramePosition(anchor: offset)
+        }
         player?.stop()
         player?.view.removeFromSuperview()
         pointer = nil
@@ -267,15 +366,17 @@ struct WSSPreviewRenderPolicy: Equatable {
         let wasDrawingContinuously = running && player?.view.isPaused == false
         resetPointer()
         movingPresentation = true
+        updateEditorSurfaceAvailability()
         defer {
             movingPresentation = false
-            if wasDrawingContinuously, let sourceWindow, let destinationWindow = window,
-                sourceWindow !== destinationWindow, let resources = player?.resources,
+            let changedWindow = sourceWindow != nil && window != nil && sourceWindow !== window
+            if wasDrawingContinuously, changedWindow, let resources = player?.resources,
                 renewsPlayerAfterTransfer(for: resources)
             {
                 // A running MTKView can stop receiving draw callbacks after reparenting.
                 replacePlayer(with: resources)
             } else {
+                if changedWindow, !wantsPlayback { player?.renewPausedEditorMetalView() }
                 updatePlayback()
             }
         }
@@ -283,6 +384,8 @@ struct WSSPreviewRenderPolicy: Equatable {
     }
     private var running = false
     private func updatePlayback() {
+        defer { publishFrameControls() }
+        updateEditorSurfaceAvailability()
         guard !movingPresentation else { return }
         // A hosted preview can receive a non-visible occlusion state even after
         // its editor is ordered on screen. Do not use that optimization as a
@@ -300,10 +403,14 @@ struct WSSPreviewRenderPolicy: Equatable {
         running = shouldRun
         if shouldRun {
             pausedAfterAnimatedPlayback = false
-            player?.play()
+            player?.play(fromEditorStep: framePosition != nil)
+            framePosition = nil
         } else {
             if resetsTrailWithPointer { resetPointer() }
             pausedAfterAnimatedPlayback = player?.view.isPaused == false
+            if let player, player.resumeAtEditorStep {
+                framePosition = WSSPreviewFramePosition(anchor: player.elapsed)
+            }
             player?.pause()
         }
     }
@@ -314,6 +421,9 @@ struct WSSPreviewRenderPolicy: Equatable {
     func shutdown() {
         presentationTask?.cancel()
         presentationTask = nil
+        frameControlsTask?.cancel()
+        frameControlsTask = nil
+        frameControlsChanged = nil
         removeObservers()
         for observer in workspaceObservers {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)

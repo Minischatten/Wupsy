@@ -109,6 +109,8 @@ Display rounding does not round persisted parameters. Focus without a text chang
 
 ## Canvas and preview
 
+While paused, **Previous frame** and **Next frame** move scene time by one interval of the preview’s target frame rate. At 30 target FPS, each step is 1/30 second. The buttons flank playback in both the normal and expanded Live Preview. At the start of the scene, only the forward step is available. Every rapid click counts even if the preview skips some intermediate images. The first step that changes the time clears all CursorTrail traces. Trails build again from new pointer input after playback resumes at the selected time.
+
 The static Edit Canvas shows image layout without effects, Rain or Trail. Live Preview renders the working native scene, using the same runtime as desktop playback. Pointer movement and preview time are not document edits. Parameter/structure changes can replace preview resources and clear transient trail history; pause/sleep/session gates do not rewrite the project.
 
 ## Save, Save As and close
