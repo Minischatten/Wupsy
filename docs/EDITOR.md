@@ -6,6 +6,16 @@
 
 Create a native wallpaper in Wupsy or import a project folder containing scene.wss.json. Open the native wallpaper in the editor. Images and masks are user content; Wupsy does not supply personal reference wallpapers or convert external engine projects. An invalid project is an error, not a request to reconstruct missing files.
 
+Importing the WSS project folder or its `scene.wss.json` entry uses the
+relative paths in that manifest. If the same selection includes referenced
+files or directories containing them, Wupsy imports that project once.
+An independently selected image outside those references can still be
+imported as an image wallpaper. The same rules apply to file selection and
+drag-and-drop. If only part of a batch succeeds, the result lists the
+imported wallpapers and the failed sources. A component associated with a
+failed project is reported as unimported.
+
+
 The layer list controls painter order. Add image, Rain or CursorTrail layers, reorder them, toggle visibility or delete layers while retaining a valid scene. Image transforms use logical canvas coordinates; image Add/Replace normalizes PNG/JPEG/HEIC/TIFF input to independently owned PNG data. Replacing an image preserves the layer's existing transform/effect semantics rather than automatically resampling its fields.
 
 Select a layer and press Return, or double-click its name, to edit it in place.

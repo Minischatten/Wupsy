@@ -11478,6 +11478,91 @@
         }
       }
     },
+    "import.unsupportedSource": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file or folder is not a supported import source."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei oder dieser Ordner ist keine unterstützte Importquelle."
+          }
+        }
+      }
+    },
+    "import.projectComponent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This component was not imported because import of its WSS project “%@” failed."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Bestandteil wurde nicht importiert, weil das zugehörige WSS-Projekt „%@“ fehlgeschlagen ist."
+          }
+        }
+      }
+    },
+    "import.succeeded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Successfully imported"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolgreich importiert"
+          }
+        }
+      }
+    },
+    "import.partialResult": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import results"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importergebnisse"
+          }
+        }
+      }
+    },
+    "import.unreadableDrop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unreadable dropped item %lld"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht lesbares Drop-Objekt %lld"
+          }
+        }
+      }
+    },
     "import.unsupportedTitle": {
       "extractionState": "manual",
       "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",

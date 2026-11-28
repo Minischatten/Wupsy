@@ -1,6 +1,7 @@
 import AppKit
 import IOKit.ps
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor final class Library: NSObject, ObservableObject {
     @Published var items: [Wallpaper] = []
@@ -402,7 +403,45 @@ import SwiftUI
         importURLs(panel.urls, onSuccess: onSuccess)
 
     }
-    func importURLs(_ urls: [URL], onSuccess: ((UUID) -> Void)? = nil) {
+    func importDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        guard maintenance.allowsNewOperations else { return false }
+        Task {
+            var urls: [URL] = []
+            var failures: [ImportFailurePresentation] = []
+            for (index, provider) in providers.enumerated() {
+                let identifier = UTType.fileURL.identifier
+                guard provider.hasItemConformingToTypeIdentifier(identifier) else { continue }
+                let url: URL? = await withCheckedContinuation { continuation in
+                    provider.loadItem(forTypeIdentifier: identifier, options: nil) { item, _ in
+                        let url =
+                            (item as? URL)
+                            ?? (item as? Data).flatMap {
+                                URL(dataRepresentation: $0, relativeTo: nil)
+                            }
+                        continuation.resume(returning: url)
+                    }
+                }
+                if let url, url.isFileURL {
+                    urls.append(url)
+                } else {
+                    failures.append(
+                        ImportFailurePresentation(
+                            source: URL(fileURLWithPath: "/"),
+                            error: WallpaperImportDiagnostic(.unsupportedSource),
+                            sourceLabel: ImportText.unreadableDrop.format(Int64(index + 1))))
+                }
+            }
+            if !urls.isEmpty || !failures.isEmpty {
+                importURLs(urls, initialFailures: failures)
+            }
+        }
+        return true
+    }
+
+    func importURLs(
+        _ urls: [URL], initialFailures: [ImportFailurePresentation] = [],
+        onSuccess: ((UUID) -> Void)? = nil
+    ) {
         guard !maintenanceStopped, maintenance.allowsMutation else { return }
 
         guard !importing, !renaming else {
@@ -421,8 +460,13 @@ import SwiftUI
             await MaintenanceOperation.$id.withValue(admission.id) {
 
                 var importedID: UUID?
-                var errors: [ImportFailurePresentation] = []
-                for url in urls {
+                var successes: [String] = []
+                var errors = initialFailures
+                let batch = await Task.detached(priority: .userInitiated) {
+                    WallpaperImportBatch(urls)
+                }.value
+
+                @MainActor func importItem(_ url: URL) async -> Wallpaper? {
                     do {
                         try await edits.acquire()
                         defer { edits.release() }
@@ -431,12 +475,50 @@ import SwiftUI
                         items.append(item)
                         selected = item.id
                         importedID = item.id
+                        let name = ImportFailurePresentation.name(for: url)
+                        successes.append(item.title == name ? name : "\(item.title) (\(name))")
+                        return item
                     } catch {
                         errors.append(ImportFailurePresentation(source: url, error: error))
+                        return nil
                     }
                 }
+
+                for project in batch.projects {
+                    if let item = await importItem(project.input) {
+                        if !project.components.isEmpty {
+                            let committed = await Task.detached {
+                                project.committedComponents(of: item)
+                            }.value
+                            for component in project.components where !committed.contains(component)
+                            {
+                                _ = await importItem(component)
+                            }
+                        }
+                    } else {
+                        let root = project.manifest.deletingLastPathComponent()
+                        let projectName = ImportFailurePresentation.name(for: project.input)
+                        for part in project.additionalInputs + project.components {
+                            let relative = part.pathComponents.dropFirst(root.pathComponents.count)
+                            let sourceName = ([root.lastPathComponent] + relative).joined(
+                                separator: "/")
+                            errors.append(
+                                ImportFailurePresentation(
+                                    source: part,
+                                    error: WallpaperImportDiagnostic(
+                                        .projectComponent, disposition: .invalidOrUnsafe,
+                                        detail: projectName),
+                                    sourceLabel: sourceName))
+                        }
+                    }
+                }
+                for url in batch.independentInputs { _ = await importItem(url) }
+
                 importing = false
-                if !errors.isEmpty { importFailureReport = ImportFailureReport(failures: errors) }
+                importFailureReport =
+                    errors.isEmpty
+                    ? nil
+                    : ImportFailureReport(failures: errors, successes: successes)
                 if let importedID { onSuccess?(importedID) }
 
             }

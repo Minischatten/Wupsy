@@ -27,6 +27,7 @@ final class ImportLocalizationTests: XCTestCase {
 
     func testAllNativeCategoriesAndBothDispositionsPreserveTechnicalEvidenceAcrossLanguages() {
         let cases: [(WallpaperImportDiagnostic.Category, ImportText, ImportText)] = [
+            (.unsupportedSource, .unsupportedTitle, .unsupportedSource),
             (.invalidProject, .invalidProjectTitle, .invalidProject),
             (.invalidResource, .failed, .invalidResource),
             (.unsafePath, .unsafeTitle, .unsafePath),
@@ -34,7 +35,7 @@ final class ImportLocalizationTests: XCTestCase {
             (.storage, .failed, .storage), (.publish, .failed, .publish),
             (.rollback, .failed, .rollback), (.cleanup, .failed, .cleanup),
         ]
-        XCTAssertEqual(cases.count, 8)
+        XCTAssertEqual(cases.count, 9)
         for (category, title, reason) in cases {
             for disposition: WallpaperImportDiagnostic.Disposition in [
                 .unsupported, .invalidOrUnsafe,
@@ -115,10 +116,21 @@ final class ImportLocalizationTests: XCTestCase {
                 default: expected = reason.localized(language: language)
                 }
                 XCTAssertEqual(value.explanation, expected)
-                XCTAssertEqual(
-                    value.technicalDetails,
-                    ImportFailurePresentation.privatePaths(
-                        "Details: " + error.localizedDescription, source: source))
+                if let diagnostic = WallpaperImportDiagnostic.nativeDocument(error) {
+                    XCTAssertTrue(
+                        value.technicalDetails.contains(
+                            ImportText.diagnosticCategory.format(
+                                diagnostic.category.rawValue, language: language)))
+                    let evidence = diagnostic.file ?? diagnostic.detail ?? ""
+                    XCTAssertTrue(
+                        value.technicalDetails.contains(
+                            ImportFailurePresentation.privatePaths(evidence, source: source)))
+                } else {
+                    XCTAssertEqual(
+                        value.technicalDetails,
+                        ImportFailurePresentation.privatePaths(
+                            "Details: " + error.localizedDescription, source: source))
+                }
                 XCTAssertFalse(value.copyText.contains("/Users/"))
                 XCTAssertFalse(value.copyText.contains("/Volumes/"))
                 XCTAssertTrue(value.copyText.hasSuffix(value.technicalDetails))

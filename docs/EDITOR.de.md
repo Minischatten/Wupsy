@@ -6,6 +6,15 @@
 
 Erstelle in Wupsy ein natives Wallpaper oder importiere einen Projektordner mit scene.wss.json. Öffne das native Wallpaper im Editor. Bilder und Masken sind Benutzerinhalte; Wupsy liefert keine persönlichen Referenz-Wallpaper mit und konvertiert keine Projekte externer Engines. Ein ungültiges Projekt ist ein Fehler und kein Auftrag, fehlende Dateien zu rekonstruieren.
 
+Beim Import eines WSS-Projektordners oder seiner `scene.wss.json` verwendet
+Wupsy die relativen Ressourcenpfade im Manifest. Enthält dieselbe Auswahl
+referenzierte Dateien oder deren Ordner, wird das Projekt einmal importiert.
+Ein separat ausgewähltes Bild, auf das das Manifest nicht verweist, bleibt
+ein eigener Importauftrag. Diese Regeln gelten für Dateiauswahl und
+Drag-and-drop. Bei Teilerfolg nennt der Bericht die importierten Wallpaper
+und die fehlgeschlagenen Quellen. Bestandteile eines fehlgeschlagenen
+Projekts werden als nicht importiert gemeldet.
+
 Die Ebenenliste bestimmt die Zeichenreihenfolge. Füge Bild-, Rain- oder CursorTrail-Ebenen hinzu, ordne sie um, benenne unterstützte Bildebenen um, schalte die Sichtbarkeit um oder lösche Ebenen, solange eine gültige Szene erhalten bleibt. Bildtransformationen verwenden logische Canvas-Koordinaten; das Hinzufügen oder Ersetzen eines Bildes normalisiert PNG/JPEG/HEIC/TIFF-Eingaben zu unabhängig verwalteten PNG-Daten. Beim Ersetzen bleiben die vorhandenen Transformations- und Effektregeln der Ebene erhalten; ihre Felder werden nicht automatisch neu abgetastet.
 
 ## Bildeffekte

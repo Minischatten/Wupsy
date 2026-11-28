@@ -9,10 +9,24 @@ struct ImportFailureView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(report.heading ?? ImportText.failures.format(Int64(report.failures.count)))
-                .wupsyFont(.headline)
+            Text(
+                report.heading
+                    ?? (report.successes.isEmpty
+                        ? ImportText.failures.format(Int64(report.failures.count))
+                        : ImportText.partialResult.text)
+            )
+            .wupsyFont(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if !report.successes.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(ImportText.succeeded.text).fontWeight(.semibold)
+                            ForEach(Array(report.successes.enumerated()), id: \.offset) {
+                                _, title in
+                                Text(title).textSelection(.enabled)
+                            }
+                        }
+                    }
                     ForEach(Array(report.failures.enumerated()), id: \.element.id) {
                         index, failure in
                         failureView(failure, index: index)
@@ -21,7 +35,10 @@ struct ImportFailureView: View {
             }
             .frame(
                 height: min(
-                    380, CGFloat(report.failures.count) * 140 + (expanded.isEmpty ? 0 : 220)))
+                    380,
+                    CGFloat(report.failures.count) * 140
+                        + (report.successes.isEmpty ? 0 : 42 + CGFloat(report.successes.count) * 22)
+                        + (expanded.isEmpty ? 0 : 220)))
             HStack {
                 Spacer()
                 Button(ImportText.close.text) { dismiss() }

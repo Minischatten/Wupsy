@@ -11,54 +11,68 @@ struct ImportFailurePresentation: Identifiable {
     private let diagnosticHeading: String
     var copyText: String { diagnosticHeading + "\n\n" + technicalDetails }
 
-    init(source: URL, error: Error, language: String? = nil, wallpaperTitle: String? = nil) {
+    init(
+        source: URL, error: Error, language: String? = nil, wallpaperTitle: String? = nil,
+        sourceLabel: String? = nil
+    ) {
         diagnosticHeading =
             (wallpaperTitle == nil ? ImportText.diagnosticHeading : .wallpaperFailureDiagnostic)
             .localized(language: language)
         // Canonical entry names need their immediate project name for batch
         // identification. Never display the complete selected path.
         sourceName =
-            wallpaperTitle
-            ?? (source.lastPathComponent == "scene.wss.json"
-                ? source.deletingLastPathComponent().lastPathComponent + "/"
-                    + source.lastPathComponent
-                : source.lastPathComponent)
-        guard let diagnostic = error as? WallpaperImportDiagnostic else {
+            wallpaperTitle ?? sourceLabel
+            ?? Self.name(for: source)
+        let native = WSSFailurePresentation(error, language: language)
+        let structured =
+            error as? WallpaperImportDiagnostic
+            ?? (wallpaperTitle == nil ? WallpaperImportDiagnostic.nativeDocument(error) : nil)
+        guard let diagnostic = structured else {
             title = wallpaperTitle == nil ? ImportText.failed.localized(language: language) : ""
-            let wss = WSSFailurePresentation(error, language: language)
-            explanation = wss?.explanation ?? ImportText.generic.localized(language: language)
+            explanation = native?.explanation ?? ImportText.generic.localized(language: language)
             technicalDetails = Self.privatePaths(
-                "Details: " + (wss?.technicalDetails ?? error.localizedDescription), source: source)
+                "Details: " + (native?.technicalDetails ?? error.localizedDescription),
+                source: source)
             return
         }
         if wallpaperTitle != nil {
             title = ""
+        } else if native != nil {
+            title = ImportText.failed.localized(language: language)
         } else {
             switch diagnostic.category {
+            case .unsupportedSource:
+                title = ImportText.unsupportedTitle.localized(language: language)
             case .invalidProject:
                 title = ImportText.invalidProjectTitle.localized(language: language)
             case .unsafePath:
                 title = ImportText.unsafeTitle.localized(language: language)
-            case .storage, .publish, .rollback, .cleanup, .invalidResource, .resourceLimit:
+            default:
                 title = ImportText.failed.localized(language: language)
             }
         }
-        switch diagnostic.category {
-        case .invalidProject: explanation = ImportText.invalidProject.localized(language: language)
-        case .invalidResource:
-            explanation = ImportText.invalidResource.localized(language: language)
-        case .unsafePath: explanation = ImportText.unsafePath.localized(language: language)
-        case .resourceLimit:
-            explanation = ImportText.resourceLimit.localized(language: language)
-        case .storage: explanation = ImportText.storage.localized(language: language)
-        case .publish: explanation = ImportText.publish.localized(language: language)
-        case .rollback:
-            explanation =
-                ImportText.rollback.localized(language: language)
-        case .cleanup:
-            explanation = ImportText.cleanup.localized(language: language)
+        if let native {
+            explanation = native.explanation
+        } else {
+            switch diagnostic.category {
+            case .unsupportedSource:
+                explanation = ImportText.unsupportedSource.localized(language: language)
+            case .projectComponent:
+                explanation = ImportText.projectComponent.format(
+                    diagnostic.detail ?? "", language: language)
+            case .invalidProject:
+                explanation = ImportText.invalidProject.localized(language: language)
+            case .invalidResource:
+                explanation = ImportText.invalidResource.localized(language: language)
+            case .unsafePath: explanation = ImportText.unsafePath.localized(language: language)
+            case .resourceLimit:
+                explanation = ImportText.resourceLimit.localized(language: language)
+            case .storage: explanation = ImportText.storage.localized(language: language)
+            case .publish: explanation = ImportText.publish.localized(language: language)
+            case .rollback: explanation = ImportText.rollback.localized(language: language)
+            case .cleanup: explanation = ImportText.cleanup.localized(language: language)
+            }
         }
-        // Localize labels from structured fields; retain values and multiline details.
         // Only unnecessary absolute directory prefixes are removed for sharing.
         var lines = [
             ImportText.diagnosticCategory.format(diagnostic.category.rawValue, language: language),
@@ -73,6 +87,12 @@ struct ImportFailurePresentation: Identifiable {
             if let value { lines.append(label.format(value, language: language)) }
         }
         technicalDetails = Self.privatePaths(lines.joined(separator: "\n"), source: source)
+    }
+
+    static func name(for source: URL) -> String {
+        source.lastPathComponent == "scene.wss.json"
+            ? source.deletingLastPathComponent().lastPathComponent + "/" + source.lastPathComponent
+            : source.lastPathComponent
     }
 
     static func privatePaths(_ text: String, source: URL) -> String {
@@ -107,4 +127,5 @@ struct ImportFailureReport: Identifiable {
     let id = UUID()
     let failures: [ImportFailurePresentation]
     var heading: String? = nil
+    var successes: [String] = []
 }

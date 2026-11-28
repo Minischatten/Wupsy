@@ -209,9 +209,15 @@ actor ManagedWallpaperStore {
     private func performImport(_ input: URL, existing: [Wallpaper]) async throws -> Wallpaper {
         let backupLease = try LibraryMutationBarrier.shared.mutation()
         defer { withExtendedLifetime(backupLease) {} }
+        guard input.isFileURL else { throw WallpaperImportDiagnostic(.unsupportedSource) }
         try checkRoot()
         let fileManager = FileManager.default
-        let inputValues = try input.resourceValues(forKeys: [.isSymbolicLinkKey])
+        let inputValues: URLResourceValues
+        do {
+            inputValues = try input.resourceValues(forKeys: [.isSymbolicLinkKey])
+        } catch {
+            throw WallpaperImportDiagnostic.wrapping(error, as: .unsupportedSource)
+        }
         guard inputValues.isSymbolicLink != true else {
             throw WallpaperImportDiagnostic(
                 .unsafePath, disposition: .invalidOrUnsafe, file: input.lastPathComponent)

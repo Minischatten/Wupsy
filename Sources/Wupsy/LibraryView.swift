@@ -824,28 +824,7 @@ struct LibraryView: View {
         ).wupsyPadding(.all, 12).allowsHitTesting(false)
     }
     private func receiveDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard library.maintenance.allowsNewOperations else { return false }
-        Task { @MainActor in
-            var urls: [URL] = []
-            for provider in providers {
-                let url: URL? = await withCheckedContinuation { continuation in
-                    provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
-                        item, _ in
-                        if let data = item as? Data {
-                            continuation.resume(
-                                returning: URL(dataRepresentation: data, relativeTo: nil))
-                        } else if let url = item as? URL {
-                            continuation.resume(returning: url)
-                        } else {
-                            continuation.resume(returning: nil)
-                        }
-                    }
-                }
-                if let url { urls.append(url) }
-            }
-            if !urls.isEmpty { library.importURLs(urls) }
-        }
-        return true
+        library.importDroppedFiles(providers)
     }
     private var qualityHelp: some View {
         VStack(alignment: .leading, spacing: 13) {

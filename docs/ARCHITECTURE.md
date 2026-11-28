@@ -261,6 +261,16 @@ work; cancellation is checked on acquisition, while committed results always pub
 The existing Store mutation barrier still protects backup snapshots. Direct Store
 calls are low-level/offline operations, not a second live Library writer.
 
+An import batch identifies explicitly selected native manifests before running
+individual imports. Duplicate representations of the same WSS entry share one
+operation. Safe relative references from the decoded document identify selected
+resource files and ancestor directories within that project. Separately selected
+unreferenced files remain independent. The committed manifest confirms which
+components were covered. Failed projects report identified components as
+unimported. A manifest that cannot be decoded supplies no resource associations.
+The planner neither copies resources nor changes Store validation, staging,
+atomic publication or rollback.
+
 The Library grid and playlist's available-wallpaper picker use LibraryOrder.visible;
 there is no sort mode. Missing/invalid saved selection falls back to the last
 internal item. Thumbnail drags carry an ephemeral context UUID and wallpaper UUID

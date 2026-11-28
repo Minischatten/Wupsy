@@ -3,7 +3,7 @@ import Foundation
 // Structured diagnostics shared by native project, media and web imports.
 struct WallpaperImportDiagnostic: LocalizedError, Equatable {
     enum Category: String {
-        case invalidProject
+        case unsupportedSource, projectComponent, invalidProject
         case invalidResource, unsafePath
         case resourceLimit, storage, publish, rollback, cleanup
     }
@@ -32,6 +32,8 @@ struct WallpaperImportDiagnostic: LocalizedError, Equatable {
     var errorDescription: String? {
         let reason: String
         switch category {
+        case .unsupportedSource: reason = "The selected item is not a supported wallpaper source."
+        case .projectComponent: reason = "The associated WSS project could not be imported."
         case .invalidProject: reason = "The project contains missing or invalid format data."
         case .invalidResource: reason = "A required resource is missing or invalid."
         case .unsafePath: reason = "The project contains an unsafe file path or link."
@@ -53,6 +55,23 @@ struct WallpaperImportDiagnostic: LocalizedError, Equatable {
         }
         return lines.joined(separator: "\n")
     }
+    static func nativeDocument(_ error: Error) -> Self? {
+        guard let error = error as? WSSDocumentError else { return nil }
+        switch error {
+        case .missingAsset(let file):
+            return Self(.invalidResource, disposition: .invalidOrUnsafe, file: file)
+        case .invalidResource(let detail):
+            return Self(.invalidResource, disposition: .invalidOrUnsafe, detail: detail)
+        case .unsafePath(let path):
+            return Self(.unsafePath, disposition: .invalidOrUnsafe, file: path)
+        case .invalid:
+            return Self(
+                .invalidProject, disposition: .invalidOrUnsafe, detail: error.localizedDescription)
+        case .version, .effect, .unknownLayer, .unknownFields:
+            return Self(.invalidProject, detail: error.localizedDescription)
+        }
+    }
+
     // Preserve typed errors across storage stages; keep raw evidence out of main UI text.
     static func wrapping(_ error: Error, as category: Category) -> WallpaperImportDiagnostic {
         if let diagnostic = error as? WallpaperImportDiagnostic { return diagnostic }

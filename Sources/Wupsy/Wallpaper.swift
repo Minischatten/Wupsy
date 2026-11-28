@@ -127,15 +127,20 @@ enum ImportFailure: LocalizedError {
     }
 }
 enum WallpaperImporter {
-    static func resolve(_ input: URL) throws -> Wallpaper {
+    static func nativeEntry(for input: URL) -> URL? {
         let requested = input.standardizedFileURL
         var isDirectory: ObjCBool = false
-        FileManager.default.fileExists(atPath: requested.path, isDirectory: &isDirectory)
-        let nativeEntry =
-            isDirectory.boolValue ? requested.appendingPathComponent("scene.wss.json") : requested
-        if nativeEntry.lastPathComponent == "scene.wss.json",
-            FileManager.default.fileExists(atPath: nativeEntry.path)
-        {
+        guard FileManager.default.fileExists(atPath: requested.path, isDirectory: &isDirectory)
+        else { return nil }
+        if !isDirectory.boolValue {
+            return requested.lastPathComponent == "scene.wss.json" ? requested : nil
+        }
+        let manifest = requested.appendingPathComponent("scene.wss.json")
+        return FileManager.default.fileExists(atPath: manifest.path) ? manifest : nil
+    }
+
+    static func resolve(_ input: URL) throws -> Wallpaper {
+        if let nativeEntry = nativeEntry(for: input) {
             let root = nativeEntry.deletingLastPathComponent()
             let document = try WSSSceneDocumentV1.load(entry: nativeEntry, root: root)
             return Wallpaper(
@@ -145,7 +150,8 @@ enum WallpaperImporter {
         let input = input.standardizedFileURL.resolvingSymlinksInPath()
         var directory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: input.path, isDirectory: &directory) else {
-            throw ImportFailure.message("This file is no longer available.")
+            throw WallpaperImportDiagnostic(
+                .unsupportedSource, detail: "This file is no longer available.")
         }
         var file = input
         var root = input.deletingLastPathComponent()
@@ -156,7 +162,8 @@ enum WallpaperImporter {
             title = root.lastPathComponent
         }
         guard FileManager.default.fileExists(atPath: file.path) else {
-            throw ImportFailure.message("The wallpaper's media file was not found.")
+            throw WallpaperImportDiagnostic(
+                .unsupportedSource, detail: "The wallpaper's media file was not found.")
         }
         let kind: WallpaperKind
         switch file.pathExtension.lowercased() {
@@ -164,8 +171,10 @@ enum WallpaperImporter {
         case "png", "jpg", "jpeg", "heic", "tiff": kind = .image
         case "html", "htm", "gif": kind = .web
         default:
-            throw ImportFailure.message(
-                "Unsupported format. Import MP4, MOV, M4V, GIF, PNG, JPEG, HEIC, TIFF, HTML, a native Wupsy project, or a web folder. Convert other video containers to H.264 or HEVC MP4 first."
+            throw WallpaperImportDiagnostic(
+                .unsupportedSource,
+                detail:
+                    "Unsupported format. Import MP4, MOV, M4V, GIF, PNG, JPEG, HEIC, TIFF, HTML, a native Wupsy project, or a web folder. Convert other video containers to H.264 or HEVC MP4 first."
             )
         }
         return Wallpaper(title: title, path: file.path, root: root.path, kind: kind)

@@ -632,6 +632,7 @@ acceptance is at `dist/slime-phase-2.2F.1/Wupsy.app`.
 
 - **3.1 (complete, manually accepted)** Add a direct drop at a point source.
 - **3.1.1 (complete, manually accepted)** Clarify inspector units, remove duplicate editor button labels and analyze mixed import results.
+- **3.1.2 (complete, manually accepted)** Group selected WSS components and report partial imports by item.
 - **3.2 (next open phase)** Allow overlapping falls and an independent drop interval.
 - **3.3** Add a rectangular start region and deterministic variation.
 - Complete joint acceptance and performance measurements after Phase 3.3.
@@ -659,7 +660,7 @@ buttons carry the visible title while the toolbar retains it as its palette
 label. The development Release app is at `dist/slime-phase-3.1.1/Wupsy.app`.
 
 The Direct Drop fixture contains `scene.wss.json` and `assets/panels.png`.
-The Phase 3.1.1 investigation found that the Library processed input URLs
+Before the Phase 3.1.2 correction, the Library processed input URLs
 independently. The full folder or manifest imported one scene, while selecting
 the manifest and PNG imported a scene and a separate image. Selecting the
 manifest and the **assets directory** reproduced the reported mixed outcome.
@@ -672,7 +673,22 @@ playback. The test cases left no orphaned import directories. Ten focused
 tests passed. The original drop's exact URLs could not be established.
 
 Quality control manually accepted the Inspector units and the editor toolbar
-labels in Phase 3.1.1.
+labels in Phase 3.1.1. Phase 3.1.2 groups explicitly selected WSS projects
+with selected paths they reference and with selected directories containing
+those paths. The Library publishes each project through the existing managed
+import transaction. If publication fails, the report identifies the project
+and the components left unimported. Partial results name imported wallpapers
+alongside the failed sources. Unsupported source detection has its own
+diagnostic category. WSS manifest and asset errors retain their specific
+messages. All 53 focused tests passed, including the extended import matrix,
+file URL drop providers, reopening and applying the managed WSS scene,
+localized diagnostics and injected rollback. The development Release app
+is at `dist/slime-phase-3.1.2/Wupsy.app`.
+
+Quality control manually accepted the Direct Drop mode, the Inspector units,
+the editor button labels, and dragging related WSS project components into
+Wupsy together without a misleading failure report. Phases 3.1 through 3.1.2
+are complete. Phase 3.2 is the next open development task.
 
 ### Inspector units
 
