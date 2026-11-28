@@ -9,6 +9,8 @@ struct WSSFailurePresentation {
         func text(_ key: ImportText) -> String { key.localized(language: language) }
 
         switch error {
+        case let timing as WSSSlimeTimingError:
+            explanation = timing.localized(language: language)
         case WSSDocumentError.version(let version):
             if version > WSSSceneDocumentV1.supportedVersion {
                 explanation = ImportText.wssNewerVersion.format(

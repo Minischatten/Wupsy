@@ -158,13 +158,18 @@ struct WSSScene {
             }
         }
         var slimeCount = 0
+        var slimeFallingCapacity = 0
         for case .slime(let layer) in layers {
             slimeCount += 1
             guard slimeCount <= WSSSlimeLayer.maximumLayers else {
                 throw WSSSceneError.invalid("slime scene budget")
             }
             try layer.configuration.validate()
-            _ = try layer.nativeTransform()
+            let transform = try layer.nativeTransform()
+            slimeFallingCapacity += try layer.fallingCapacity(transform: transform)
+            guard slimeFallingCapacity <= WSSSlimeLayer.maxFallingPerScene else {
+                throw WSSSlimeTimingError.sceneCapacity
+            }
         }
         var trailBudget = 0.0
         var rainCount = 0

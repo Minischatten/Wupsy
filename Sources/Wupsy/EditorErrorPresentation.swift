@@ -14,6 +14,8 @@ enum EditorErrorPresentation {
             EditorText.errorWithDetail.format(message, evidence, language: presentationLanguage)
         }
         switch error {
+        case let error as WSSSlimeTimingError:
+            return error.localized(language: presentationLanguage)
         case is WSSTrailAuthoringError: return text(.trailCapacity)
         case let error as WSSRainAuthoringError:
             switch error {

@@ -92,6 +92,10 @@ import os
             "WSS-Slime-Direct-Drop-v1", release: WSSSlimePrototype.directRelease)
     }
 
+    func testOverlappingDropsPresentAcrossTransferAndResume() async throws {
+        try await exerciseSlimePresentation("WSS-Slime-Overlapping-Drops-v1", release: 2.7)
+    }
+
     private func exerciseSlimePresentation(_ name: String, release: Double) async throws {
         let document = WSSEditorDocument(project: try await fixture.project(name))
         let anchor = release - 1.0 / 60
@@ -409,6 +413,16 @@ import os
             })
         for time in [0.0, WSSSlimePrototype.directRelease - 1.0 / 60, fade - 1.0 / 30] {
             try await compareSteppedPixels(document, time: time, fixtureName: name)
+        }
+    }
+
+    func testOverlappingDropSteppedPixelsAtReleaseAndCycleBoundary() async throws {
+        let name = "WSS-Slime-Overlapping-Drops-v1"
+        let document = WSSEditorDocument(project: try await fixture.project(name))
+        defer { document.close() }
+        for boundary in [2.65, 2.7, 3.95] {
+            try await compareSteppedPixels(
+                document, time: boundary - 1.0 / 60, fixtureName: name)
         }
     }
 

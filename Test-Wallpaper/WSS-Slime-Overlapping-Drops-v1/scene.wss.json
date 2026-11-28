@@ -1,0 +1,144 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Overlapping Slime Drops",
+  "canvas": {
+    "width": 1100,
+    "height": 1200
+  },
+  "background": [
+    0.1,
+    0.13,
+    0.17
+  ],
+  "layers": [
+    {
+      "type": "slime",
+      "name": "Direct Drop \u00b7 0.9 s",
+      "transform": {
+        "center": [
+          180,
+          1110
+        ],
+        "size": [
+          35,
+          16
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 19,
+        "length": 118,
+        "speed": 1,
+        "dropSize": 27,
+        "direction": 180,
+        "distance": 940,
+        "cycleOffset": 0,
+        "mode": "directDrop",
+        "timing": "fixedInterval",
+        "dropInterval": 0.9
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Direct Drop \u00b7 1.5 s",
+      "transform": {
+        "center": [
+          410,
+          1110
+        ],
+        "size": [
+          35,
+          16
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 19,
+        "length": 118,
+        "speed": 1,
+        "dropSize": 27,
+        "direction": 180,
+        "distance": 940,
+        "cycleOffset": 0.13,
+        "mode": "directDrop",
+        "timing": "fixedInterval",
+        "dropInterval": 1.5
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Hanging Thread \u00b7 2.5 s",
+      "transform": {
+        "center": [
+          680,
+          1110
+        ],
+        "size": [
+          35,
+          16
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 19,
+        "length": 118,
+        "speed": 2,
+        "dropSize": 27,
+        "direction": 180,
+        "distance": 940,
+        "cycleOffset": 0.18,
+        "timing": "fixedInterval",
+        "dropInterval": 2.5
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Automatic Hanging Thread",
+      "transform": {
+        "center": [
+          930,
+          1110
+        ],
+        "size": [
+          35,
+          16
+        ]
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 19,
+        "length": 118,
+        "speed": 2,
+        "dropSize": 27,
+        "direction": 180,
+        "distance": 940,
+        "cycleOffset": 0
+      }
+    }
+  ]
+}

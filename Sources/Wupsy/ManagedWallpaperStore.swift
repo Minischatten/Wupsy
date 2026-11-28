@@ -200,7 +200,9 @@ actor ManagedWallpaperStore {
     func importWallpaper(_ input: URL, existing: [Wallpaper]) async throws -> Wallpaper {
         do { return try await performImport(input, existing: existing) } catch is CancellationError
         { throw CancellationError() } catch {
-            if error is WSSDocumentError || error is WSSSceneError || error is WSSMaskError {
+            if error is WSSDocumentError || error is WSSSceneError || error is WSSMaskError
+                || error is WSSSlimeTimingError
+            {
                 throw error
             }
             throw WallpaperImportDiagnostic.wrapping(error, as: .storage)

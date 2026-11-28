@@ -3,6 +3,8 @@ import simd
 
 struct WSSSlimeLayer: Equatable {
     static let maximumLayers = 16
+    static let maxFallingPerSource = 8
+    static let maxFallingPerScene = 64
     static let referenceSize: Float = 32
     static let sizeRange: ClosedRange<Float> = 4...128
     // Longest diagonal under the WSS 8192-axis and 32 Mi-pixel limits.
@@ -20,6 +22,21 @@ struct WSSSlimeLayer: Equatable {
 
     var isAnimated: Bool { visible && configuration.opacity > 0 && configuration.speed > 0 }
 
+    func fixedTiming(transform: WSSImageTransform) -> WSSSlimePrototype.FixedTiming {
+        let drawing = WSSSlimePrototype.Placement(transform, direction: configuration.direction)
+        return .init(configuration: configuration, drawing: drawing)
+    }
+
+    func fallingCapacity(transform: WSSImageTransform) throws -> Int {
+        guard configuration.speed > 0 else { return 0 }
+        guard configuration.timing == .fixedInterval else { return 1 }
+        let timing = fixedTiming(transform: transform)
+        guard configuration.dropInterval >= timing.minimumInterval else {
+            throw WSSSlimeTimingError.minimum(timing.minimumInterval)
+        }
+        return timing.capacity(interval: Double(configuration.dropInterval))
+    }
+
     func nativeTransform() throws -> WSSImageTransform {
         let native = try transform.native()
         guard
@@ -36,7 +53,15 @@ struct WSSSlimeConfiguration: Codable, Equatable {
         case hangingThread, directDrop
     }
 
+    enum Timing: String, Codable, CaseIterable {
+        case automaticCycle, fixedInterval
+    }
+
+    static let defaultInterval: Float = 7
+    static let intervalRange: ClosedRange<Float> = 0.1...3600
     var mode: Mode = .hangingThread
+    var timing: Timing = .automaticCycle
+    var dropInterval = Self.defaultInterval
 
     static let defaultReflectionColor = WSSFogConfiguration.Color(
         red: 0.87, green: 0.97, blue: 0.93)
@@ -112,14 +137,18 @@ struct WSSSlimeConfiguration: Codable, Equatable {
             ? Value.numeric : Value.numeric.filter { $0 != .width && $0 != .length }
     }
 
-    private enum ModeKey: String, CodingKey { case mode }
+    private enum ModeKey: String, CodingKey, CaseIterable { case mode, timing, dropInterval }
 
     init() {}
 
     init(from decoder: Decoder) throws {
-        try decoder.fields(Value.allCases.map(\.rawValue) + [ModeKey.mode.rawValue])
+        try decoder.fields(Value.allCases.map(\.rawValue) + ModeKey.allCases.map(\.rawValue))
         let modes = try decoder.container(keyedBy: ModeKey.self)
         if modes.contains(.mode) { mode = try modes.decode(Mode.self, forKey: .mode) }
+        if modes.contains(.timing) { timing = try modes.decode(Timing.self, forKey: .timing) }
+        if modes.contains(.dropInterval) {
+            dropInterval = try modes.decode(Float.self, forKey: .dropInterval)
+        }
         let c = try decoder.container(keyedBy: Value.self)
         color = try c.decode(WSSFogConfiguration.Color.self, forKey: .color)
         if c.contains(.reflectionColor) {
@@ -134,9 +163,15 @@ struct WSSSlimeConfiguration: Codable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         try validate()
-        if mode != .hangingThread {
+        if mode != .hangingThread || timing != .automaticCycle
+            || dropInterval != Self.defaultInterval
+        {
             var modes = encoder.container(keyedBy: ModeKey.self)
-            try modes.encode(mode, forKey: .mode)
+            if mode != .hangingThread { try modes.encode(mode, forKey: .mode) }
+            if timing != .automaticCycle { try modes.encode(timing, forKey: .timing) }
+            if dropInterval != Self.defaultInterval {
+                try modes.encode(dropInterval, forKey: .dropInterval)
+            }
         }
         var c = encoder.container(keyedBy: Value.self)
         try c.encode(color, forKey: .color)
@@ -150,6 +185,9 @@ struct WSSSlimeConfiguration: Codable, Equatable {
     }
 
     func validate() throws {
+        guard Self.intervalRange.contains(dropInterval) else {
+            throw WSSDocumentError.invalid("slime.dropInterval")
+        }
         for (key, tint) in [(Value.color, color), (.reflectionColor, reflectionColor)] {
             guard [tint.red, tint.green, tint.blue].allSatisfy(key.range.contains) else {
                 throw WSSDocumentError.invalid("slime." + key.rawValue)
@@ -161,6 +199,29 @@ struct WSSSlimeConfiguration: Codable, Equatable {
         for parameter in Value.numeric
         where !parameter.range.contains(self[keyPath: parameter.keyPath]) {
             throw WSSDocumentError.invalid("slime." + parameter.rawValue)
+        }
+    }
+}
+
+enum WSSSlimeTimingError: LocalizedError {
+    case minimum(Float)
+    case sceneCapacity
+
+    var errorDescription: String? { localized() }
+
+    func localized(language: String? = nil) -> String {
+        switch self {
+        case .minimum(let seconds):
+            if seconds > WSSSlimeConfiguration.intervalRange.upperBound {
+                return Localization.string(
+                    key: "editor.slime.intervalUnavailable", language: language)
+            }
+            let label = Localization.string(key: "editor.slime.intervalMinimum", language: language)
+            return String(
+                format: label, locale: language.map(Locale.init(identifier:)) ?? .current,
+                arguments: [Double(seconds)])
+        case .sceneCapacity:
+            return Localization.string(key: "editor.slime.sceneDropLimit", language: language)
         }
     }
 }

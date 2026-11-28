@@ -10,12 +10,14 @@ a frame does not depend on earlier frames or on the display refresh rate.
 
 A Slime layer has `type: "slime"`, a required `transform`, and a required
 `slime` object. Optional `visible` defaults to true. Optional `name` follows
-the shared layer naming contract. All properties in the table except `mode`, `reflectionColor`, and `cycleOffset` are required in JSON.
+the shared layer naming contract. All properties in the table except `mode`, `timing`, `dropInterval`, `reflectionColor`, and `cycleOffset` are required in JSON.
 Defaults apply when adding Slime in the editor.
 
 | Key | Default | Range and meaning |
 |---|---:|---|
 | `mode` | `hangingThread` | Optional. `hangingThread` or `directDrop`. The encoder omits the default. |
+| `timing` | `automaticCycle` | Optional. Also accepts `fixedInterval`. |
+| `dropInterval` | 7 | Optional. 0.1…3600 scene seconds. Used with fixed timing and preserved when switching to automatic. |
 | `color` | `{red:0.13, green:0.26, blue:0.15}` | SDR sRGB components, each 0…1 |
 | `reflectionColor` | `{red:0.87, green:0.97, blue:0.93}` | Optional SDR sRGB components, each 0…1. Tints both reflection zones. |
 | `opacity` | 1 | 0…1, composited opacity including highlights |
@@ -120,7 +122,41 @@ mode. Existing files without a mode retain Hanging Thread and the existing
 cycle. Older strict readers reject the new `mode` field on Direct Drop files.
 See the [synthetic mixed-mode fixture](../../Test-Wallpaper/WSS-Slime-Direct-Drop-v1/scene.wss.json).
 
-Slime blends source-over in layer order. Each visible active layer draws
+### Fixed Drop Interval
+
+Automatic Cycle remains the default and uses the existing clock and poses.
+With a fixed interval, each source starts one new event per interval in scene
+seconds. Cycle speed scales formation and, for Hanging Thread, retraction.
+Once released, a drop uses real scene seconds for the existing quadratic
+fall, with acceleration scaled by the pad’s longitudinal size. Changing the
+interval or cycle speed does not change that acceleration. Cycle offset
+advances the schedule by the stored fraction of one interval. At scene time
+zero there are no earlier events. Speed zero shows the resting source.
+
+The interval must allow the 0.85-second attachment in Direct Drop, or the
+3.8-second growth and 0.92-second retraction in Hanging Thread, divided by
+cycle speed. It must also cover at least one eighth of the maximum fall
+duration estimated from the full configured distance. With fixed timing
+selected, the inspector shows the stored interval and its minimum, rounded
+conservatively to milliseconds. The scene reserves up to
+eight concurrent falling drops per source and up to 64 across all Slime layers.
+The conservative budget for a fixed source is the ceiling of the full-distance
+fall time divided by its interval. An animated automatic source reserves one.
+Paused-at-zero-speed sources reserve zero. Hidden layers reserve the same
+capacity as visible layers with the same timing. Invalid settings are
+rejected before playback or save, so active drops are never culled for budget.
+
+The renderer evaluates the latest event and at most eight earlier intervals
+directly from scene time. Each fall ends at its own endpoint with zero
+coverage. Earlier detached drops use separate local quads and blend
+oldest first. The current source retains the existing combined shading where
+its parts touch. All draws use the same pass and pipeline. Existing manifests
+without either key retain their original automatic cycle. The encoder omits
+default values. Older strict readers can reject manifests with fixed timing
+or a stored nondefault interval. The [overlap fixture](../../Test-Wallpaper/WSS-Slime-Overlapping-Drops-v1/scene.wss.json)
+contains three fixed sources and one automatic reference.
+
+Slime blends source-over in layer order. In Automatic Cycle each visible active layer draws
 one bounded local quad while shapes overlap, or two disjoint quads when the
 drop is separate. The empty gap uses no fragments. Both draws use the same
 render pass and share a pipeline with the other Slime layers.

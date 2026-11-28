@@ -633,8 +633,9 @@ acceptance is at `dist/slime-phase-2.2F.1/Wupsy.app`.
 - **3.1 (complete, manually accepted)** Add a direct drop at a point source.
 - **3.1.1 (complete, manually accepted)** Clarify inspector units, remove duplicate editor button labels and analyze mixed import results.
 - **3.1.2 (complete, manually accepted)** Group selected WSS components and report partial imports by item.
-- **3.2 (next open phase)** Allow overlapping falls and an independent drop interval.
-- **3.3** Add a rectangular start region and deterministic variation.
+- **3.2 (complete, manually accepted)** Allow overlapping falls and an independent drop interval.
+- **3.2.1 (complete, manually accepted)** Show the interval field and minimum only with fixed timing.
+- **3.3 (next open phase)** Add a rectangular start region and deterministic interval and size variation.
 - Complete joint acceptance and performance measurements after Phase 3.3.
 
 Phase 3.1 adds the Direct Drop mode to the existing Slime layer. The default
@@ -688,7 +689,45 @@ is at `dist/slime-phase-3.1.2/Wupsy.app`.
 Quality control manually accepted the Direct Drop mode, the Inspector units,
 the editor button labels, and dragging related WSS project components into
 Wupsy together without a misleading failure report. Phases 3.1 through 3.1.2
-are complete. Phase 3.2 is the next open development task.
+are complete.
+
+Phase 3.2 adds optional fixed drop intervals to Hanging Thread and Direct Drop.
+The interval uses scene seconds. Cycle speed scales formation and retraction,
+while detached drops keep the same acceleration regardless of interval or
+cycle speed in fixed timing. Scene validation reserves at most eight concurrent
+falls per source and 64 per scene. The analytic renderer checks only nearby
+events and draws earlier drops using separate local quads. The automatic timing
+of existing scenes remains the default.
+
+The synthetic [overlap fixture](Test-Wallpaper/WSS-Slime-Overlapping-Drops-v1/scene.wss.json)
+contains both modes, multiple intervals, long falls and an automatic reference.
+On Apple M4 Max, 44 fixed-time Metal images matched the previous automatic
+renderer byte for byte. All 18 focused final tests passed, including separate
+rendered drop areas, deterministic stepping, confirmed presentation in both
+preview sizes, transfer and resume. The development Release app for manual
+acceptance is at `dist/slime-phase-3.2/Wupsy.app`.
+
+Phase 3.2.1 shows the interval field and minimum interval only with fixed
+timing in both Slime modes. Switching to Automatic Cycle retains the
+stored interval. Four focused Inspector, localization and animation tests
+passed. The development Release app used for manual acceptance is at
+`dist/slime-phase-3.2.1/Wupsy.app`.
+
+Quality control manually accepted the fixed interval and the livelier
+appearance from overlapping falls, the context-sensitive Inspector and
+the unchanged Automatic Cycle. Phases 3.2 and 3.2.1 are complete.
+Phase 3.3 is the next open development task.
+
+### Phase 3.3 planning
+
+Investigate deterministic interval variation for point sources in both
+Slime modes as well as the planned rectangular start region. Expose
+variation as a percentage, with 0% retaining the current timing exactly.
+Use variable gaps with Fixed Drop Interval and investigate optional
+variation of the idle wait in Automatic Cycle. Keep formation duration
+and fall acceleration unchanged. Evaluate from scene time and enforce
+the existing minimum intervals and drop budgets at maximum variation.
+Drop size variation and the rectangular start region remain in scope.
 
 ### Inspector units
 

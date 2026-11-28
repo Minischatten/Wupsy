@@ -91,6 +91,45 @@ struct WSSSlimeParameterControls: View {
                         Text(WSSSlimeText.text(mode.rawValue)).tag(mode)
                     }
                 }
+                Picker(
+                    WSSSlimeText.text("timing"),
+                    selection: Binding(
+                        get: {
+                            document.slimeLayer(layer)?.configuration.timing ?? .automaticCycle
+                        },
+                        set: { timing in
+                            do {
+                                try document.changeSlime(layer, name: WSSSlimeText.text("timing")) {
+                                    $0.configuration.timing = timing
+                                }
+                                editError = nil
+                            } catch {
+                                editError = EditorErrorPresentation.message(error)
+                            }
+                        }
+                    )
+                ) {
+                    ForEach(WSSSlimeConfiguration.Timing.allCases, id: \.self) { timing in
+                        Text(WSSSlimeText.text(timing.rawValue)).tag(timing)
+                    }
+                }
+                if slime.configuration.timing == .fixedInterval {
+                    field(
+                        "dropInterval", slime.configuration.dropInterval,
+                        WSSSlimeConfiguration.intervalRange
+                    ) {
+                        $0.configuration.dropInterval = $1
+                    }
+                    if let transform = try? slime.nativeTransform() {
+                        Text(
+                            WSSSlimeTimingError.minimum(
+                                slime.fixedTiming(transform: transform).minimumInterval
+                            ).localized()
+                        )
+                        .wupsyFont(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
                 colorField("color", slime.configuration.color, property: \.color)
                 colorField(
                     "reflectionColor", slime.configuration.reflectionColor,

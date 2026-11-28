@@ -171,6 +171,125 @@
         }
       }
     },
+    "editor.slime.timing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timing"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeitsteuerung"
+          }
+        }
+      }
+    },
+    "editor.slime.automaticCycle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic Cycle"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatischer Zyklus"
+          }
+        }
+      }
+    },
+    "editor.slime.fixedInterval": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixed Drop Interval"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Festes Tropfenintervall"
+          }
+        }
+      }
+    },
+    "editor.slime.dropInterval": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop Interval (s)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tropfenintervall (s)"
+          }
+        }
+      }
+    },
+    "editor.slime.intervalMinimum": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With these settings the fixed drop interval needs at least %.3f s."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit diesen Einstellungen muss das feste Tropfenintervall mindestens %.3f s betragen."
+          }
+        }
+      }
+    },
+    "editor.slime.sceneDropLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These intervals can produce more than 64 falling drops in the scene. Increase one or more intervals."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit diesen Intervallen können mehr als 64 Tropfen gleichzeitig in der Szene fallen. Verlängere mindestens ein Intervall."
+          }
+        }
+      }
+    },
+    "editor.slime.intervalUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cycle speed is too low for a fixed interval of up to 3600 s. Increase the speed or use Automatic Cycle."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zyklusgeschwindigkeit ist für ein festes Intervall bis 3600 s zu niedrig. Erhöhe das Tempo oder verwende den automatischen Zyklus."
+          }
+        }
+      }
+    },
     "editor.slime.mode": {
       "extractionState": "manual",
       "localizations": {
