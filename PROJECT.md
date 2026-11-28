@@ -202,8 +202,7 @@ See the [WSS format contract](WSS-SCENE-FORMAT.md).
 Status: completed. Quality control accepted A2 and A2.1 manually on
 2026-11-28: single HTML file import, complete web folder import, the size of the
 native import panel, content-specific import messages and the distinction
-between files and project folders. A1 is the next open correction. Phase 3.3
-remains deferred.
+between files and project folders. Phase 3.3 remains deferred.
 
 Reproduction on `7943738` with synthetic data and an injected library: importing
 one standalone HTML file copied all nine entries of its parent folder, including
@@ -275,6 +274,56 @@ confirmation above about 2,000 files or 1 GiB. Consider rejecting trees that a
 library backup cannot hold: more than 100,000 files (a whole-backup limit) or
 more than 29 path levels below the project root. The two confirmation values are
 estimates and need checking against real projects.
+
+## Desktop occlusion observer (finding A1)
+
+Status: completed. Quality control accepted the correction manually, see
+[manual acceptance](#a1-manual-acceptance).
+
+Cause: the desktop window and the transition still each observed
+`NSWindow.didChangeOcclusionStateNotification` with the renderer as observer.
+Ending the transition observation removed both registrations, after the first
+presented frame, on a transition error and on every resource release. A pending
+frozen-desktop redraw was then no longer reconsidered after occlusion or Spaces
+changes.
+
+Correction: the renderer keeps one occlusion observer from creation until stop.
+It reconsiders a pending recovery and draws a transition frame only while the
+still view is installed. Occlusion changes still request no new frames. See
+[native desktop pause](docs/ARCHITECTURE.md#native-desktop-pause).
+
+The regression test in `WallpaperTransitionTests` covers a replacement with a
+transition still and a release with reload. It failed in both passes before the
+correction. It posts the occlusion notification itself, so it does not show
+when macOS sends one. A user-visible effect was not reproduced, and no earlier
+display problem is attributed to this defect.
+
+A separate token for a temporary observer was considered. One permanent
+observer needs no temporary registration, so there is nothing to remove or
+duplicate. Further tests confirm one delivery per notification across
+wallpaper changes and reloads, none after replacement or stop, and renderer
+deallocation after stop.
+
+Local checks on 2026-11-28 (physical Apple silicon Mac, strict Metal
+presentation): the transition, readiness, apply, library playback, scene
+playback, frame history, video cache, performance diagnosis, runtime
+maintenance and render resolution suites ran 82
+tests with zero failures and one skipped optional smoke test. Formatting passed.
+The ARM64 Release app in `dist/a1-occlusion-observer/Wupsy.app` passed the
+bundle, localization and ad-hoc signature checks; version and build remain
+0.8.0 and 4. The full test suite was not repeated.
+
+### A1 manual acceptance
+
+Quality control accepted A1 on 2026-11-28. The checks covered normal wallpaper
+playback, behavior after sleep, rapid switching between WSS wallpapers, and
+paused GIF playback with a numbered test GIF, including the retained animation
+position and correct resume. Transitions between WSS wallpapers felt
+subjectively smoother. A causal link to the observer correction is not
+established.
+
+Limitations: the specific HDMI wake setup was not retested for this
+acceptance. Wired multi-display setups and macOS 14/15 were not checked for A1.
 
 ## Settings and quick actions
 
@@ -825,15 +874,14 @@ display conversions or changes to the effect model would be needed.
 ## Findings from the independent analysis
 
 Identifiers refer to the [analysis report](docs/analysis/Wupsy-Analysebericht-0.8.0.md).
-Only A1 and A2 are confirmed code defects.
-
-Open correction:
-
-- A1: stopping the transition-window observation also removes the desktop
-  window's occlusion observer. User impact is unconfirmed.
+Only A1 and A2 are confirmed code defects. Both are corrected and manually
+accepted.
 
 Completed:
 
+- A1: stopping the transition-window observation also removed the desktop
+  window's occlusion observer. Corrected and accepted, user impact unconfirmed,
+  see [desktop occlusion observer](#desktop-occlusion-observer-finding-a1).
 - A2: single HTML import copied the parent folder. Corrected and accepted, see
   [web wallpaper import](#web-wallpaper-import-finding-a2-a21).
 
@@ -849,6 +897,26 @@ rate), B6 (window update observers), the test and style notes in section D.
 
 Undecided: B4. Any change to the GitHub CI triggers or scope remains an open
 decision.
+
+## Future optional improvements
+
+### Web wallpaper thumbnails
+
+Observed during A2 manual acceptance: imported HTML/HTM wallpapers have no
+regular preview image in the Library. Documented only; no investigation or
+implementation has started. To investigate later:
+
+- static previews for single HTML/HTM wallpapers and complete web projects;
+- public WebKit snapshot APIs;
+- integration with the existing preview and cache architecture;
+- bounded load and wait times;
+- no additional permanently running WebViews;
+- compliance with the existing security requirements;
+- a sensible fallback when preview creation fails;
+- support for already imported web wallpapers.
+
+Phase 3.3 remains the next planned feature. The future GitHub CI strategy is
+still undecided.
 
 ## Known limitations
 

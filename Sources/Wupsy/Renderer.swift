@@ -47,6 +47,7 @@ enum RendererReadiness: Equatable {
         didSet { performanceSceneChanged?() }
     }
     var performanceSceneChanged: (() -> Void)?
+    private(set) var occlusionNotificationCount = 0
     var measuresPerformance = false {
         didSet {
             if measuresPerformance {
@@ -131,7 +132,6 @@ enum RendererReadiness: Equatable {
         if let transitionStill {
             scene?.stop()
             scene = nil
-            stopWatchingTransitionWindow()
             window.contentView = imageView(transitionStill, scaling: .scaleAxesIndependently)
         }
         finishReadiness(.failed(diagnostic))
@@ -306,19 +306,10 @@ enum RendererReadiness: Equatable {
         }
     }
 
-    @objc private func transitionWindowVisibilityChanged() {
-        if window.occlusionState.contains(.visible) { drawTransitionFrame() }
-    }
-
     private func drawTransitionFrame() {
         guard transitionStillView != nil, let scene, scene.view.isPaused
         else { return }
         scene.view.draw()
-    }
-
-    private func stopWatchingTransitionWindow() {
-        NotificationCenter.default.removeObserver(
-            self, name: NSWindow.didChangeOcclusionStateNotification, object: window)
     }
     func setSceneRenderResolution(_ resolution: SceneRenderResolution) {
         sceneRenderResolution = resolution
@@ -331,7 +322,7 @@ enum RendererReadiness: Equatable {
             onFirstFramePresented = { [weak self] in
                 guard let self else { return }
                 self.transitionStillView?.removeFromSuperview()
-                self.stopWatchingTransitionWindow()
+                self.transitionStillView = nil
                 self.finishReadiness(.ready)
             }
         } else {
@@ -354,9 +345,6 @@ enum RendererReadiness: Equatable {
             player.view.autoresizingMask = [.width, .height]
             container.addSubview(player.view)
             window.contentView = container
-            NotificationCenter.default.addObserver(
-                self, selector: #selector(transitionWindowVisibilityChanged),
-                name: NSWindow.didChangeOcclusionStateNotification, object: window)
             player.playFromStill()
             Task { @MainActor [weak self] in self?.drawTransitionFrame() }
         } else {
@@ -414,7 +402,6 @@ enum RendererReadiness: Equatable {
         }
     }
     private func releaseResources() {
-        stopWatchingTransitionWindow()
         transitionStill = nil
         transitionStillView = nil
         transitionPrepared = false
@@ -509,8 +496,12 @@ enum RendererReadiness: Equatable {
         }
     }
 
+    // The only occlusion observer lasts until stop. A transition draws only while
+    // its still view is installed.
     @objc private func desktopOcclusionChanged() {
+        occlusionNotificationCount += 1
         (scene as? WSSStaticPlayer)?.desktopVisibilityChanged()
+        if window.occlusionState.contains(.visible) { drawTransitionFrame() }
     }
 
     var hasFrozenScene: Bool { (scene as? WSSStaticPlayer)?.desktopFrozen == true }

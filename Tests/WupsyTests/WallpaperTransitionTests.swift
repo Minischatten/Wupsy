@@ -109,6 +109,124 @@ import XCTest
             [1, 0, nil])
     }
 
+    func testDesktopOcclusionReachesFrozenPlayerAfterTransitionAndReload() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        // Replacing a wallpaper installs the scene behind a transition still.
+        try await accepted(library.apply(fixture.image))
+        try await accepted(library.apply(fixture.animatedScene))
+        let renderer = try XCTUnwrap(library.renderers.first)
+        XCTAssertTrue(renderer.hasTransitionStill)
+        let origin = fixture.screen.visibleFrame.origin
+        renderer.window.level = .floating
+        renderer.window.setFrame(
+            CGRect(x: origin.x + 30, y: origin.y + 40, width: 300, height: 220), display: true)
+        renderer.window.orderFrontRegardless()
+
+        // The first pass follows the transition still, the second a release and reload.
+        for pass in ["transition", "reload"] {
+            if pass == "reload" {
+                library.manuallyPaused = false
+                renderer.setPaused(true)
+                XCTAssertNil(renderer.scene)
+                renderer.setPaused(false)
+                for _ in 0..<100 where renderer.scene == nil {
+                    try await Task.sleep(for: .milliseconds(20))
+                }
+                renderer.window.orderFrontRegardless()
+            }
+            let player = try XCTUnwrap(renderer.scene as? WSSStaticPlayer, pass)
+            // The first presented frame removes the transition still.
+            for _ in 0..<150
+            where renderer.window.contentView !== player.view
+                && player.view.superview?.subviews.count != 1
+            {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            if pass == "transition" {
+                XCTAssertFalse(renderer.window.contentView === player.view)
+                XCTAssertEqual(player.view.superview?.subviews.count, 1)
+            }
+            let metrics = try XCTUnwrap(player.startMeasuring())
+            for _ in 0..<150 where metrics.snapshot().frames == 0 {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            library.manuallyPaused = true
+            try await Task.sleep(for: .milliseconds(500))
+            XCTAssertTrue(player.desktopFrozen, pass)
+
+            // An ordered-out window keeps the request pending until visibility changes.
+            renderer.hideDesktopSlot()
+            try await Task.sleep(for: .milliseconds(100))
+            let start = metrics.snapshot().frames
+            player.requestDesktopRecovery()
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(metrics.snapshot().frames, start, pass)
+            renderer.window.orderFrontRegardless()
+            NotificationCenter.default.post(
+                name: NSWindow.didChangeOcclusionStateNotification, object: renderer.window)
+            for _ in 0..<100 where metrics.snapshot().frames == start {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            XCTAssertEqual(metrics.snapshot().frames, start + 1, pass)
+        }
+    }
+
+    func testRendererObservesOcclusionExactlyOnceUntilStopAndDeallocates() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        func deliveries(_ renderer: Renderer) -> Int {
+            let before = renderer.occlusionNotificationCount
+            NotificationCenter.default.post(
+                name: NSWindow.didChangeOcclusionStateNotification, object: renderer.window)
+            return renderer.occlusionNotificationCount - before
+        }
+        var replaced: [Renderer] = []
+        for item in [
+            fixture.image, fixture.animatedScene, fixture.staticScene, fixture.animatedScene,
+        ] {
+            try await accepted(library.apply(item, source: .automatic))
+            let renderer = try XCTUnwrap(library.renderers.first)
+            XCTAssertEqual(deliveries(renderer), 1)
+            for _ in 0..<3 {
+                renderer.setPaused(true)
+                XCTAssertEqual(deliveries(renderer), 1)
+                renderer.setPaused(false)
+                XCTAssertEqual(deliveries(renderer), 1)
+            }
+            replaced.append(renderer)
+        }
+        library.stop()
+        // Replaced and finally stopped renderers keep no registration.
+        for renderer in replaced {
+            XCTAssertTrue(renderer.stopped)
+            XCTAssertEqual(deliveries(renderer), 0)
+        }
+    }
+
+    func testStoppedRendererDeallocatesAfterTransitionAndReload() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let library = fixture.library()
+        defer { library.stop() }
+        weak var released: Renderer?
+        try await accepted(library.apply(fixture.image))
+        try await accepted(library.apply(fixture.animatedScene))
+        released = library.renderers.first
+        released?.setPaused(true)
+        released?.setPaused(false)
+        XCTAssertNotNil(released)
+        library.stop()
+        for _ in 0..<150 where released != nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertNil(released)
+    }
+
     func testSystemAndDisplayReasonsDoNotClearManualPause() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
