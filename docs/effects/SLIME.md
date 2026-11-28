@@ -1,7 +1,8 @@
 # Slime
 
 Slime is a sortable native WSS layer. The hanging filament stretches, releases
-one drop per cycle, and retracts to its anchor. Preview and desktop playback use
+one drop per cycle, and retracts to its anchor. Direct Drop grows and releases
+one drop from the same kind of anchor without forming a long filament. Preview and desktop playback use
 the same analytic Metal renderer. The scene clock supplies time, so evaluating
 a frame does not depend on earlier frames or on the display refresh rate.
 
@@ -9,18 +10,19 @@ a frame does not depend on earlier frames or on the display refresh rate.
 
 A Slime layer has `type: "slime"`, a required `transform`, and a required
 `slime` object. Optional `visible` defaults to true. Optional `name` follows
-the shared layer naming contract. All properties in the table except `reflectionColor` and `cycleOffset` are required in JSON.
+the shared layer naming contract. All properties in the table except `mode`, `reflectionColor`, and `cycleOffset` are required in JSON.
 Defaults apply when adding Slime in the editor.
 
 | Key | Default | Range and meaning |
 |---|---:|---|
+| `mode` | `hangingThread` | Optional. `hangingThread` or `directDrop`. The encoder omits the default. |
 | `color` | `{red:0.13, green:0.26, blue:0.15}` | SDR sRGB components, each 0…1 |
 | `reflectionColor` | `{red:0.87, green:0.97, blue:0.93}` | Optional SDR sRGB components, each 0…1. Tints both reflection zones. |
 | `opacity` | 1 | 0…1, composited opacity including highlights |
 | `gloss` | 1 | 0…2, reflection strength |
 | `width` | 18 | 9…36 scene px, full tube diameter at the first centerline sample |
 | `length` | 97 | 24…300, maximum scene-pixel length of the 12-segment filament centerline at release, subject to fit within the fall distance |
-| `speed` | 1 | 0…3, cycle rate multiplier. At 1, the minimum period is 7 seconds. At 0, the layer rests at its anchor. |
+| `speed` | 1 | 0…3, cycle rate multiplier. At 1, the minimum period is 7 seconds for Hanging Thread and 2.4 seconds for Direct Drop. At 0, the layer rests at its anchor. |
 | `cycleOffset` | 0 | Finite normalized phase in `[0, 1)`. The inspector edits it as 0…99%. |
 | `dropSize` | 19 | 9.5…38 scene px, full drop diameter perpendicular to the fall direction at release |
 | `direction` | 180 | 0…360°, in scene coordinates. 0° is up, 90° right, 180° down and 270° left. This aims the hanging filament and the released drop. |
@@ -90,6 +92,33 @@ cycle is seven animation seconds. Long falls extend it to completion plus
 50 ms. Viewport zoom, backing scale and preview size only change output
 projection. The [spatial fixture](../../Test-Wallpaper/WSS-Slime-Spatial-v1/scene.wss.json)
 shows three pad sizes, filament lengths and drop diameters at 800 px each.
+
+### Direct Drop
+
+The anchor is still the center of the pad, with the existing transform,
+rotation and effective pad dimensions. At normal tempo the drop grows over
+0.85 animation seconds. Its center moves smoothly along the scene fall axis
+to the release point, while its radii and coverage grow from a nearly invisible
+bulge. The transverse diameter equals the stored reference size at release.
+The free fall begins with the same center, shape and coverage. The release
+offset counts toward the configured anchor-to-endpoint distance. A short fall
+reduces this offset to reserve a visible free-fall segment.
+
+The same quadratic fall and fade functions apply to the remaining travel,
+including acceleration scaled by the pad's longitudinal size. Coverage reaches
+zero at the endpoint. The cycle lasts at least 2.4 animation seconds and is
+extended, if needed, to the end of the fall plus 50 ms. Speed scales the entire
+cycle, speed zero shows the resting pad, and cycle offset advances the whole
+cycle by its stored fraction. Each cycle contains at most one drop.
+
+The inspector hides filament width and length for Direct Drop. Both values
+are still saved and become editable again when switching to Hanging Thread.
+Changing the mode keeps all parameter values, including speed and cycle
+offset. The two modes can show different poses at the current scene time
+because their periods differ. Undo, duplication and reopening preserve the
+mode. Existing files without a mode retain Hanging Thread and the existing
+cycle. Older strict readers reject the new `mode` field on Direct Drop files.
+See the [synthetic mixed-mode fixture](../../Test-Wallpaper/WSS-Slime-Direct-Drop-v1/scene.wss.json).
 
 Slime blends source-over in layer order. Each visible active layer draws
 one bounded local quad while shapes overlap, or two disjoint quads when the

@@ -895,6 +895,7 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         } else {
             return nil
         }
+        item.paletteLabel = item.label
         applyToolbarScale(appearance.scale, to: item)
         return item
     }
@@ -919,11 +920,12 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
         }
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibility)
         if scale == .standard {
+            item.label = item.paletteLabel
             item.view = nil
             item.image = image
         } else {
             let metrics = WupsyMetrics(scale: scale)
-            let button = NSButton(title: item.label, target: self, action: action)
+            let button = NSButton(title: item.paletteLabel, target: self, action: action)
             button.controlSize = metrics.nativeControlSize
             button.font = .systemFont(ofSize: metrics.points(NSFont.systemFontSize))
             button.image = image?.withSymbolConfiguration(
@@ -933,6 +935,7 @@ final class WSSEditorWindowController: NSWindowController, NSWindowDelegate, WSS
             button.setAccessibilityLabel(accessibility)
             button.setFrameSize(button.fittingSize)
             item.view = button
+            item.label = ""
         }
         // AppKit can clear the target-action binding when replacing the view.
         item.target = self

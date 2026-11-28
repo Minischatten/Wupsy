@@ -32,6 +32,12 @@ struct WSSSlimeLayer: Equatable {
 }
 
 struct WSSSlimeConfiguration: Codable, Equatable {
+    enum Mode: String, Codable, CaseIterable {
+        case hangingThread, directDrop
+    }
+
+    var mode: Mode = .hangingThread
+
     static let defaultReflectionColor = WSSFogConfiguration.Color(
         red: 0.87, green: 0.97, blue: 0.93)
 
@@ -101,10 +107,19 @@ struct WSSSlimeConfiguration: Codable, Equatable {
         return min(Float(midpoint.truncatingRemainder(dividingBy: 1)), Float(1).nextDown)
     }
 
+    var inspectorParameters: [Value] {
+        mode == .hangingThread
+            ? Value.numeric : Value.numeric.filter { $0 != .width && $0 != .length }
+    }
+
+    private enum ModeKey: String, CodingKey { case mode }
+
     init() {}
 
     init(from decoder: Decoder) throws {
-        try decoder.fields(Value.allCases.map(\.rawValue))
+        try decoder.fields(Value.allCases.map(\.rawValue) + [ModeKey.mode.rawValue])
+        let modes = try decoder.container(keyedBy: ModeKey.self)
+        if modes.contains(.mode) { mode = try modes.decode(Mode.self, forKey: .mode) }
         let c = try decoder.container(keyedBy: Value.self)
         color = try c.decode(WSSFogConfiguration.Color.self, forKey: .color)
         if c.contains(.reflectionColor) {
@@ -119,6 +134,10 @@ struct WSSSlimeConfiguration: Codable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         try validate()
+        if mode != .hangingThread {
+            var modes = encoder.container(keyedBy: ModeKey.self)
+            try modes.encode(mode, forKey: .mode)
+        }
         var c = encoder.container(keyedBy: Value.self)
         try c.encode(color, forKey: .color)
         try c.encode(cycleOffset, forKey: .cycleOffset)

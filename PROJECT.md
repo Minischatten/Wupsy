@@ -628,6 +628,52 @@ confirmed the corrected playback control in the final manual review.
 Phases 2.2 F and F.1 are complete. The development Release app used for
 acceptance is at `dist/slime-phase-2.2F.1/Wupsy.app`.
 
+### Phase 3
+
+- **3.1 (complete, manually accepted)** Add a direct drop at a point source.
+- **3.1.1 (complete, manually accepted)** Clarify inspector units, remove duplicate editor button labels and analyze mixed import results.
+- **3.2 (next open phase)** Allow overlapping falls and an independent drop interval.
+- **3.3** Add a rectangular start region and deterministic variation.
+- Complete joint acceptance and performance measurements after Phase 3.3.
+
+Phase 3.1 adds the Direct Drop mode to the existing Slime layer. The default
+Hanging Thread keeps its accepted cycle. Both modes share the anchor, material,
+fall direction and anchor-relative endpoint. Direct Drop grows a short bulge at
+the pad, then evaluates one falling drop from scene time. The inspector hides
+the filament dimensions in this mode and preserves them for a later switch.
+
+The synthetic [Direct Drop fixture](Test-Wallpaper/WSS-Slime-Direct-Drop-v1/scene.wss.json)
+covers light and dark backgrounds, several fall directions and a Hanging
+Thread reference. On Apple M4 Max, 32 fixed-time Metal images matched the
+previous Hanging Thread renderer byte for byte. The final run passed all 40
+focused regressions, including confirmed Direct Drop presentation after frame
+steps in both editor preview sizes, window transfer and exact resume timing.
+The verified ARM64 development Release app is at
+`dist/slime-phase-3.1/Wupsy.app`.
+
+Quality control manually accepted the Direct Drop behavior in Phase 3.1.
+Phase 3.1.1 labels the anchor center and effective pad sizes in scene pixels.
+Opacity remains on the existing 0–1 scale. Gloss and cycle speed are factors.
+At enlarged interface scales the editor's custom Save, Save As and Revert
+buttons carry the visible title while the toolbar retains it as its palette
+label. The development Release app is at `dist/slime-phase-3.1.1/Wupsy.app`.
+
+The Direct Drop fixture contains `scene.wss.json` and `assets/panels.png`.
+The Phase 3.1.1 investigation found that the Library processed input URLs
+independently. The full folder or manifest imported one scene, while selecting
+the manifest and PNG imported a scene and a separate image. Selecting the
+manifest and the **assets directory** reproduced the reported mixed outcome.
+The scene was committed, while source resolution rejected the assets directory
+and reported the source-detection error as `storage / unsupported`.
+A genuinely missing PNG rejects the scene without a Library entry.
+Successful scenes retained byte-identical assets after a Library restart.
+The mixed import's scene reopened in the editor and was accepted for desktop
+playback. The test cases left no orphaned import directories. Ten focused
+tests passed. The original drop's exact URLs could not be established.
+
+Quality control manually accepted the Inspector units and the editor toolbar
+labels in Phase 3.1.1.
+
 ### Inspector units
 
 Use scene-image pixels for distances and sizes, seconds for time, degrees for

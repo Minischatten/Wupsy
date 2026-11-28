@@ -58,13 +58,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anchor X"
+            "value": "Anchor X (px)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ansatz X"
+            "value": "Ansatz X (px)"
           }
         }
       }
@@ -75,13 +75,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anchor Y"
+            "value": "Anchor Y (px)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ansatz Y"
+            "value": "Ansatz Y (px)"
           }
         }
       }
@@ -92,13 +92,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Horizontal size"
+            "value": "Horizontal Size (px)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Horizontale Größe"
+            "value": "Horizontale Größe (px)"
           }
         }
       }
@@ -109,13 +109,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vertical size"
+            "value": "Vertical Size (px)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vertikale Größe"
+            "value": "Vertikale Größe (px)"
           }
         }
       }
@@ -126,13 +126,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opacity"
+            "value": "Opacity (0–1)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deckkraft"
+            "value": "Deckkraft (0–1)"
           }
         }
       }
@@ -143,13 +143,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gloss"
+            "value": "Gloss (Factor)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glanz"
+            "value": "Glanz (Faktor)"
           }
         }
       }
@@ -167,6 +167,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fadenbreite (px)"
+          }
+        }
+      }
+    },
+    "editor.slime.mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modus"
+          }
+        }
+      }
+    },
+    "editor.slime.hangingThread": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hanging Thread"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hängender Faden"
+          }
+        }
+      }
+    },
+    "editor.slime.directDrop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct Drop"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direkter Tropfen"
+          }
+        }
+      }
+    },
+    "editor.slime.directSpatialHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop diameter is measured at release. Fall distance starts at the center of the anchor."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Tropfendurchmesser gilt beim Ablösen. Die Fallstrecke beginnt in der Mitte des Ansatzes."
           }
         }
       }
@@ -194,13 +262,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cycle speed"
+            "value": "Cycle Speed (Factor)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zyklusgeschwindigkeit"
+            "value": "Zyklusgeschwindigkeit (Faktor)"
           }
         }
       }

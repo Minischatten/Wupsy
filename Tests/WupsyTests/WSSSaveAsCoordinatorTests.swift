@@ -192,6 +192,16 @@ import XCTest
                 XCTAssertTrue(item.target === controller)
                 XCTAssertNotNil(item.action)
                 XCTAssertEqual(item.view is NSButton, scale != .standard)
+                XCTAssertFalse(item.paletteLabel.isEmpty)
+                if let button = item.view as? NSButton {
+                    XCTAssertEqual(item.label, "")
+                    XCTAssertEqual(button.title, item.paletteLabel)
+                    XCTAssertNotNil(button.image)
+                    XCTAssertFalse(button.toolTip?.isEmpty ?? true)
+                    XCTAssertFalse(button.accessibilityLabel()?.isEmpty ?? true)
+                } else {
+                    XCTAssertEqual(item.label, item.paletteLabel)
+                }
             }
             try doc.setImage(.centerX, value: 17, layer: layer)
             doc.saveAsBusy = true

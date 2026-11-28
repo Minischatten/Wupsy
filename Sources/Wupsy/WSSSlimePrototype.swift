@@ -106,6 +106,52 @@ struct WSSSlimePrototype {
         return t * t * (3 - 2 * t)
     }
 
+    static let directRelease = 0.85
+
+    private static func cyclePhase(
+        at time: Double, duration: Double, configuration: WSSSlimeConfiguration
+    ) -> Double {
+        let speed = Double(configuration.speed)
+        guard time.isFinite, time >= 0, speed > 0 else { return 0 }
+        let base = time.truncatingRemainder(dividingBy: duration / speed) * speed
+        let shifted = base + Double(configuration.cycleOffset) * duration
+        return shifted >= duration ? shifted - duration : shifted
+    }
+
+    private static func fall(
+        age: Float, travel: Float, longitudinalScale: Float
+    ) -> (distance: Float, visibility: Float) {
+        let distance = min(travel, fallCoefficient * longitudinalScale * age * age)
+        let fadeDistance = min(42 * longitudinalScale, travel * (42.0 / 147.0))
+        return (distance, 1 - ramp((distance - (travel - fadeDistance)) / fadeDistance))
+    }
+
+    static func directDropFrame(
+        at time: Double, configuration: WSSSlimeConfiguration, drawing: Placement
+    ) -> Frame {
+        let radius = configuration.dropSize * 0.5
+        let releaseOffset = min(
+            drawing.padExtent.y + radius * 0.35,
+            configuration.distance - min(12, configuration.distance * 0.25))
+        let travel = configuration.distance - releaseOffset
+        let scale = drawing.longitudinalScale
+        let duration = max(
+            2.4, directRelease + sqrt(Double(travel / scale) / Double(fallCoefficient)) + 0.05)
+        let phase = cyclePhase(at: time, duration: duration, configuration: configuration)
+        let growth = ramp(Float(phase / directRelease))
+        let falling = fall(
+            age: max(0, Float(phase - directRelease)), travel: travel, longitudinalScale: scale)
+        let stretch = ramp(falling.distance / 90)
+        return Frame(
+            stem: [],
+            neck: SIMD4(anchor.x, anchor.y, 0, 0),
+            drop: SIMD4(
+                anchor.x, anchor.y + releaseOffset * growth + falling.distance,
+                max(0.01, radius * growth * (1 - 0.14 * stretch)),
+                max(0.01, radius * growth * (1 + 0.35 * growth + 0.15 * stretch))),
+            visibility: falling.distance >= travel ? 0 : growth * falling.visibility)
+    }
+
     static func frame(
         at time: Double, configuration: WSSSlimeConfiguration = .init(), anchorTilt: Float = 0,
         longitudinalScale: Float = 1
@@ -130,16 +176,9 @@ struct WSSSlimePrototype {
         let fit = min(1, (configuration.distance - minimumTravel) / max(1, releaseVector.y))
         let travel = configuration.distance - releaseVector.y * fit
         let widthFactor = configuration.width / referenceWidth
-        let speed = Double(configuration.speed)
-        let phase: Double
-        if time.isFinite, time >= 0, speed > 0 {
-            let duration = cycleDuration(distance: travel / longitudinalScale)
-            let base = time.truncatingRemainder(dividingBy: duration / speed) * speed
-            let shifted = base + Double(configuration.cycleOffset) * duration
-            phase = shifted >= duration ? shifted - duration : shifted
-        } else {
-            phase = 0
-        }
+        let phase = cyclePhase(
+            at: time, duration: cycleDuration(distance: travel / longitudinalScale),
+            configuration: configuration)
         let age = Float(phase)
         let fall = max(0, Float(phase - release))
         let growth = ramp((age - 0.30) / 3.1)
@@ -167,7 +206,8 @@ struct WSSSlimePrototype {
             return SIMD4(point.x, point.y, (taper + bulge) * widthFactor, 0)
         }
 
-        let distance = min(travel, fallCoefficient * longitudinalScale * fall * fall)
+        let falling = Self.fall(age: fall, travel: travel, longitudinalScale: longitudinalScale)
+        let distance = falling.distance
         let dropCenter: SIMD2<Float>
         if fall > 0 {
             dropCenter = anchor + releaseVector * fit + SIMD2(0, distance)
@@ -186,11 +226,9 @@ struct WSSSlimePrototype {
             + ((line.tip - anchor) * lengthScale + line.tipTangent * (5 * stretch)) * fit
         let neck = SIMD4(
             neckCenter.x, neckCenter.y, 4.5 * growth * (1 - stretch) * widthFactor, 0)
-        let fadeDistance = min(42 * longitudinalScale, travel * (42.0 / 147.0))
         return Frame(
             stem: stem, neck: neck, drop: drop,
-            visibility: ramp((age - 0.4) / 0.6)
-                * (1 - ramp((distance - (travel - fadeDistance)) / fadeDistance)))
+            visibility: ramp((age - 0.4) / 0.6) * falling.visibility)
     }
 }
 
@@ -225,13 +263,22 @@ struct WSSSlimePrototypeRenderer {
                 center: SIMD2(anchor.x, canvas.y - anchor.y),
                 size: SIMD2(repeating: WSSSlimeLayer.referenceSize))
         let drawing = WSSSlimePrototype.Placement(placement, direction: configuration.direction)
-        let frame = WSSSlimePrototype.frame(
-            at: time, configuration: configuration, anchorTilt: drawing.anchorTilt,
-            longitudinalScale: drawing.longitudinalScale)
+        let frame: WSSSlimePrototype.Frame
+        switch configuration.mode {
+        case .hangingThread:
+            frame = WSSSlimePrototype.frame(
+                at: time, configuration: configuration, anchorTilt: drawing.anchorTilt,
+                longitudinalScale: drawing.longitudinalScale)
+        case .directDrop:
+            frame = WSSSlimePrototype.directDropFrame(
+                at: time, configuration: configuration, drawing: drawing)
+        }
         let reflection = configuration.reflectionColor
         let parameters = [
             frame.neck, frame.drop, material.tintAndOpacity,
-            SIMD4(frame.visibility, configuration.gloss, configuration.opacity, 0),
+            SIMD4(
+                frame.visibility, configuration.gloss, configuration.opacity,
+                frame.stem.isEmpty ? 0 : 1),
             SIMD4(reflection.red, reflection.green, reflection.blue, 0),
             drawing.padTransform,
         ]
@@ -244,8 +291,14 @@ struct WSSSlimePrototypeRenderer {
         projection.withUnsafeBytes {
             encoder.setVertexBytes($0.baseAddress!, length: $0.count, index: 1)
         }
-        frame.stem.withUnsafeBytes {
-            encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0)
+        if frame.stem.isEmpty {
+            var unusedStem = SIMD4<Float>.zero
+            encoder.setFragmentBytes(
+                &unusedStem, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+        } else {
+            frame.stem.withUnsafeBytes {
+                encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0)
+            }
         }
         parameters.withUnsafeBytes {
             encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 1)
@@ -375,8 +428,10 @@ struct WSSSlimePrototypeRenderer {
             if (slopeLength > 0.0001f) {
                 surface.distance *= slopeLength / max(length(surface.slope), 0.0001f);
             }
-            for (uint i = 0; i < \(WSSSlimePrototype.segments); ++i) {
-                surface = nearest(surface, tube(p, stem[i], stem[i + 1]));
+            if (params[3].w > 0) {
+                for (uint i = 0; i < \(WSSSlimePrototype.segments); ++i) {
+                    surface = nearest(surface, tube(p, stem[i], stem[i + 1]));
+                }
             }
             float4 neck = params[0], drop = params[1], material = params[2];
             if (neck.z > 0.001) {

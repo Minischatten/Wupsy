@@ -1,0 +1,186 @@
+{
+  "format": "wss-scene",
+  "version": 1,
+  "title": "Slime Direct Drop Acceptance",
+  "canvas": {
+    "width": 960,
+    "height": 540
+  },
+  "layers": [
+    {
+      "type": "image",
+      "name": "Synthetic contrast panels",
+      "image": "assets/panels.png",
+      "transform": {
+        "center": [
+          480,
+          270
+        ],
+        "size": [
+          960,
+          540
+        ]
+      },
+      "composition": "replace"
+    },
+    {
+      "type": "slime",
+      "name": "Direct drop down / dark",
+      "transform": {
+        "center": [
+          120,
+          405
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 11,
+        "length": 65,
+        "speed": 1,
+        "dropSize": 25,
+        "direction": 180,
+        "distance": 260,
+        "cycleOffset": 0,
+        "mode": "directDrop"
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Direct drop up / dark",
+      "transform": {
+        "center": [
+          298,
+          125
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 11,
+        "length": 65,
+        "speed": 1,
+        "dropSize": 20,
+        "direction": 0,
+        "distance": 155,
+        "cycleOffset": 0.27,
+        "mode": "directDrop"
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Direct drop right / light",
+      "transform": {
+        "center": [
+          540,
+          370
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0.28
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 11,
+        "length": 65,
+        "speed": 1,
+        "dropSize": 28,
+        "direction": 90,
+        "distance": 335,
+        "cycleOffset": 0.14,
+        "mode": "directDrop"
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Direct drop down / light",
+      "transform": {
+        "center": [
+          820,
+          255
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 11,
+        "length": 65,
+        "speed": 1,
+        "dropSize": 16,
+        "direction": 180,
+        "distance": 36,
+        "cycleOffset": 0.53,
+        "mode": "directDrop"
+      }
+    },
+    {
+      "type": "slime",
+      "name": "Hanging thread reference",
+      "transform": {
+        "center": [
+          630,
+          265
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "rotation": 0
+      },
+      "slime": {
+        "color": {
+          "red": 0.16,
+          "green": 0.52,
+          "blue": 0.31
+        },
+        "opacity": 1,
+        "gloss": 1,
+        "width": 11,
+        "length": 65,
+        "speed": 1,
+        "dropSize": 19,
+        "direction": 180,
+        "distance": 205,
+        "cycleOffset": 0
+      }
+    }
+  ]
+}

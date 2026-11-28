@@ -83,9 +83,18 @@ import os
     func testSpatialSlimeStepsPresentInBothWindowsAndFirstResumeFrameUsesSelectedTime()
         async throws
     {
-        let document = WSSEditorDocument(
-            project: try await fixture.project("WSS-Slime-Spatial-v1"))
-        let anchor = WSSSlimePrototype.release - 1.0 / 60
+        try await exerciseSlimePresentation(
+            "WSS-Slime-Spatial-v1", release: WSSSlimePrototype.release)
+    }
+
+    func testDirectDropStepsPresentInBothWindowsAndResumeAtSelectedTime() async throws {
+        try await exerciseSlimePresentation(
+            "WSS-Slime-Direct-Drop-v1", release: WSSSlimePrototype.directRelease)
+    }
+
+    private func exerciseSlimePresentation(_ name: String, release: Double) async throws {
+        let document = WSSEditorDocument(project: try await fixture.project(name))
+        let anchor = release - 1.0 / 60
         let (host, window) = open(document, time: anchor)
         defer {
             host.shutdown()
@@ -124,6 +133,8 @@ import os
         let enlarged = try XCTUnwrap(host.expandedWindow)
         host.interfaceMetrics = WupsyMetrics(scale: .largest)
         enlarged.setContentSize(NSSize(width: 350, height: 300))
+        // The small test window must remain uncovered after resizing an inactive test app.
+        enlarged.orderFrontRegardless()
         let content = try XCTUnwrap(enlarged.contentView)
         content.layoutSubtreeIfNeeded()
         let buttons = content.subviews.compactMap { $0 as? NSButton }
@@ -376,6 +387,28 @@ import os
             for time in entries {
                 try await compareSteppedPixels(document, time: time, fixtureName: name)
             }
+        }
+    }
+
+    func testDirectDropSteppedPixelsAtGrowthReleaseAndFade() async throws {
+        let name = "WSS-Slime-Direct-Drop-v1"
+        let document = WSSEditorDocument(project: try await fixture.project(name))
+        defer { document.close() }
+        let source = try XCTUnwrap(
+            document.editorPreviewResources.scene.layers.compactMap {
+                if case .slime(let layer) = $0 { return layer }
+                return nil
+            }.first)
+        let drawing = WSSSlimePrototype.Placement(
+            try source.nativeTransform(), direction: source.configuration.direction)
+        let fade = try XCTUnwrap(
+            (30...100).map { Double($0) / 30 }.first {
+                WSSSlimePrototype.directDropFrame(
+                    at: $0, configuration: source.configuration, drawing: drawing
+                ).visibility == 0
+            })
+        for time in [0.0, WSSSlimePrototype.directRelease - 1.0 / 60, fade - 1.0 / 30] {
+            try await compareSteppedPixels(document, time: time, fixtureName: name)
         }
     }
 

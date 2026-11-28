@@ -46,6 +46,10 @@ extension WSSEditorDocument {
         }
     }
 
+    func changeSlimeMode(_ id: WSSLayerID, to mode: WSSSlimeConfiguration.Mode) throws {
+        try changeSlime(id, name: WSSSlimeText.text("mode")) { $0.configuration.mode = mode }
+    }
+
     func changeSlime(_ id: WSSLayerID, name: String, change: (inout WSSSlimeLayer) -> Void) throws {
         guard permitsStructureEditing, finishParameterInteractions(),
             let index = identity.layers.firstIndex(where: { $0.id == id }),
@@ -61,12 +65,32 @@ extension WSSEditorDocument {
 struct WSSSlimeParameterControls: View {
     @ObservedObject var document: WSSEditorDocument
     let layer: WSSLayerID
-    @State private var colorError: String?
+    @State private var editError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let slime = document.slimeLayer(layer) {
                 Text(WSSSlimeText.text("title")).wupsyFont(.headline)
+                Picker(
+                    WSSSlimeText.text("mode"),
+                    selection: Binding(
+                        get: { document.slimeLayer(layer)?.configuration.mode ?? .hangingThread },
+                        set: { mode in
+                            do {
+                                try document.changeSlime(layer, name: WSSSlimeText.text("mode")) {
+                                    $0.configuration.mode = mode
+                                }
+                                editError = nil
+                            } catch {
+                                editError = EditorErrorPresentation.message(error)
+                            }
+                        }
+                    )
+                ) {
+                    ForEach(WSSSlimeConfiguration.Mode.allCases, id: \.self) { mode in
+                        Text(WSSSlimeText.text(mode.rawValue)).tag(mode)
+                    }
+                }
                 colorField("color", slime.configuration.color, property: \.color)
                 colorField(
                     "reflectionColor", slime.configuration.reflectionColor,
@@ -84,7 +108,7 @@ struct WSSSlimeParameterControls: View {
                         $0.transform.scale[axis] = 1
                     }
                 }
-                ForEach(WSSSlimeConfiguration.Value.numeric, id: \.self) { parameter in
+                ForEach(slime.configuration.inspectorParameters, id: \.self) { parameter in
                     field(
                         parameter.rawValue, slime.configuration[keyPath: parameter.keyPath],
                         parameter == .distance
@@ -96,15 +120,19 @@ struct WSSSlimeParameterControls: View {
                         $0.configuration[keyPath: parameter.keyPath] = $1
                     }
                 }
-                Text(WSSSlimeText.text("spatialHelp"))
-                    .wupsyFont(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    WSSSlimeText.text(
+                        slime.configuration.mode == .directDrop
+                            ? "directSpatialHelp" : "spatialHelp")
+                )
+                .wupsyFont(.caption)
+                .foregroundStyle(.secondary)
                 field(
                     "cycleOffset", min(99, slime.configuration.cycleOffset * 100), 0...99, unit: "%"
                 ) {
                     $0.configuration.cycleOffset = $1 / 100
                 }
-                if let colorError { Text(colorError).wupsyFont(.caption).foregroundStyle(.red) }
+                if let editError { Text(editError).wupsyFont(.caption).foregroundStyle(.red) }
             }
         }
         .disabled(!document.permitsStructureEditing)
@@ -123,9 +151,9 @@ struct WSSSlimeParameterControls: View {
                     try document.changeSlime(layer, name: title) {
                         $0.configuration[keyPath: property] = value
                     }
-                    colorError = nil
+                    editError = nil
                 } catch {
-                    colorError = EditorErrorPresentation.message(error)
+                    editError = EditorErrorPresentation.message(error)
                 }
             }.wupsyControlFrame(width: 50, height: 24)
         }

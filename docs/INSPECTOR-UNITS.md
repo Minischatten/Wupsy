@@ -172,14 +172,14 @@ werden im Canvas gezogen. Dabei bleiben ihre Koordinaten Szenenwerte.
 
 | Aktuell DE / EN | Bereich | Bedeutung und Abhängigkeit | Empfehlung und Eingriff |
 |---|---|---|---|
-| Ansatz X / Anchor X<br>Ansatz Y / Anchor Y | ±1.000.000 | S Ansatzmittelpunkt | A Szenen-px |
-| Horizontale Größe / Horizontal size<br>Vertikale Größe / Vertical size | 4…128 | S Ansatzausdehnung je Achse; die vertikale Größe beeinflusst auch die Fallbeschleunigung | A Ansatzgröße in Szenen-px |
-| Deckkraft / Opacity | 0…1 | F Alpha einschließlich Reflexionen | B Prozent |
-| Glanz / Gloss | 0…2 | F Reflexionsverstärkung | A Faktor |
+| Ansatz X (px) / Anchor X (px)<br>Ansatz Y (px) / Anchor Y (px) | ±1.000.000 | S Ansatzmittelpunkt | A Szenen-px |
+| Horizontale Größe (px) / Horizontal Size (px)<br>Vertikale Größe (px) / Vertical Size (px) | 4…128 | S Ansatzausdehnung je Achse; die vertikale Größe beeinflusst auch die Fallbeschleunigung | A Ansatzgröße in Szenen-px |
+| Deckkraft (0–1) / Opacity (0–1) | 0…1 | F Alpha einschließlich Reflexionen | A Wertebereich in 3.1.1 sichtbar gemacht |
+| Glanz (Faktor) / Gloss (Factor) | 0…2 | F Reflexionsverstärkung | A Faktor |
 | Fadenbreite (px) / Filament Width (px) | 9…36 | S voller Durchmesser am ersten Fadenstützpunkt | C in E.2 umgesetzt |
 | Tropfengröße (px) / Drop Size (px) | 9,5…38 | S voller Querdurchmesser des Tropfens beim Abriss | C in E.2 umgesetzt |
 | Maximale Fadenlänge (px) / Maximum Filament Length (px) | 24…300 | S Länge der segmentierten Mittellinie beim Abriss, bei kurzer Fallstrecke begrenzt | C in E.2 umgesetzt |
-| Zyklusgeschwindigkeit / Cycle speed | 0…3 | F Multiplikator der Zyklusuhr, 0 ruht | A Faktor |
+| Zyklusgeschwindigkeit (Faktor) / Cycle Speed (Factor) | 0…3 | F Multiplikator der Zyklusuhr, 0 ruht | A Faktor |
 | Zyklusversatz / Cycle Offset | [0,1), UI 0…99 % | N Anteil am vollständigen Zyklus | A Prozent |
 | Fallrichtung im Bild (°) / Scene fall direction (°) | 0…360° | S Fallrichtung ab oben im Uhrzeigersinn, unabhängig von Ansatzrotation | A Grad |
 | Fallstrecke ab Ansatz (px) / Fall Distance from Anchor (px) | 24…9159, UI dynamisch | S Projektion vom Ansatzmittelpunkt zum endgültigen Tropfenmittelpunkt | C seit E.1 Szenen-px, seit E.2 Bezug am Ansatz |
