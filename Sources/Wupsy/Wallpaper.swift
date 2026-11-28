@@ -139,6 +139,22 @@ enum WallpaperImporter {
         return FileManager.default.fileExists(atPath: manifest.path) ? manifest : nil
     }
 
+    static let webEntryExpected = "index.html"
+    static let projectEntryExpected = "index.html or scene.wss.json"
+
+    // Chooses the failure explanation only; it never selects a start file. A page at
+    // the top level, or index.html one folder down, indicates an intended web project.
+    private static func looksLikeWebProject(_ folder: URL) -> Bool {
+        let files = FileManager.default
+        let children =
+            (try? files.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        return children.contains {
+            ["html", "htm"].contains($0.pathExtension.lowercased())
+                || files.fileExists(atPath: $0.appendingPathComponent("index.html").path)
+        }
+    }
+
     static func resolve(_ input: URL) throws -> Wallpaper {
         if let nativeEntry = nativeEntry(for: input) {
             let root = nativeEntry.deletingLastPathComponent()
@@ -163,7 +179,10 @@ enum WallpaperImporter {
         }
         guard FileManager.default.fileExists(atPath: file.path) else {
             throw WallpaperImportDiagnostic(
-                .unsupportedSource, detail: "The wallpaper's media file was not found.")
+                .unsupportedSource,
+                expected: directory.boolValue
+                    ? (looksLikeWebProject(root) ? webEntryExpected : projectEntryExpected) : nil,
+                detail: "The wallpaper's media file was not found.")
         }
         let kind: WallpaperKind
         switch file.pathExtension.lowercased() {

@@ -390,15 +390,22 @@ import UniformTypeIdentifiers
     }
     func importFiles() { importFiles(onSuccess: nil) }
 
-    /// The caller may reveal the last successfully imported item after the batch finishes.
-    func importFiles(onSuccess: ((UUID) -> Void)?) {
-        guard !maintenanceStopped, maintenance.allowsMutation else { return }
-
+    static func importPanel(language: String? = nil) -> NSOpenPanel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = true
-        panel.prompt = ProductText.importAction.text
+        panel.prompt = ProductText.importAction.localized(language: language)
+        // The native panel grows to fit its message on one line; keep it short.
+        panel.message = ImportText.panelHint.localized(language: language)
+        return panel
+    }
+
+    /// The caller may reveal the last successfully imported item after the batch finishes.
+    func importFiles(onSuccess: ((UUID) -> Void)?) {
+        guard !maintenanceStopped, maintenance.allowsMutation else { return }
+
+        let panel = Self.importPanel()
         guard panel.runModal() == .OK else { return }
         importURLs(panel.urls, onSuccess: onSuccess)
 
@@ -461,6 +468,7 @@ import UniformTypeIdentifiers
 
                 var importedID: UUID?
                 var successes: [String] = []
+                var importedSingleHTML = false
                 var errors = initialFailures
                 let batch = await Task.detached(priority: .userInitiated) {
                     WallpaperImportBatch(urls)
@@ -477,6 +485,13 @@ import UniformTypeIdentifiers
                         importedID = item.id
                         let name = ImportFailurePresentation.name(for: url)
                         successes.append(item.title == name ? name : "\(item.title) (\(name))")
+                        if item.kind == .web,
+                            ["html", "htm"].contains(item.url.pathExtension.lowercased()),
+                            (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory
+                                == false
+                        {
+                            importedSingleHTML = true
+                        }
                         return item
                     } catch {
                         errors.append(ImportFailurePresentation(source: url, error: error))
@@ -515,10 +530,12 @@ import UniformTypeIdentifiers
                 for url in batch.independentInputs { _ = await importItem(url) }
 
                 importing = false
+                let note = importedSingleHTML ? ImportText.singleHTMLNotice.text : nil
                 importFailureReport =
                     errors.isEmpty
                     ? nil
-                    : ImportFailureReport(failures: errors, successes: successes)
+                    : ImportFailureReport(failures: errors, successes: successes, note: note)
+                if errors.isEmpty, let note { message = note }
                 if let importedID { onSuccess?(importedID) }
 
             }

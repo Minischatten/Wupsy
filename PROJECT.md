@@ -54,6 +54,8 @@ Do not infer cleanup ownership from plausible names or paths.
 - Security reporting: [security](SECURITY.md).
 - Attribution/history: [third-party notices](THIRD-PARTY-NOTICES.md).
 - Branding rights: [Deutsch](BRANDING.md), [English](BRANDING.en.md).
+- Independent technical analysis (German, snapshot of `7943738`):
+  [analysis report](docs/analysis/Wupsy-Analysebericht-0.8.0.md).
 
 Technical parameter/format contracts live at their linked owner, not in this guide.
 Historical provenance and visual QA notes are distinct from current technical rules.
@@ -194,6 +196,85 @@ messages with copyable technical details. Only a higher declared WSS version
 or an unknown field, effect or layer type can suggest a newer Wupsy version.
 Invalid data, resource failures and storage errors retain separate guidance.
 See the [WSS format contract](WSS-SCENE-FORMAT.md).
+
+## Web wallpaper import (finding A2, A2.1)
+
+Status: completed. Quality control accepted A2 and A2.1 manually on
+2026-11-28: single HTML file import, complete web folder import, the size of the
+native import panel, content-specific import messages and the distinction
+between files and project folders. A1 is the next open correction. Phase 3.3
+remains deferred.
+
+Reproduction on `7943738` with synthetic data and an injected library: importing
+one standalone HTML file copied all nine entries of its parent folder, including
+a second page, its resources, an unrelated text file and a subfolder. An
+unrelated symlink in a subfolder made the same single-file import fail as
+unsafe. Cause: the importer treated every non-GIF web source as a project and
+copied the entry's parent folder, whether a file or a folder had been selected.
+
+Correction: only an explicitly selected folder copies a project tree. See
+[web import boundaries](docs/ARCHITECTURE.md#web-import-boundaries). A
+successful single-file HTML import shows a notice (also covering drag and drop),
+and rejected folders get a message matching their content. Existing library
+entries are unchanged. Version and build
+remain 0.8.0 and 4.
+
+Consequences:
+
+- The existing requirement of a top-level `index.html` for web folders is kept
+  deliberately (maintainer decision, 2026-11-28). Selectable start files are not
+  part of this correction.
+- A project whose start page has another name can be imported with its resources
+  only after renaming that page to `index.html`. Before, selecting that file
+  copied the surrounding folder.
+- A `preview.jpg` next to a single HTML file is no longer copied, so such an
+  entry has no thumbnail from it.
+
+Local checks: `WebImportTests` and `WebImportRenderingTests` (file and folder
+import, links, rollback, reload, notices, WebView rendering and blocked reads
+outside the managed folder) together with the existing import, library,
+localization, backup and restore suites.
+
+Results on 2026-11-28 (physical Apple silicon Mac, macOS 27.2.1, Swift 6.4.2):
+the selected suites, including WSS import grouping, ran 162 tests with zero
+failures. Formatting and Git diff checks passed. The ARM64 Release app in
+`dist/a2-html-import/Wupsy.app` passed the bundle, localization and ad-hoc
+signature checks. Synthetic acceptance data and German instructions are in
+`dist/a2-html-import/testdaten/` (untracked). The full test suite was not
+repeated.
+
+For the next release, update README.md and README.de.md: a single HTML file is
+imported alone, and web projects with local resources need folder import. The
+release notes should mention that earlier single-file imports may contain
+parent-folder copies.
+
+### A2.1: import panel and hints
+
+Manual acceptance confirmed the A2 behavior but found the import panel far too
+wide. Cause: the long HTML hint in `NSOpenPanel.message`. A probe on macOS 27.2.1
+measured 880 points without or with a short message and 1,535 points with the
+long German one. The panel now says only to select files or project folders.
+Folder rejections distinguish a likely web project without top-level
+`index.html` from a folder without any supported project.
+
+AppKit stores the expanded panel size in the app preferences
+(`NSNavPanelExpandedSizeForOpenMode`). A machine that opened the wide A2 build
+keeps that width until the panel is resized or the key is removed. The wide
+build was never released, so the app does not migrate the value.
+
+On 2026-11-28 the selected suites ran 166 tests with zero failures; formatting
+and diff checks passed. The failure sheet was rendered offscreen and inspected
+in German and English. The ARM64 Release app in
+`dist/a2.1-import-hints/Wupsy.app` passed bundle, localization and ad-hoc
+signature checks. Acceptance data is in `dist/a2.1-import-hints/testdaten/`
+(untracked; the regression tests create their own synthetic data). This build
+passed the manual acceptance recorded above.
+
+Proposal, not implemented: before copying a web folder, measure it and ask for
+confirmation above about 2,000 files or 1 GiB. Consider rejecting trees that a
+library backup cannot hold: more than 100,000 files (a whole-backup limit) or
+more than 29 path levels below the project root. The two confirmation values are
+estimates and need checking against real projects.
 
 ## Settings and quick actions
 
@@ -740,6 +821,34 @@ describe their actual meaning. Local, scene and viewport coordinates must be
 labeled according to the actual calculation. The
 [Inspector units inventory](docs/INSPECTOR-UNITS.md) records where labels,
 display conversions or changes to the effect model would be needed.
+
+## Findings from the independent analysis
+
+Identifiers refer to the [analysis report](docs/analysis/Wupsy-Analysebericht-0.8.0.md).
+Only A1 and A2 are confirmed code defects.
+
+Open correction:
+
+- A1: stopping the transition-window observation also removes the desktop
+  window's occlusion observer. User impact is unconfirmed.
+
+Completed:
+
+- A2: single HTML import copied the parent folder. Corrected and accepted, see
+  [web wallpaper import](#web-wallpaper-import-finding-a2-a21).
+
+Open investigations: B3 (macOS 14/15 unverified), B7 (GIF size limits), C1
+(concurrent video cache export), C2 (GPU counter on a stalled command buffer),
+C3 (decode cost of very large images).
+
+Known limitations: B1 (web wallpaper scripts and network access, documented in
+SECURITY.md), C4 (the Starfield color picker issue below).
+
+Optional improvements: B2 (guard the private WebView key), B5 (widget timer
+rate), B6 (window update observers), the test and style notes in section D.
+
+Undecided: B4. Any change to the GitHub CI triggers or scope remains an open
+decision.
 
 ## Known limitations
 

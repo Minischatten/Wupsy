@@ -5451,13 +5451,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Videos: MP4, MOV, M4V with macOS-playable codecs.\nImages: PNG, JPEG, HEIC, TIFF.\nAnimation: GIF, decoded natively.\nWeb: HTML files and extracted web project folders.\nWupsy projects: folders containing scene.wss.json, or the manifest file."
+            "value": "Videos: MP4, MOV, M4V with macOS-playable codecs.\nImages: PNG, JPEG, HEIC, TIFF.\nAnimation: GIF, decoded natively.\nWeb: single HTML files (without other files) and web project folders with index.html at the top level (including their files).\nWupsy projects: folders containing scene.wss.json, or the manifest file."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Videos: MP4, MOV, M4V mit von macOS unterstützten Codecs.\nBilder: PNG, JPEG, HEIC, TIFF.\nAnimation: GIF, nativ dekodiert.\nWeb: HTML-Dateien und entpackte Web-Projektordner.\nWupsy-Projekte: Projektordner mit scene.wss.json oder die Manifestdatei."
+            "value": "Videos: MP4, MOV, M4V mit von macOS unterstützten Codecs.\nBilder: PNG, JPEG, HEIC, TIFF.\nAnimation: GIF, nativ dekodiert.\nWeb: einzelne HTML-Dateien (ohne weitere Dateien) und Web-Projektordner mit index.html auf oberster Ebene (samt ihren Dateien).\nWupsy-Projekte: Projektordner mit scene.wss.json oder die Manifestdatei."
           }
         }
       }
@@ -11539,6 +11539,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Richtungsbearbeitung beenden und zum Editor zurückkehren."
+          }
+        }
+      }
+    },
+    "import.panelHint": {
+      "extractionState": "manual",
+      "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select files or project folders to import."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Dateien oder Projektordner zum Importieren aus."
+          }
+        }
+      }
+    },
+    "import.singleHTMLNotice": {
+      "extractionState": "manual",
+      "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the selected HTML file was imported. If it needs other local files, remove this entry and import the project folder with index.html at its top level."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur die ausgewählte HTML-Datei wurde importiert. Benötigt sie weitere lokale Dateien, entferne diesen Eintrag und importiere den Projektordner mit index.html auf oberster Ebene."
+          }
+        }
+      }
+    },
+    "import.webFolderMissingIndex": {
+      "extractionState": "manual",
+      "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This looks like a web project, but index.html is missing at the top level of the folder. Select the folder that contains index.html, or save the start page there as index.html and import again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das sieht nach einem Web-Projekt aus, aber auf oberster Ebene des Ordners fehlt die index.html. Wähle den Ordner, der die index.html enthält, oder speichere die Startseite dort als index.html und importiere erneut."
+          }
+        }
+      }
+    },
+    "import.folderWithoutProject": {
+      "extractionState": "manual",
+      "comment": "Import presentation only; technical identity and diagnostic evidence remain unchanged.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No supported project was found in this folder. A web project needs index.html and a Wupsy project needs scene.wss.json at the top level. Select individual images or videos as files."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Ordner wurde kein unterstütztes Projekt gefunden. Ein Web-Projekt braucht auf oberster Ebene eine index.html, ein Wupsy-Projekt eine scene.wss.json. Einzelne Bilder oder Videos wählst du als Dateien aus."
           }
         }
       }

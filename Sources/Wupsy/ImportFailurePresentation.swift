@@ -37,7 +37,7 @@ struct ImportFailurePresentation: Identifiable {
         }
         if wallpaperTitle != nil {
             title = ""
-        } else if native != nil {
+        } else if native != nil || Self.isFolderRejection(diagnostic) {
             title = ImportText.failed.localized(language: language)
         } else {
             switch diagnostic.category {
@@ -56,7 +56,13 @@ struct ImportFailurePresentation: Identifiable {
         } else {
             switch diagnostic.category {
             case .unsupportedSource:
-                explanation = ImportText.unsupportedSource.localized(language: language)
+                let reason: ImportText
+                switch diagnostic.expected {
+                case WallpaperImporter.webEntryExpected: reason = .webFolderMissingIndex
+                case WallpaperImporter.projectEntryExpected: reason = .folderWithoutProject
+                default: reason = .unsupportedSource
+                }
+                explanation = reason.localized(language: language)
             case .projectComponent:
                 explanation = ImportText.projectComponent.format(
                     diagnostic.detail ?? "", language: language)
@@ -87,6 +93,13 @@ struct ImportFailurePresentation: Identifiable {
             if let value { lines.append(label.format(value, language: language)) }
         }
         technicalDetails = Self.privatePaths(lines.joined(separator: "\n"), source: source)
+    }
+
+    // "Not yet supported" would misdescribe a folder that lacks its entry file.
+    private static func isFolderRejection(_ diagnostic: WallpaperImportDiagnostic) -> Bool {
+        diagnostic.category == .unsupportedSource
+            && [WallpaperImporter.webEntryExpected, WallpaperImporter.projectEntryExpected]
+                .contains(diagnostic.expected)
     }
 
     static func name(for source: URL) -> String {
@@ -128,4 +141,5 @@ struct ImportFailureReport: Identifiable {
     let failures: [ImportFailurePresentation]
     var heading: String? = nil
     var successes: [String] = []
+    var note: String? = nil
 }

@@ -27,6 +27,9 @@ struct ImportFailureView: View {
                             }
                         }
                     }
+                    if let note = report.note {
+                        Text(note).fixedSize(horizontal: false, vertical: true)
+                    }
                     ForEach(Array(report.failures.enumerated()), id: \.element.id) {
                         index, failure in
                         failureView(failure, index: index)
@@ -38,6 +41,7 @@ struct ImportFailureView: View {
                     380,
                     CGFloat(report.failures.count) * 140
                         + (report.successes.isEmpty ? 0 : 42 + CGFloat(report.successes.count) * 22)
+                        + (report.note == nil ? 0 : 84)
                         + (expanded.isEmpty ? 0 : 220)))
             HStack {
                 Spacer()

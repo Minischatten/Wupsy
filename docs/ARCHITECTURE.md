@@ -242,6 +242,35 @@ A CPU stroke freezes target revision/resource and settings. Per-texel maximum co
 
 Cancel restores exact pre-stroke bytes; no-op finish creates no generation/history. Changed results encode/stage/validate asynchronously, then recheck session/revision/resource before one catalog/model/Undo adoption. Shared originals and other slot references are unchanged. Undo retains generations rather than replaying pointer events. CPU full pre/result R8 plus Float coverage storage can approach 192 MiB at the scalar pixel limit, excluding codec/renderer allocations; this is separate from the vector-paint 128-MiB work ceiling. Pending preparation pointer input is bounded; no per-pointer-event project file writes or encoded PNG publication occur.
 
+## Web import boundaries
+
+What the user selects decides what is copied; page content never does.
+
+- A selected HTML or HTM file is copied alone into its own `Wallpapers/Web/<name>/`
+  folder under its original file name. Its parent folder is neither inspected nor
+  copied, so unrelated links or special files there do not affect the import.
+- A selected folder must contain `index.html` at its top level. There is no choice
+  of another start file; such a project needs its start page renamed to
+  `index.html` to be imported with its resources. The whole tree is
+  inspected before and after copying and published as one web project.
+- Wupsy does not parse HTML, CSS or JavaScript for dependencies. A single file
+  that references other local files therefore renders without them. The
+  post-import notice and the format overview point to folder import.
+- A rejected folder is explained by what it contains. An HTML page at its top
+  level, or `index.html` one folder below, gets the missing-`index.html` message;
+  other folders get a neutral "no supported project" message. This inspection
+  only selects the text and never a start file.
+- The native open panel carries only a short general message. AppKit widens the
+  panel to fit its message on one line, so longer guidance does not belong there.
+- A selected link, or a link or special file anywhere in a selected folder, is
+  rejected. A staged single file must still be a regular file before publication.
+- The desktop WebView grants file read access to the managed folder of that
+  wallpaper only. Network access of web wallpapers is not restricted by this rule.
+- Wallpapers imported by earlier versions keep their stored files, including any
+  parent-folder content copied at that time. Wupsy does not clean them up.
+
+Web projects currently have no import size or file-count limit.
+
 ## Library order and metadata publication
 
 library.json and Library.items retain the same internal order; the canonical visible

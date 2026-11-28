@@ -216,7 +216,7 @@ actor ManagedWallpaperStore {
         let fileManager = FileManager.default
         let inputValues: URLResourceValues
         do {
-            inputValues = try input.resourceValues(forKeys: [.isSymbolicLinkKey])
+            inputValues = try input.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
         } catch {
             throw WallpaperImportDiagnostic.wrapping(error, as: .unsupportedSource)
         }
@@ -226,13 +226,11 @@ actor ManagedWallpaperStore {
         }
         try Self.inspectTree(input)
         let source = try WallpaperImporter.resolve(input)
-        let project =
-            source.kind == .scene
-            || (source.kind == .web && source.url.pathExtension.lowercased() != "gif")
-        let category =
-            source.sceneSource == .nativeWSS
-            ? "WSS"
-            : project ? "Web" : "Media"
+        let web = source.kind == .web && source.url.pathExtension.lowercased() != "gif"
+        // Only an explicitly selected folder authorizes copying a web project tree.
+        // A selected HTML file brings no siblings, whatever it may reference.
+        let project = source.kind == .scene || (web && inputValues.isDirectory == true)
+        let category = source.sceneSource == .nativeWSS ? "WSS" : web ? "Web" : "Media"
         let originalRoot = URL(fileURLWithPath: source.root).standardizedFileURL
         if project {
             try Self.inspectTree(originalRoot)
@@ -277,8 +275,15 @@ actor ManagedWallpaperStore {
                     try fileManager.copyItem(at: originalRoot, to: staging)
                 } else {
                     try fileManager.createDirectory(at: staging, withIntermediateDirectories: false)
-                    try fileManager.copyItem(
-                        at: source.url, to: staging.appendingPathComponent(entry))
+                    let copy = staging.appendingPathComponent(entry)
+                    try fileManager.copyItem(at: source.url, to: copy)
+                    // A source swapped for a folder after selection must not bring a tree.
+                    guard
+                        try copy.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true
+                    else {
+                        throw WallpaperImportDiagnostic(
+                            .unsafePath, disposition: .invalidOrUnsafe, file: entry)
+                    }
                 }
                 try Self.inspectTree(staging)
             } catch {
